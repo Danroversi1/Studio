@@ -1,0 +1,47 @@
+# Permission model (provisional)
+
+Authority is split into four independent dimensions on `project_members`:
+
+| Column | Values | Meaning |
+|---|---|---|
+| `access_level` | `view` < `review` < `edit` < `commit` | Creative access ladder. The legacy `admin` value is forbidden by a check constraint. |
+| `can_admin` | boolean | Manage membership and configuration. Grants **no** creative capability. |
+| `can_approve_creative` | boolean | Director creative-approval authority. Check constraint: only `project_role = 'director'`. |
+| `can_authorize_spend` | boolean | Resource-spending authority. Check constraint: only `project_role = 'executive_producer'`. |
+
+`project_role` (`director`, `executive_producer`, `collaborator`) describes a person's production function. Authority comes only from the explicit flags; nothing is inferred from role or from Admin.
+
+**Approving a revision as canonical requires `commit` access AND `can_approve_creative`.** Commit alone, Director-flag alone (without Commit), Admin, and Executive Producer are all refused.
+
+The project creator is granted, explicitly and visibly in `create_project()` and the audit log: `director`, `commit`, `can_admin`, `can_approve_creative`. The creator does not receive spending authority.
+
+## Matrix (milestone 1)
+
+| Operation | View | Review | Edit | Commit | Commit + Director | Admin only | EP (edit + spend) |
+|---|---|---|---|---|---|---|---|
+| See project, members | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Read approved versions + their artwork, references, links | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Read drafts, proposals, full history, WIP artwork | – | ✓ | ✓ | ✓ | ✓ | – | ✓ |
+| Read approvals, comments | – | ✓ | ✓ | ✓ | ✓ | – | ✓ |
+| Read audit trail | – | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Comment on a revision | – | ✓ | ✓ | ✓ | ✓ | – | ✓ |
+| Create character/location, rename, link, add reference | – | – | ✓ | ✓ | ✓ | – | ✓ |
+| Upload artwork, save draft/proposed revision | – | – | ✓ | ✓ | ✓ | – | ✓ |
+| Approve revision as canonical | – | – | – | – | ✓ | – | – |
+| Authorize spending | *deferred — no spend operations exist yet* ||||||
+| Manage members / invitations | *deferred — service role only in this milestone* ||||||
+
+"Admin only" members have `access_level = view`, so they read like View users, plus the audit trail.
+
+## Enforcement
+
+- **Reads:** RLS policies (`SELECT` only) on every table in `public`. Tables for deferred features have RLS enabled and no policy (deny all).
+- **Writes:** clients (`anon`, `authenticated`) have no `INSERT/UPDATE/DELETE` privilege on any table. All writes go through `SECURITY DEFINER` functions that read the actor from `auth.uid()` and re-check capability. A caller can't supply their own `created_by`, approver, or audit actor.
+- **Trusted-only functions:** `complete_asset_upload` and `fail_asset_upload` are executable only by `service_role`.
+- **Non-members** get the same "Project not found" (`PT404`) for missing and inaccessible projects.
+
+## Open decisions (not blocking milestone 1)
+
+1. Who may grant or revoke `can_approve_creative` and `can_authorize_spend`? An Admin must not be able to grant themselves creative authority. Membership changes are therefore service-role only until this is decided.
+2. A single person can't currently be both Director and Executive Producer (one `project_role`). That's fine for the expected household (daughter = Director, parent = EP), but confirm it.
+3. Should a Commit user be able to merge a revision that a Director approved earlier (a two-step flow)? The `approvals` table supports it; this milestone uses the single-step Director + Commit approval.

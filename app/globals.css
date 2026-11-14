@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+/* Restrained studio palette: charcoal panels, one warm accent for decisions. */
+@theme {
+  --color-ink: #0f1012;
+  --color-panel: #1a1c1f;
+  --color-panel-2: #23262a;
+  --color-line: #33373d;
+  --color-text: #e8e6e3;
+  --color-muted: #a3a09b;
+  --color-accent: #e0a458;
+  --color-ok: #7fbf8e;
+  --color-warn: #e6c36a;
+  --color-danger: #e07a6a;
+  --font-sans: ui-sans-serif, -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "New York", ui-serif, Georgia, serif;
+}
+
+html { color-scheme: dark; -webkit-text-size-adjust: 100%; }
+body { background: var(--color-ink); color: var(--color-text); font-family: var(--font-sans); }
+
+/* Custom utilities (Tailwind v4 requires @utility for classes reused via @apply). */
+@utility panel { @apply rounded-xl border border-line bg-panel; }
+@utility label { @apply mb-1.5 block text-sm font-medium text-muted; }
+@utility field {
+  @apply w-full rounded-lg border border-line bg-panel-2 px-3 py-2.5 text-base text-text
+         placeholder:text-muted/60 focus:border-accent focus:outline-none;
+}
+/* 44px minimum touch target */
+@utility btn {
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-line
+         bg-panel-2 px-4 text-sm font-medium text-text hover:border-muted
+         disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary { @apply btn border-accent bg-accent text-ink hover:bg-accent/90; }
+@utility help { @apply text-sm leading-relaxed text-muted; }
