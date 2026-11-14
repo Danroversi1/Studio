@@ -7,7 +7,7 @@ import { SubmitButton } from "@/components/ui";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
 import { getAiBudget, getEntityWorkspace, getProjectShell } from "@/lib/data";
 import { TREATMENT_ATTRIBUTION } from "@/lib/intake";
-import { addTreatmentLink, requestBreakdown, saveSynopsis } from "./actions";
+import { addTreatmentLink, deleteProject, requestBreakdown, saveSynopsis } from "./actions";
 
 export const maxDuration = 300;
 
@@ -22,7 +22,7 @@ export default async function ProjectStart({
   const { error, notice } = await searchParams;
   const shell = await getProjectShell(projectId);
   if (!shell || !shell.caps.member) notFound();
-  const { caps, entities } = shell;
+  const { caps, entities, project } = shell;
   const story = entities.find((e) => e.kind === "story");
   const ws = story ? await getEntityWorkspace(projectId, story.id) : null;
   const budget = await getAiBudget(projectId);
@@ -122,6 +122,21 @@ export default async function ProjectStart({
         </div>
         {canAsk && <p className="w-full text-xs text-muted">The Story Lead reads your saved synopsis (not the linked treatment). Your text is sent to Anthropic&apos;s Claude AI to make suggestions.</p>}
       </section>
+      {caps.can_admin && caps.can_approve_creative && (
+        <details className="panel p-4">
+          <summary className="min-h-11 cursor-pointer py-2 text-sm text-muted">Delete this film…</summary>
+          <form action={deleteProject} className="mt-3 flex flex-col gap-3">
+            <input type="hidden" name="projectId" value={projectId} />
+            <p className="text-sm">
+              Deleting hides <strong>{project.name}</strong> from everyone on the team, including its story, characters,
+              locations, artwork and history. It can be recovered for a while if you change your mind.
+            </p>
+            <label className="label" htmlFor="confirmName">Type the film&apos;s title to confirm</label>
+            <input id="confirmName" name="confirmName" required autoComplete="off" placeholder={project.name} className="field" />
+            <button type="submit" className="btn self-start border-danger text-danger hover:bg-danger/10">Delete film</button>
+          </form>
+        </details>
+      )}
     </div>
   );
 }

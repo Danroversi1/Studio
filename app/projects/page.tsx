@@ -5,8 +5,8 @@ import { listProjects } from "@/lib/data";
 import { signOut } from "../login/actions";
 import { createProject } from "./actions";
 
-export default async function ProjectsPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const { error } = await searchParams;
+export default async function ProjectsPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
+  const { error, notice } = await searchParams;
   const projects = await listProjects();
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-8 px-5 py-10">
@@ -14,7 +14,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
         <h1 className="font-serif text-3xl">Your films</h1>
         <form action={signOut}><button className="btn">Sign out</button></form>
       </header>
-      <Flash error={error} />
+      <Flash error={error} notice={notice} />
 
       <section className="flex flex-col gap-3">
         {projects.length === 0 ? (

@@ -211,3 +211,12 @@ export async function addTreatmentLink(fd: FormData) {
   revalidatePath(startPath(projectId));
   redirect(withMessage(startPath(projectId), "notice", "Treatment link added to your story."));
 }
+
+export async function deleteProject(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("delete_project", { p_project: projectId, p_confirm_name: s(fd, "confirmName") });
+  if (error) redirect(withMessage(startPath(projectId), "error", friendlyError(error).message));
+  revalidatePath("/projects");
+  redirect(withMessage("/projects", "notice", "Film deleted. If that was a mistake, it can still be recovered — ask for help soon."));
+}
