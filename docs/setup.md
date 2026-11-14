@@ -47,7 +47,7 @@ update public.project_members
 
 ### Live development database (applied 2026-11-14)
 
-Both migrations are applied to the Supabase project "Danroversi1's Studio" (ref `bahmuyahrtwejvfngfav`, us-east-1, Postgres 17). The migration file names in this repository match the versions recorded there, so `supabase db push` and the Supabase GitHub integration treat both as already applied. After applying, the live schema's constraint, function and policy fingerprints matched the locally tested build exactly.
+All migrations in `supabase/migrations/` are applied to the Supabase project "Danroversi1's Studio" (ref `bahmuyahrtwejvfngfav`, us-east-1, Postgres 17). The migration file names in this repository match the versions recorded there, so `supabase db push` and the Supabase GitHub integration treat them as already applied. The live copy of `20261114204155_story_breakdown_agents` differs from the file only in three inline comments; function bodies match exactly. After applying, the live schema's constraint, function and policy fingerprints matched the locally tested build exactly.
 
 Supabase security advisor results after hardening, all expected:
 - *RLS enabled, no policy* (15 tables): deliberate deny-all for deferred features.
