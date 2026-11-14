@@ -61,9 +61,15 @@ export default async function ProjectLayout({
       <aside className="flex flex-col gap-5 border-line bg-panel p-4 lg:sticky lg:top-0 lg:h-dvh lg:w-72 lg:shrink-0 lg:overflow-y-auto lg:border-r">
         <div>
           <Link href="/projects" className="help hover:text-text">← All films</Link>
-          <h1 className="mt-1 font-serif text-2xl leading-tight">{project.name}</h1>
+          <h1 className="mt-1 font-serif text-2xl leading-tight">
+            <Link href={`/projects/${projectId}`} className="hover:text-accent">{project.name}</Link>
+          </h1>
           <p className="mt-1 text-xs text-muted">{accessSummary(caps)}</p>
         </div>
+        <Link href={`/projects/${projectId}`}
+          className="flex min-h-11 items-center rounded-lg border border-line px-3 hover:border-muted">
+          Start: story &amp; treatment
+        </Link>
         {caps.can_review && (
           <Link href={`/projects/${projectId}/suggestions`}
             className="flex min-h-11 items-center justify-between rounded-lg border border-line px-3 hover:border-muted">

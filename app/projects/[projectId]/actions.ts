@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { aiConfigured, runStoryBreakdown } from "@/lib/agents/run-story-breakdown";
 import { friendlyError, withMessage } from "@/lib/errors";
+import { TREATMENT_ATTRIBUTION, TREATMENT_NOTES } from "@/lib/intake";
 import { supabaseServer } from "@/lib/supabase/server";
 
 const s = (fd: FormData, k: string) => String(fd.get(k) ?? "");
@@ -170,4 +171,43 @@ export async function setAiBudget(fd: FormData) {
   if (error) redirect(withMessage(suggestionsPath(projectId), "error", friendlyError(error).message));
   revalidatePath(suggestionsPath(projectId));
   redirect(withMessage(suggestionsPath(projectId), "notice", "Monthly AI budget updated."));
+}
+
+// ---------------------------------------------------------------- Project intake (Start page)
+
+const startPath = (p: string) => `/projects/${p}`;
+
+export async function saveSynopsis(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const entityId = s(fd, "entityId");
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("create_revision", {
+    p_entity: entityId,
+    p_content: { body: s(fd, "body") },
+    p_change_summary: "Synopsis",
+    p_parent_version: opt(fd, "parentVersionId"),
+    p_base_version: opt(fd, "baseVersionId"),
+    p_asset_ids: [],
+    p_status: "submitted",
+  });
+  if (error) redirect(withMessage(startPath(projectId), "error", friendlyError(error).message));
+  revalidatePath(`/projects/${projectId}`, "layout");
+  redirect(withMessage(startPath(projectId), "notice", "Synopsis saved as a new story revision."));
+}
+
+export async function addTreatmentLink(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const entityId = s(fd, "entityId");
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("add_reference", {
+    p_entity: entityId,
+    p_url: s(fd, "url"),
+    p_title: opt(fd, "title") ?? "Director treatment",
+    p_attribution: TREATMENT_ATTRIBUTION,
+    p_notes: TREATMENT_NOTES,
+    p_rights_status: "permission_granted",
+  });
+  if (error) redirect(withMessage(startPath(projectId), "error", friendlyError(error).message));
+  revalidatePath(startPath(projectId));
+  redirect(withMessage(startPath(projectId), "notice", "Treatment link added to your story."));
 }
