@@ -76,6 +76,7 @@ The Vercel project `studio` (team "dnaideas") is linked to this repository, and 
 Environment variables:
 - **From the Supabase integration (production only):** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` and others. Preview builds don't get them, so previews won't reach the database.
 - **Added manually (production + preview):** `STORAGE_DRIVER=r2`, `STORAGE_BUCKET=studio-media`.
+- **AI agents:** `ANTHROPIC_API_KEY` (Sensitive, production) is set. It's billed to the Claude Console workspace; STUDIO's own monthly budget is enforced in the database.
 - **Still needed for artwork uploads:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`. Until they're set, the upload and image routes return errors; everything else works.
 
 Before giving anyone access, turn off public sign-ups in Supabase (Authentication → Sign In / Providers → "Allow new users to sign up") and create accounts under Authentication → Users.
