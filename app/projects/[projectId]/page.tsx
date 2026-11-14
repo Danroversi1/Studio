@@ -38,7 +38,7 @@ export default async function ProjectStart({
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
       <header>
-        <h2 className="font-serif text-3xl">Bring in your film</h2>
+        <h2 className="text-3xl font-semibold tracking-tight">Bring in your film</h2>
         <p className="help mt-1">Start with a synopsis of your story, a link to your director&apos;s treatment, or both. You can change either at any time.</p>
       </header>
       <Flash error={error} notice={notice} />

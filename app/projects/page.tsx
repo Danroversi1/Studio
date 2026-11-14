@@ -11,7 +11,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-8 px-5 py-10">
       <header className="flex items-center justify-between">
-        <h1 className="font-serif text-3xl">Your films</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Your films</h1>
         <form action={signOut}><button className="btn">Sign out</button></form>
       </header>
       <Flash error={error} notice={notice} />
@@ -22,7 +22,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
         ) : (
           projects.map((p) => (
             <Link key={p.id} href={`/projects/${p.id}`} className="panel block min-h-11 px-5 py-4 hover:border-muted">
-              <span className="font-serif text-xl">{p.name}</span>
+              <span className="text-lg font-medium tracking-tight">{p.name}</span>
               {p.description && <span className="help mt-1 block">{p.description}</span>}
             </Link>
           ))

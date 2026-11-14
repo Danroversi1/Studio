@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = { title: "STUDIO", description: "A creative workspace for developing animated films." };
-export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0f1012" };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#ffffff" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

@@ -1,36 +1,37 @@
 @import "tailwindcss";
 
-/* Restrained studio palette: charcoal panels, one warm accent for decisions. */
+/* Minimalist white studio: white surfaces, near-black type, hairline borders.
+   Token names are semantic: "ink" is the page background, "accent" the primary action. */
 @theme {
-  --color-ink: #0f1012;
-  --color-panel: #1a1c1f;
-  --color-panel-2: #23262a;
-  --color-line: #33373d;
-  --color-text: #e8e6e3;
-  --color-muted: #a3a09b;
-  --color-accent: #e0a458;
-  --color-ok: #7fbf8e;
-  --color-warn: #e6c36a;
-  --color-danger: #e07a6a;
+  --color-ink: #ffffff;
+  --color-panel: #ffffff;
+  --color-panel-2: #f7f7f6;
+  --color-line: #e8e8e6;
+  --color-text: #111111;
+  --color-muted: #6e6e6b;
+  --color-accent: #111111;
+  --color-ok: #1f7a3a;
+  --color-warn: #8a5a00;
+  --color-danger: #b3261e;
   --font-sans: ui-sans-serif, -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
   --font-serif: "New York", ui-serif, Georgia, serif;
 }
 
-html { color-scheme: dark; -webkit-text-size-adjust: 100%; }
+html { color-scheme: light; -webkit-text-size-adjust: 100%; }
 body { background: var(--color-ink); color: var(--color-text); font-family: var(--font-sans); }
 
 /* Custom utilities (Tailwind v4 requires @utility for classes reused via @apply). */
-@utility panel { @apply rounded-xl border border-line bg-panel; }
+@utility panel { @apply rounded-2xl border border-line bg-panel; }
 @utility label { @apply mb-1.5 block text-sm font-medium text-muted; }
 @utility field {
-  @apply w-full rounded-lg border border-line bg-panel-2 px-3 py-2.5 text-base text-text
-         placeholder:text-muted/60 focus:border-accent focus:outline-none;
+  @apply w-full rounded-lg border border-line bg-white px-3 py-2.5 text-base text-text
+         placeholder:text-muted/60 focus:border-text focus:outline-none;
 }
 /* 44px minimum touch target */
 @utility btn {
-  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-line
-         bg-panel-2 px-4 text-sm font-medium text-text hover:border-muted
-         disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-line
+         bg-white px-5 text-sm font-medium text-text transition-colors hover:border-text
+         disabled:cursor-not-allowed disabled:opacity-40;
 }
-@utility btn-primary { @apply btn border-accent bg-accent text-ink hover:bg-accent/90; }
+@utility btn-primary { @apply btn border-accent bg-accent text-ink hover:border-accent hover:bg-accent/85; }
 @utility help { @apply text-sm leading-relaxed text-muted; }
