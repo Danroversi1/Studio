@@ -13,4 +13,7 @@ for f in supabase/migrations/*.sql; do
   echo "applying $f"
   "${PSQL[@]}" -d "$DB" -f "$f" >/dev/null
 done
-"${PSQL[@]}" -d "$DB" -f db/test/10_milestone1_security.sql
+for t in db/test/[1-9]*.sql; do
+  echo "running $t"
+  "${PSQL[@]}" -d "$DB" -f "$t"
+done

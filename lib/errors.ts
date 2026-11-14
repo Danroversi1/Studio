@@ -15,6 +15,8 @@ export function friendlyError(error: { code?: string; message?: string } | null 
           ? "Your access level does not allow that."
           : message,
       };
+    case "PT402":
+      return { kind: "invalid", message };
     case "PT404":
       return { kind: "not_found", message: "That project or item could not be found." };
     case "22023":

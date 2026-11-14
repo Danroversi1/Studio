@@ -3,6 +3,8 @@
 // only a convenience.
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { aiConfigured, runStoryBreakdown } from "@/lib/agents/run-story-breakdown";
 import { friendlyError, withMessage } from "@/lib/errors";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -110,4 +112,62 @@ export async function addReference(fd: FormData) {
   if (error) redirect(withMessage(itemPath(projectId, entityId), "error", friendlyError(error).message));
   revalidatePath(itemPath(projectId, entityId));
   redirect(withMessage(itemPath(projectId, entityId), "notice", "Reference added."));
+}
+
+// ---------------------------------------------------------------- Story Lead suggestions
+
+const suggestionsPath = (p: string) => `/projects/${p}/suggestions`;
+
+export async function requestBreakdown(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const entityId = s(fd, "entityId");
+  if (!aiConfigured()) {
+    redirect(withMessage(itemPath(projectId, entityId), "error", "The AI team isn't set up yet. Ask your Executive Producer."));
+  }
+  const sb = await supabaseServer();
+  const { data: runId, error } = await sb.rpc("request_story_breakdown", { p_entity: entityId });
+  if (error) redirect(withMessage(itemPath(projectId, entityId), "error", friendlyError(error).message));
+  // Runs after the response is sent; the inbox shows progress.
+  after(() => runStoryBreakdown(runId as string));
+  redirect(suggestionsPath(projectId));
+}
+
+export async function acceptProposal(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("accept_proposal", {
+    p_proposal: s(fd, "proposalId"),
+    p_name: opt(fd, "name"),
+    p_summary: s(fd, "summary"),
+  });
+  if (error) redirect(withMessage(suggestionsPath(projectId), "error", friendlyError(error).message));
+  revalidatePath(`/projects/${projectId}`, "layout");
+  redirect(withMessage(suggestionsPath(projectId), "notice", "Added to your film as a proposed revision. Approve it from its page when you're happy."));
+}
+
+export async function mergeProposal(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("merge_proposal", { p_proposal: s(fd, "proposalId"), p_entity: opt(fd, "targetId") });
+  if (error) redirect(withMessage(suggestionsPath(projectId), "error", friendlyError(error).message));
+  revalidatePath(`/projects/${projectId}`, "layout");
+  redirect(withMessage(suggestionsPath(projectId), "notice", "Linked to your existing item."));
+}
+
+export async function dismissProposal(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("dismiss_proposal", { p_proposal: s(fd, "proposalId") });
+  if (error) redirect(withMessage(suggestionsPath(projectId), "error", friendlyError(error).message));
+  revalidatePath(suggestionsPath(projectId));
+  redirect(suggestionsPath(projectId));
+}
+
+export async function setAiBudget(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("set_ai_budget", { p_project: projectId, p_budget_usd: Number(s(fd, "budget")) });
+  if (error) redirect(withMessage(suggestionsPath(projectId), "error", friendlyError(error).message));
+  revalidatePath(suggestionsPath(projectId));
+  redirect(withMessage(suggestionsPath(projectId), "notice", "Monthly AI budget updated."));
 }

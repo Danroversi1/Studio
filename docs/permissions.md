@@ -28,6 +28,9 @@ The project creator is granted, explicitly and visibly in `create_project()` and
 | Create character/location, rename, link, add reference | – | – | ✓ | ✓ | ✓ | – | ✓ |
 | Upload artwork, save draft/proposed revision | – | – | ✓ | ✓ | ✓ | – | ✓ |
 | Approve revision as canonical | – | – | – | – | ✓ | – | – |
+| See agent suggestions and run status | – | ✓ | ✓ | ✓ | ✓ | – | ✓ |
+| Ask the Story Lead; accept, merge or dismiss suggestions | – | – | ✓ | ✓ | ✓ | – | ✓ |
+| See AI spend; change the monthly AI budget | – | – | – | – | – | – | ✓ |
 | Authorize spending | *deferred — no spend operations exist yet* ||||||
 | Manage members / invitations | *deferred — service role only in this milestone* ||||||
 
@@ -37,7 +40,9 @@ The project creator is granted, explicitly and visibly in `create_project()` and
 
 - **Reads:** RLS policies (`SELECT` only) on every table in `public`. Tables for deferred features have RLS enabled and no policy (deny all).
 - **Writes:** clients (`anon`, `authenticated`) have no `INSERT/UPDATE/DELETE` privilege on any table. All writes go through `SECURITY DEFINER` functions that read the actor from `auth.uid()` and re-check capability. A caller can't supply their own `created_by`, approver, or audit actor.
-- **Trusted-only functions:** `complete_asset_upload` and `fail_asset_upload` are executable only by `service_role`.
+- **Trusted-only functions:** `complete_asset_upload`, `fail_asset_upload`, `start_agent_run`, `complete_story_breakdown` and `fail_agent_run` are executable only by `service_role`.
+- **Agents:** an agent can only create rows in `agent_proposals`, through the service role. Accepting a proposal is a human action: it runs `create_entity`, so the new item's only revision is `submitted` and is authored by the person who accepted it. Agent runs are audited with `actor_type = 'agent'`.
+- **Budget:** spend records are append-only and readable only by members with `can_authorize_spend`. A Director without that flag can't see or change spending, and an Executive Producer can't approve creative work.
 - **Non-members** get the same "Project not found" (`PT404`) for missing and inaccessible projects.
 
 ## Open decisions (not blocking milestone 1)

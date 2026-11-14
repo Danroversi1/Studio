@@ -3,8 +3,11 @@ import { notFound } from "next/navigation";
 import { Empty, Flash } from "@/components/flash";
 import { SubmitButton } from "@/components/ui";
 import { UploadArtwork } from "@/components/upload-artwork";
-import { currentUser, getEntityWorkspace, getProjectShell, type VersionRow } from "@/lib/data";
-import { addReference, approveRevision, linkEntities, renameEntity, saveRevision, unlinkEntities } from "../../actions";
+import { aiConfigured } from "@/lib/agents/run-story-breakdown";
+import { currentUser, getAiBudget, getEntityWorkspace, getProjectShell, type VersionRow } from "@/lib/data";
+import { addReference, approveRevision, linkEntities, renameEntity, requestBreakdown, saveRevision, unlinkEntities } from "../../actions";
+
+export const maxDuration = 300;
 
 const STATUS_LABEL: Record<VersionRow["status"], string> = {
   working: "Draft",
@@ -39,7 +42,9 @@ export default async function ItemWorkspace({
 }) {
   const { projectId, entityId } = await params;
   const { v, error, notice } = await searchParams;
-  const [shell, ws, user] = await Promise.all([getProjectShell(projectId), getEntityWorkspace(projectId, entityId), currentUser()]);
+  const [shell, ws, user, budget] = await Promise.all([
+    getProjectShell(projectId), getEntityWorkspace(projectId, entityId), currentUser(), getAiBudget(projectId),
+  ]);
   if (!shell || !ws) notFound();
   const { caps, entities } = shell;
   const { entity, versions, assets, artworkByVersion, relationships, references } = ws;
@@ -185,6 +190,26 @@ export default async function ItemWorkspace({
 
         {/* ------------------------------------------------ Side panels */}
         <aside className="flex flex-col gap-6">
+          {kind === "story" && caps.can_edit && (
+            <section className="panel flex flex-col gap-3 border-accent/40 p-4" aria-labelledby="lead-h">
+              <h3 id="lead-h" className="font-medium">Story Lead</h3>
+              <p className="help">Reads your latest saved story and suggests characters and locations. You decide what joins the film.</p>
+              {!aiConfigured() ? (
+                <p className="text-sm text-warn">The AI team isn&apos;t set up yet.</p>
+              ) : !budget.available ? (
+                <p className="text-sm text-warn">The team is resting until next month.</p>
+              ) : versions.length === 0 ? (
+                <p className="help">Save your story first.</p>
+              ) : (
+                <form action={requestBreakdown} className="flex flex-col gap-2">
+                  <input type="hidden" name="projectId" value={projectId} />
+                  <input type="hidden" name="entityId" value={entityId} />
+                  <SubmitButton variant="primary" pendingText="Sending to the Story Lead…">Suggest characters &amp; locations</SubmitButton>
+                  <p className="text-xs text-muted">Your saved story text is sent to Anthropic&apos;s Claude AI to make suggestions.</p>
+                </form>
+              )}
+            </section>
+          )}
           <section className="panel flex flex-col gap-3 p-4" aria-labelledby="history-h">
             <h3 id="history-h" className="font-medium">Revision history</h3>
             {versions.length === 0 ? (

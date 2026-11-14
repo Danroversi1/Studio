@@ -67,6 +67,41 @@ export async function getProjectShell(projectId: string) {
   return { project, caps: (caps ?? { member: false }) as Capabilities, entities: (entities ?? []) as EntityRow[] };
 }
 
+export interface AiBudget {
+  can_manage: boolean;
+  available: boolean;
+  budget_usd?: number;
+  spent_usd?: number;
+  remaining_usd?: number;
+}
+
+export async function getAiBudget(projectId: string) {
+  const sb = await supabaseServer();
+  const { data } = await sb.rpc("my_ai_budget", { p_project: projectId });
+  return (data ?? { can_manage: false, available: false }) as AiBudget;
+}
+
+export async function countPendingSuggestions(projectId: string) {
+  const sb = await supabaseServer();
+  const { count } = await sb
+    .from("agent_proposals").select("id", { count: "exact", head: true })
+    .eq("project_id", projectId).eq("status", "pending");
+  return count ?? 0;
+}
+
+export async function getSuggestions(projectId: string) {
+  const sb = await supabaseServer();
+  const [runs, proposals] = await Promise.all([
+    sb.from("agent_runs")
+      .select("id, status, task_type, created_at, completed_at, error_message, output_payload, input_payload")
+      .eq("project_id", projectId).order("created_at", { ascending: false }).limit(5),
+    sb.from("agent_proposals")
+      .select("id, agent_run_id, entity_kind, name, summary, evidence, match_entity_id, status, result_entity_id, created_at")
+      .eq("project_id", projectId).order("created_at", { ascending: true }).limit(200),
+  ]);
+  return { runs: runs.data ?? [], proposals: proposals.data ?? [] };
+}
+
 export async function getEntityWorkspace(projectId: string, entityId: string) {
   const sb = await supabaseServer();
   const { data: entity } = await sb

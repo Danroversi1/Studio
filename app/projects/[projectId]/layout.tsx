@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SubmitButton } from "@/components/ui";
-import { getProjectShell, type Capabilities, type EntityRow } from "@/lib/data";
+import { countPendingSuggestions, getProjectShell, type Capabilities, type EntityRow } from "@/lib/data";
 import { createEntity } from "./actions";
 
 function accessSummary(c: Capabilities) {
@@ -51,6 +51,7 @@ export default async function ProjectLayout({
   const shell = await getProjectShell(projectId);
   if (!shell || !shell.caps.member) notFound();
   const { project, caps, entities } = shell;
+  const pendingSuggestions = caps.can_review ? await countPendingSuggestions(projectId) : 0;
   const stories = entities.filter((e) => e.kind === "story");
   const characters = entities.filter((e) => e.kind === "character");
   const locations = entities.filter((e) => e.kind === "location");
@@ -63,6 +64,15 @@ export default async function ProjectLayout({
           <h1 className="mt-1 font-serif text-2xl leading-tight">{project.name}</h1>
           <p className="mt-1 text-xs text-muted">{accessSummary(caps)}</p>
         </div>
+        {caps.can_review && (
+          <Link href={`/projects/${projectId}/suggestions`}
+            className="flex min-h-11 items-center justify-between rounded-lg border border-line px-3 hover:border-muted">
+            <span>Suggestions</span>
+            {pendingSuggestions > 0 && (
+              <span className="rounded-full bg-accent px-2 text-xs font-semibold text-ink">{pendingSuggestions}</span>
+            )}
+          </Link>
+        )}
         {/* On iPad portrait the groups sit side by side; on desktop they stack in the sidebar. */}
         <nav className="grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-1" aria-label="Project">
           <NavGroup title="Write" items={stories} projectId={projectId} />
