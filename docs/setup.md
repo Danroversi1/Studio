@@ -69,6 +69,17 @@ For iPad testing on the same network, set `APP_URL` to the Mac's LAN address (e.
 
 **R2.** Create a private bucket named `studio-media` (or set `STORAGE_BUCKET` and `alter database postgres set studio.storage_bucket = '<name>'`). Add a CORS rule allowing `PUT` from the app origin with headers `Content-Type` and `If-None-Match`. Create an API token scoped to that bucket, and set `STORAGE_DRIVER=r2` plus the `R2_*` variables. Never enable public access.
 
+### Hosting on Vercel
+
+The Vercel project `studio` (team "dnaideas") is linked to this repository, and every push to `main` deploys to production. Deployment Protection (Vercel Authentication) is on, so only members of the Vercel team can open `*.vercel.app` URLs.
+
+Environment variables:
+- **From the Supabase integration (production only):** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` and others. Preview builds don't get them, so previews won't reach the database.
+- **Added manually (production + preview):** `STORAGE_DRIVER=r2`, `STORAGE_BUCKET=studio-media`.
+- **Still needed for artwork uploads:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`. Until they're set, the upload and image routes return errors; everything else works.
+
+Before giving anyone access, turn off public sign-ups in Supabase (Authentication → Sign In / Providers → "Allow new users to sign up") and create accounts under Authentication → Users.
+
 ## 4. Verification
 
 ```bash
