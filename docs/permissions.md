@@ -30,6 +30,7 @@ The project creator is granted, explicitly and visibly in `create_project()` and
 | Approve revision as canonical | – | – | – | – | ✓ | – | – |
 | See agent suggestions and run status | – | ✓ | ✓ | ✓ | ✓ | – | ✓ |
 | Ask the Story Lead; accept, merge or dismiss suggestions | – | – | ✓ | ✓ | ✓ | – | ✓ |
+| Delete (soft-delete) the film | – | – | – | – | ✓ (with Admin) | – | – |
 | See AI spend; change the monthly AI budget | – | – | – | – | – | – | ✓ |
 | Authorize spending | *deferred — no spend operations exist yet* ||||||
 | Manage members / invitations | *deferred — service role only in this milestone* ||||||
@@ -42,6 +43,7 @@ The project creator is granted, explicitly and visibly in `create_project()` and
 - **Writes:** clients (`anon`, `authenticated`) have no `INSERT/UPDATE/DELETE` privilege on any table. All writes go through `SECURITY DEFINER` functions that read the actor from `auth.uid()` and re-check capability. A caller can't supply their own `created_by`, approver, or audit actor.
 - **Trusted-only functions:** `complete_asset_upload`, `fail_asset_upload`, `start_agent_run`, `complete_story_breakdown` and `fail_agent_run` are executable only by `service_role`.
 - **Agents:** an agent can only create rows in `agent_proposals`, through the service role. Accepting a proposal is a human action: it runs `create_entity`, so the new item's only revision is `submitted` and is authored by the person who accepted it. Agent runs are audited with `actor_type = 'agent'`.
+- **Deleting a film** needs Admin *and* Director creative authority, plus typing the film's title. It's a soft delete: the project's status becomes `deleted`, and it vanishes for every member because `studio_my_membership()` ignores deleted projects. Nothing is destroyed. `restore_project()` (service role only) brings it back, and both actions are audited.
 - **Budget:** spend records are append-only and readable only by members with `can_authorize_spend`. A Director without that flag can't see or change spending, and an Executive Producer can't approve creative work.
 - **Non-members** get the same "Project not found" (`PT404`) for missing and inaccessible projects.
 
