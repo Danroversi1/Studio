@@ -1,5 +1,5 @@
 -- STUDIO — Milestone 1 corrective hardening
--- Applies on top of 20261114000001_foundation_baseline.sql (the supplied 0001, unchanged).
+-- Applies on top of 20261114191039_foundation_baseline.sql (the supplied 0001, unchanged).
 --
 -- What this migration does (see docs/architecture.md and docs/permissions.md):
 --   1. Separates technical access (view/review/edit/commit) from administration,

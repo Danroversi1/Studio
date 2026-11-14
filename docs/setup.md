@@ -27,13 +27,13 @@ Migrations:
 
 | File | Content |
 |---|---|
-| `20261114000001_foundation_baseline.sql` | The supplied 0001, unchanged |
-| `20261114000002_milestone1_hardening.sql` | RLS, integrity, immutability, trusted functions |
+| `20261114191039_foundation_baseline.sql` | The supplied 0001, unchanged |
+| `20261114193035_milestone1_hardening.sql` | RLS, integrity, immutability, trusted functions |
 
 **Existing environments.** If 0001 was already applied somewhere, mark it applied rather than re-running it (0001 isn't re-runnable):
 
 ```bash
-supabase migration repair --status applied 20261114000001
+supabase migration repair --status applied 20261114191039
 supabase db push
 ```
 
@@ -44,6 +44,15 @@ update public.project_members
    set access_level = 'commit', can_approve_creative = true
  where project_id = '<project>' and user_id = '<director>' and project_role = 'director';
 ```
+
+### Live development database (applied 2026-11-14)
+
+Both migrations are applied to the Supabase project "Danroversi1's Project" (us-east-1, Postgres 17). The migration file names in this repository match the versions recorded there, so `supabase db push` and the Supabase GitHub integration treat both as already applied. After applying, the live schema's constraint, function and policy fingerprints matched the locally tested build exactly.
+
+Supabase security advisor results after hardening, all expected:
+- *RLS enabled, no policy* (15 tables): deliberate deny-all for deferred features.
+- *Signed-in users can execute SECURITY DEFINER functions* (15): these are the intended write path, and each one re-checks permissions. The four `studio_*` helpers could move to a non-exposed schema later.
+- *`set_updated_at` has a mutable search_path*: inherited from 0001; fix in the next migration with `alter function public.set_updated_at() set search_path = ''`.
 
 ## 3. App
 

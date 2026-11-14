@@ -22,7 +22,7 @@ Additional findings:
 - **`created_by` columns are client-supplied** in 0001, with no check against `auth.uid()`. This is resolved by removing client write privileges entirely.
 - **pgcrypto installs into `public`** when run on plain Postgres. On Supabase it already exists in `extensions`, so this is a no-op.
 
-## Corrections (in `20261114000002_milestone1_hardening.sql`)
+## Corrections (in `20261114193035_milestone1_hardening.sql`)
 
 See `docs/architecture.md`. Every protection is covered by `db/test/10_milestone1_security.sql`.
 
