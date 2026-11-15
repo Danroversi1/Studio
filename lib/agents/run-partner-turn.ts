@@ -20,7 +20,7 @@ async function loadSnapshot(db: Db, projectId: string): Promise<{ snapshot: Proj
   const [{ data: project }, { data: entities }, { data: treatmentRun }, { data: pending }] = await Promise.all([
     db.from("projects").select("name").eq("id", projectId).single(),
     db.from("entities").select("id, kind, name, current_version_id, created_at")
-      .eq("project_id", projectId).in("kind", ["story", "character", "location"]).order("created_at"),
+      .eq("project_id", projectId).in("kind", ["story", "character", "location", "screenplay"]).order("created_at"),
     db.from("agent_runs").select("title:input_payload->>title, text:input_payload->>text")
       .eq("project_id", projectId).eq("task_type", "story_breakdown").eq("input_payload->>source", "treatment")
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -44,13 +44,15 @@ async function loadSnapshot(db: Db, projectId: string): Promise<{ snapshot: Proj
     : { data: [] as { board_id: string; title: string | null; attribution: string | null; observations: string | null; source_domain: string | null }[] };
 
   const nameOf = new Map(ents.map((e) => [e.id, e.name]));
+  const screenplay = ents.find((e) => e.kind === "screenplay");
   const story = ents.find((e) => e.kind === "story");
   const snapshot: ProjectSnapshot = {
     filmTitle: project?.name ?? "Untitled film",
     synopsis: story ? String(latest.get(story.id)?.body ?? "") : "",
     synopsisApproved: !!story?.current_version_id,
     treatment: treatmentRun?.text ? { title: String(treatmentRun.title ?? "Treatment"), text: String(treatmentRun.text) } : null,
-    items: ents.filter((e) => e.kind !== "story").map((e) => ({
+    script: screenplay ? { text: String(latest.get(screenplay.id)?.body ?? ""), approved: !!screenplay.current_version_id } : null,
+    items: ents.filter((e) => e.kind === "character" || e.kind === "location").map((e) => ({
       id: e.id, kind: e.kind as "character" | "location", name: e.name, approved: !!e.current_version_id,
       summary: String(latest.get(e.id)?.summary ?? ""), notes: String(latest.get(e.id)?.notes ?? ""),
     })),
@@ -60,7 +62,7 @@ async function loadSnapshot(db: Db, projectId: string): Promise<{ snapshot: Proj
     })),
     pendingSuggestions: (pending ?? []).map((p) => p.name),
   };
-  return { snapshot, existing: ents.filter((e) => e.kind !== "story") };
+  return { snapshot, existing: ents.filter((e) => e.kind === "character" || e.kind === "location") };
 }
 
 function addUsage(a: Usage, b: Usage): Usage {

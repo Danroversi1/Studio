@@ -1,9 +1,12 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Empty, Flash } from "@/components/flash";
 import { SubmitButton } from "@/components/ui";
+import { TreatmentBreakdown } from "@/components/treatment-breakdown";
 import { UploadArtwork } from "@/components/upload-artwork";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
+import { parseGoogleLink, slidesEmbedUrl } from "@/lib/google/links";
+import { TREATMENT_ATTRIBUTION } from "@/lib/intake";
 import { currentUser, getAiBudget, getEntityWorkspace, getProjectShell, type VersionRow } from "@/lib/data";
 import { addReference, approveRevision, linkEntities, renameEntity, requestBreakdown, saveRevision, unlinkEntities } from "../../actions";
 
@@ -49,6 +52,7 @@ export default async function ItemWorkspace({
   const { caps, entities } = shell;
   const { entity, versions, assets, artworkByVersion, relationships, references } = ws;
   const kind = entity.kind;
+  if ((kind as string) === "screenplay") redirect(`/projects/${projectId}/script`);
 
   const canonical = versions.find((x) => x.id === entity.current_version_id) ?? null;
   const selected = versions.find((x) => x.id === v) ?? canonical ?? versions[0] ?? null;
@@ -82,6 +86,44 @@ export default async function ItemWorkspace({
       </header>
 
       <Flash error={error} notice={notice} />
+
+      {kind === "story" && (() => {
+        const treatments = references.filter((r) => r.attribution === TREATMENT_ATTRIBUTION);
+        const base = `/projects/${projectId}`;
+        return (
+          <section className="panel corner-marks flex flex-col gap-4 p-5" aria-labelledby="treat-h">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 id="treat-h" className="display text-xl">Director treatment</h2>
+              {caps.can_edit && <Link href={`${base}/add#treatment`} className="link-accent text-sm">{treatments.length ? "Add another link" : "Link your treatment"}</Link>}
+            </div>
+            {treatments.length === 0 ? (
+              <p className="help">No treatment linked yet. Link a Google Doc or Google Slides treatment and it appears here.</p>
+            ) : treatments.map((t) => {
+              const g = parseGoogleLink(t.source_url);
+              return (
+                <div key={t.id} className="flex flex-col gap-3">
+                  {g?.kind === "slides" && (
+                    <div className="relative aspect-video w-full overflow-hidden border border-line bg-text">
+                      <iframe title={`Treatment: ${t.title || "Google Slides"}`} src={slidesEmbedUrl(g.id)} className="absolute inset-0 size-full"
+                        allow="fullscreen" allowFullScreen loading="lazy" referrerPolicy="strict-origin-when-cross-origin"
+                        sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation" />
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="mr-auto font-medium">{t.title || t.source_domain}</p>
+                    <Link href={`${base}/treatment?ref=${t.id}`} className="btn">{g?.kind === "doc" ? "Read it here" : "Open full size"}</Link>
+                    <a href={t.source_url} target="_blank" rel="noopener noreferrer" className="btn">Open in Google ↗</a>
+                    {caps.can_edit && g?.kind === "doc" && <Link href={`${base}/import?from=treatment&ref=${t.id}`} className="btn">Pull its images</Link>}
+                  </div>
+                  {caps.can_edit && aiConfigured() && budget.available && g && (g.kind === "doc" || g.kind === "slides") && (
+                    <TreatmentBreakdown projectId={projectId} storyId={entityId} referenceId={t.id} fileId={g.id} kind={g.kind} />
+                  )}
+                </div>
+              );
+            })}
+          </section>
+        );
+      })()}
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         {/* ------------------------------------------------ Editor / inspector */}
@@ -311,11 +353,11 @@ export default async function ItemWorkspace({
             {caps.can_edit && (
               <Link href={`/projects/${projectId}/import?to=${entityId}`} className="btn self-start">Add images from Google Drive</Link>
             )}
-            {references.length === 0 ? (
+            {references.filter((r) => !(kind === "story" && r.attribution === TREATMENT_ATTRIBUTION)).length === 0 ? (
               <Empty title="No references yet" />
             ) : (
               <ul className="flex flex-col gap-3">
-                {references.map((r) => (
+                {references.filter((r) => !(kind === "story" && r.attribution === TREATMENT_ATTRIBUTION)).map((r) => (
                   <li key={r.id} className="rounded-lg border border-line p-3">
                     {r.preview_asset_id && (
                       <a href={`/api/assets/${r.preview_asset_id}`} target="_blank" rel="noopener" className="mb-2 block bg-panel">

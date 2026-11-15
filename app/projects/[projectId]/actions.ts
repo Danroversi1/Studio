@@ -294,3 +294,40 @@ export async function sendPartnerMessage(input: {
     ? { threadId, error: "Your partner couldn't answer just now. Your message is saved; try sending a short follow-up." }
     : { threadId };
 }
+
+const scriptPath = (p: string) => `/projects/${p}/script`;
+
+/** Save the screenplay as a new revision (the film's one screenplay item is created on first save). */
+export async function saveScreenplay(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const sb = await supabaseServer();
+  let entityId = s(fd, "entityId");
+  if (!entityId) {
+    const { data, error } = await sb.rpc("open_screenplay", { p_project: projectId });
+    if (error) redirect(withMessage(scriptPath(projectId), "error", friendlyError(error).message));
+    entityId = data as string;
+  }
+  const { data, error } = await sb.rpc("create_revision", {
+    p_entity: entityId,
+    p_content: { body: s(fd, "body") },
+    p_change_summary: opt(fd, "changeSummary"),
+    p_parent_version: opt(fd, "parentVersionId"),
+    p_base_version: opt(fd, "baseVersionId"),
+    p_asset_ids: [],
+    p_status: "submitted",
+  });
+  if (error) redirect(withMessage(scriptPath(projectId), "error", friendlyError(error).message));
+  revalidatePath(scriptPath(projectId));
+  redirect(withMessage(`${scriptPath(projectId)}?v=${data}`, "notice", "Saved as a new revision. Earlier revisions are unchanged."));
+}
+
+export async function approveScreenplay(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const versionId = s(fd, "versionId");
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("approve_revision", { p_version: versionId, p_expected_current: opt(fd, "expectedCurrentId") });
+  const back = `${scriptPath(projectId)}?v=${versionId}`;
+  if (error) redirect(withMessage(back, "error", friendlyError(error).message));
+  revalidatePath(`/projects/${projectId}`, "layout");
+  redirect(withMessage(back, "notice", "Approved. This is now the script everyone sees."));
+}

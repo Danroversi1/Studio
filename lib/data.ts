@@ -183,3 +183,15 @@ export async function getThreadMessages(projectId: string, threadId: string) {
     .eq("project_id", projectId).eq("thread_id", threadId).order("created_at", { ascending: true }).limit(400);
   return (data ?? []) as { id: string; role: "user" | "assistant"; content: string; created_at: string }[];
 }
+
+/** The film's screenplay item and its revisions (newest first), or null if not started. */
+export async function getScreenplay(projectId: string) {
+  const sb = await supabaseServer();
+  const { data: entity } = await sb.from("entities").select("id, current_version_id")
+    .eq("project_id", projectId).eq("kind", "screenplay").order("created_at").limit(1).maybeSingle();
+  if (!entity) return null;
+  const { data: versions } = await sb.from("versions")
+    .select("id, version_number, status, content, change_summary, created_at, base_version_id")
+    .eq("entity_id", entity.id).order("version_number", { ascending: false });
+  return { entity, versions: (versions ?? []) as { id: string; version_number: number; status: string; content: { body?: string }; change_summary: string | null; created_at: string; base_version_id: string | null }[] };
+}

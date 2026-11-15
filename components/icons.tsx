@@ -63,6 +63,10 @@ export const IconPalette = ({ className }: P) => (
   <svg {...base(className)}><path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.4 0 1.8-1 1.3-2-.6-1.2.2-2.5 1.6-2.5H17a3.5 3.5 0 0 0 3.5-3.5c0-5-3.8-9-8.5-9z" /><circle cx="7.5" cy="11" r="1" /><circle cx="10" cy="7.5" r="1" /><circle cx="14.5" cy="7.5" r="1" /></svg>
 );
 
+export const IconScript = ({ className }: P) => (
+  <svg {...base(className)}><path d="M6 3.5h12v17H6z" /><path d="M9 8h6M11 11.5h4M9 15h6" /></svg>
+);
+
 export function Wordmark({ size = "md" }: { size?: "md" | "lg" }) {
   const big = size === "lg";
   return (

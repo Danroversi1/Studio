@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconBook, IconCharacter, IconChat, IconImage, IconPalette, IconLocation, IconOverview, IconSettings, IconSparkle, IconStory } from "./icons";
+import { IconBook, IconCharacter, IconChat, IconImage, IconPalette, IconScript, IconLocation, IconOverview, IconSettings, IconSparkle, IconStory } from "./icons";
 
 export interface NavEntity { id: string; name: string; approved: boolean }
 
@@ -55,6 +55,7 @@ export function SidebarNav({ projectId, storyId, characters, locations, pendingS
             Story &amp; treatment
           </Item>
         )}
+        <Item href={`${base}/script`} active={path === `${base}/script`} icon={<IconScript />}>Script desk</Item>
         <Item href={`${base}/treatment`} active={path === `${base}/treatment`} icon={<IconBook />}>Read treatment</Item>
         {showImport && (
           <Item href={`${base}/import`} active={path === `${base}/import`} icon={<IconImage />}>Images from Drive</Item>
