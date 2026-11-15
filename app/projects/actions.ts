@@ -10,5 +10,6 @@ export async function createProject(formData: FormData) {
     p_description: String(formData.get("description") ?? "") || null,
   });
   if (error) redirect(withMessage("/projects", "error", friendlyError(error).message));
-  redirect(`/projects/${data}`);
+  // New films start at the story intake (three guided questions).
+  redirect(`/projects/${data}/add`);
 }

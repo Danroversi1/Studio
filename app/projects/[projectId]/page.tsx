@@ -1,6 +1,7 @@
 // Project overview: every piece of the film as a card. Content comes from the shared
 // project graph; nothing here is a placeholder for an unbuilt feature.
 import Link from "next/link";
+import { parseIntake } from "@/lib/intake";
 import { notFound } from "next/navigation";
 import { Flash } from "@/components/flash";
 import { IconArrowUpRight, IconCharacter, IconLink, IconLocation, IconPlus, IconSparkle, IconStory } from "@/components/icons";
@@ -85,6 +86,8 @@ export default async function ProjectOverview({
   const treatments = refs.filter((r) => r.attribution === TREATMENT_ATTRIBUTION);
   const storyLatest = story ? latest.get(story.id) : undefined;
   const synopsis = storyLatest?.content.body?.trim() ?? "";
+  const intake = parseIntake(synopsis);
+  const preview = (intake.idea || intake.who || intake.difficulty || synopsis).trim();
   const canAsk = !!story && caps.can_edit && aiConfigured() && budget.available && synopsis.length >= 50;
   const pieces = (story ? 2 : 0) + characters.length + locations.length;
   const addHref = `/projects/${projectId}/add`;
@@ -111,12 +114,12 @@ export default async function ProjectOverview({
             <p className="display text-xl">One story. Many ways forward.</p>
             <p className="mt-1 text-sm leading-relaxed text-panel-2/75">
               {synopsis.length < 50
-                ? "Start with a synopsis. Your Story Lead can then suggest the characters and locations in it."
+                ? "Start by answering three questions about your story. Your Story Lead can then suggest the characters and locations in it."
                 : "Your Story Lead reads your synopsis and suggests characters and locations. You decide what joins the film."}
             </p>
           </div>
           {synopsis.length < 50 ? (
-            <Link href={addHref} className="btn-primary">Write your synopsis <IconArrowUpRight /></Link>
+            <Link href={addHref} className="btn-primary">Start your story <IconArrowUpRight /></Link>
           ) : canAsk ? (
             <form action={requestBreakdown}>
               <input type="hidden" name="projectId" value={projectId} />
@@ -136,7 +139,7 @@ export default async function ProjectOverview({
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <Card
               icon={<IconStory />} title="Synopsis" badge={statusBadge(!!story.current_version_id, storyLatest)}
-              preview={<><p className="mb-2 font-semibold tracking-[0.06em] text-text uppercase">{project.name}</p><p className="line-clamp-4">{synopsis || "Your first page is waiting. Open to start writing."}</p></>}
+              preview={<><p className="mb-2 font-semibold tracking-[0.06em] text-text uppercase">{project.name}</p><p className="line-clamp-4">{preview || "Your first page is waiting. Open to start writing."}</p></>}
               heading="The seed of your story" sub="Your idea. Your starting point." agent="Story Lead"
               href={synopsis ? `/projects/${projectId}/items/${story.id}` : addHref}
             />

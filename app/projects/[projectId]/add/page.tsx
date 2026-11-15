@@ -9,7 +9,7 @@ import { SubmitButton } from "@/components/ui";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
 import { getAiBudget, getEntityWorkspace, getProjectShell } from "@/lib/data";
 import { parseGoogleLink } from "@/lib/google/links";
-import { TREATMENT_ATTRIBUTION } from "@/lib/intake";
+import { INTAKE_QUESTIONS, TREATMENT_ATTRIBUTION, parseIntake } from "@/lib/intake";
 import { addTreatmentLink, createEntity, requestBreakdown, saveSynopsis } from "../actions";
 
 export const maxDuration = 300;
@@ -52,6 +52,7 @@ export default async function AddToProject({
   if (!story || !ws) notFound();
 
   const latest = ws.versions[0];
+  const answers = parseIntake(latest?.content.body ?? "");
   const treatments = ws.references.filter((r) => r.attribution === TREATMENT_ATTRIBUTION);
   const canAsk = aiConfigured() && budget.available && (latest?.content.body?.trim().length ?? 0) >= 50;
 
@@ -63,33 +64,50 @@ export default async function AddToProject({
         </Link>
         <p className="eyebrow">Add to your project</p>
         <h1 className="display text-4xl leading-none sm:text-5xl">Bring in your film</h1>
-        <p className="max-w-2xl text-muted">Start with a synopsis, link your director&apos;s treatment, or add characters and locations yourself. You can change any of it later.</p>
+        <p className="max-w-2xl text-muted">Start by answering three questions about your story, link your director&apos;s treatment, or add characters and locations yourself. You can change any of it later.</p>
       </header>
       <Flash error={error} notice={notice} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Section id="story" icon={<IconStory />} title="Story"
-          help="Write or paste a synopsis: what happens, who it's about, where it takes place. A few paragraphs is plenty.">
-          <form action={saveSynopsis} className="flex flex-col gap-3">
+        <div className="lg:col-span-2">
+        <Section id="story" icon={<IconStory />} title="Your story"
+          help="Three questions to get your film started. Short answers are fine, and you can come back and change them any time.">
+          <form action={saveSynopsis} className="flex flex-col gap-5">
             <input type="hidden" name="projectId" value={projectId} />
             <input type="hidden" name="entityId" value={story.id} />
             <input type="hidden" name="parentVersionId" value={latest?.id ?? ""} />
             <input type="hidden" name="baseVersionId" value={story.current_version_id ?? ""} />
-            <label className="sr-only" htmlFor="synopsis">Synopsis</label>
-            <textarea id="synopsis" name="body" rows={12} required maxLength={200000}
-              defaultValue={latest?.content.body ?? ""} className="field font-serif leading-7" placeholder="Once upon a time…" />
-            <SubmitButton variant="primary" pendingText="Saving…">{latest ? "Save as a new revision" : "Save synopsis"}</SubmitButton>
-            {latest && <p className="text-xs text-muted">Saving keeps every earlier version in the story&apos;s history.</p>}
+            <ol className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+              {INTAKE_QUESTIONS.map((q, i) => (
+                <li key={q.key} className="flex flex-col gap-2">
+                  <label htmlFor={`intake-${q.key}`} className="flex items-baseline gap-2">
+                    <span className="display text-2xl leading-none text-accent">{i + 1}</span>
+                    <span className="font-semibold">{q.heading}</span>
+                  </label>
+                  <p id={`intake-${q.key}-help`} className="text-sm">{q.help}</p>
+                  <textarea id={`intake-${q.key}`} name={q.key} rows={8} maxLength={60000}
+                    required={q.key === "idea"} aria-describedby={`intake-${q.key}-help intake-${q.key}-why`}
+                    defaultValue={answers[q.key]} placeholder={q.placeholder}
+                    className="field font-serif leading-7" />
+                  <p id={`intake-${q.key}-why`} className="text-xs text-muted">{q.why}</p>
+                </li>
+              ))}
+            </ol>
+            <div className="flex flex-wrap items-center gap-3">
+              <SubmitButton variant="primary" pendingText="Saving…">{latest ? "Save as a new revision" : "Save my story"}</SubmitButton>
+              <p className="text-xs text-muted">{latest ? "Saving keeps every earlier version in the story's history." : "Only the first question is needed to start."}</p>
+            </div>
           </form>
           {canAsk && (
             <form action={requestBreakdown} className="flex flex-col gap-2 border-t border-line pt-4">
               <input type="hidden" name="projectId" value={projectId} />
               <input type="hidden" name="entityId" value={story.id} />
               <SubmitButton pendingText="Sending…">Suggest characters &amp; locations</SubmitButton>
-              <p className="text-xs text-muted">Your Story Lead reads the saved synopsis. To use your treatment instead, use Break down with Story Lead under Director treatment. It is sent to Anthropic&apos;s Claude AI.</p>
+              <p className="text-xs text-muted">Your Story Lead reads your saved answers. To use your treatment instead, use Break down with Story Lead under Director treatment. It is sent to Anthropic&apos;s Claude AI.</p>
             </form>
           )}
         </Section>
+        </div>
 
         <Section id="treatment" icon={<IconLink />} title="Director treatment"
           help="Link your treatment as a Google Doc or Google Slides. You can read it inside STUDIO, pull its pictures in, and let the Story Lead break it down.">

@@ -8,7 +8,7 @@ import { isPartnerId } from "@/lib/agents/partners";
 import { runPartnerTurn } from "@/lib/agents/run-partner-turn";
 import { aiConfigured, runStoryBreakdown } from "@/lib/agents/run-story-breakdown";
 import { friendlyError, withMessage } from "@/lib/errors";
-import { TREATMENT_ATTRIBUTION, TREATMENT_NOTES } from "@/lib/intake";
+import { TREATMENT_ATTRIBUTION, TREATMENT_NOTES, composeIntake } from "@/lib/intake";
 import { supabaseServer } from "@/lib/supabase/server";
 
 const s = (fd: FormData, k: string) => String(fd.get(k) ?? "");
@@ -230,10 +230,15 @@ export async function saveSynopsis(fd: FormData) {
   const projectId = s(fd, "projectId");
   const entityId = s(fd, "entityId");
   const sb = await supabaseServer();
+  // The intake form sends three answers; they're saved together as one story revision.
+  const body = fd.has("idea")
+    ? composeIntake({ idea: s(fd, "idea"), who: s(fd, "who"), difficulty: s(fd, "difficulty") })
+    : s(fd, "body");
+  if (!body.trim()) redirect(withMessage(addPath(projectId), "error", "Start with your story idea: even one sentence is enough."));
   const { error } = await sb.rpc("create_revision", {
     p_entity: entityId,
-    p_content: { body: s(fd, "body") },
-    p_change_summary: "Synopsis",
+    p_content: { body },
+    p_change_summary: fd.has("idea") ? "Story intake" : "Synopsis",
     p_parent_version: opt(fd, "parentVersionId"),
     p_base_version: opt(fd, "baseVersionId"),
     p_asset_ids: [],
@@ -241,7 +246,7 @@ export async function saveSynopsis(fd: FormData) {
   });
   if (error) redirect(withMessage(addPath(projectId), "error", friendlyError(error).message));
   revalidatePath(`/projects/${projectId}`, "layout");
-  redirect(withMessage(addPath(projectId), "notice", "Synopsis saved as a new story revision."));
+  redirect(withMessage(addPath(projectId), "notice", "Saved as a new story revision. Earlier versions are kept in the story's history."));
 }
 
 export async function addTreatmentLink(fd: FormData) {
