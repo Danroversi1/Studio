@@ -54,6 +54,9 @@ export default async function ScriptPage({
             Write in plain text; STUDIO formats it as screenplay pages. One page is about one minute of screen time.
           </p>
           <WorldLine projectId={projectId} world={world} />
+          {caps.can_edit && (
+            <Link href={`/projects/${projectId}/partners/dialogue`} className="text-sm text-accent">Find your characters&apos; voices with the Dialogue partner →</Link>
+          )}
         </div>
         <p className="text-xs tracking-[0.08em] text-muted uppercase">
           {canonical ? `Approved: revision ${canonical.version_number}` : "No approved version yet"}

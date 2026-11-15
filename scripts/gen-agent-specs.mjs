@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 const specs = [
   ["docs/agents/story-development-agent.txt", "lib/agents/specs/story-partner.ts", "STORY_PARTNER_SPEC", "the parent's agent specification, used verbatim as the\n// partner's instructions"],
   ["docs/agents/production-design-agent.txt", "lib/agents/specs/design-partner.ts", "DESIGN_PARTNER_SPEC", "the parent's agent specification, used verbatim as the\n// partner's instructions"],
+  ["docs/agents/dialogue-partner.txt", "lib/agents/specs/dialogue-partner.ts", "DIALOGUE_PARTNER_SPEC", "the parent's dialogue partner prompt with its embedded\n// reference knowledge, used verbatim as the partner's instructions"],
   ["docs/agents/story-development-process.txt", "lib/agents/specs/story-process.ts", "STORY_PROCESS_SPEC", "the parent's story development\n// process, used verbatim as additional instructions for the Story partner"],
 ];
 for (const [src, out, name, what] of specs) {

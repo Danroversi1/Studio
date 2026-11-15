@@ -8,7 +8,8 @@ import { IconPlus } from "@/components/icons";
 import { PartnerChat } from "@/components/partner-chat";
 import { PARTNERS, isPartnerId, openingFor } from "@/lib/agents/partners";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
-import { getAiBudget, getLatestVersions, getNotebook, getPartnerThreads, getProjectShell, getThreadMessages } from "@/lib/data";
+import { getAiBudget, getLatestVersions, getNotebook, getPartnerThreads, getProjectShell, getScreenplay, getThreadMessages } from "@/lib/data";
+import { parseScript } from "@/lib/screenplay";
 
 export const maxDuration = 300;
 
@@ -49,7 +50,7 @@ export default async function PartnerPage({
           <h1 className="display text-4xl leading-none sm:text-5xl">{partner.name}</h1>
           <p className="max-w-2xl text-muted">{partner.blurb} You&apos;re the director: your partner offers possibilities, and you decide.</p>
           <nav aria-label="Partners" className="mt-1 flex flex-wrap gap-2">
-            {(["story", "world", "design"] as const).map((p) => (
+            {(["story", "world", "dialogue", "design"] as const).map((p) => (
               <Link key={p} href={`/projects/${projectId}/partners/${p}`} aria-current={p === agent ? "page" : undefined}
                 className={`btn ${p === agent ? "btn-primary" : ""}`}>{PARTNERS[p].name}</Link>
             ))}
@@ -61,6 +62,7 @@ export default async function PartnerPage({
           opening={openingFor(agent, {
             hasStory: !!(story && latestStory.get(story.id)?.content?.body?.trim()),
             runtime: (shell.project as { runtime?: string | null }).runtime ?? null, filmTitle: shell.project.name,
+            scenes: agent === "dialogue" ? await sceneCount(projectId) : 0,
           })} threadId={current?.id ?? null}
           initial={messages.map((m) => ({ id: m.id, role: m.role, content: m.content }))}
           canTalk={!!shell.caps.can_edit} unavailable={shell.caps.can_edit ? unavailable : null} />
@@ -97,4 +99,10 @@ export default async function PartnerPage({
       </aside>
     </div>
   );
+}
+
+async function sceneCount(projectId: string) {
+  const sp = await getScreenplay(projectId);
+  const body = String((sp as { versions?: { content: { body?: string } }[] } | null)?.versions?.[0]?.content?.body ?? "");
+  return body ? parseScript(body).scenes.length : 0;
 }

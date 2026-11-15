@@ -71,3 +71,14 @@ test("answer chips are split off the reply", () => {
     { body: "What changes?", choices: ["The city has changed", "My character sees it differently", "A bit of both"] });
   assert.deepEqual(splitChoices("No chips here."), { body: "No chips here.", choices: [] });
 });
+
+import { openingFor, systemPrompt } from "../../lib/agents/partners";
+test("the Dialogue partner: the parent's prompt verbatim, plus how STUDIO works", () => {
+  const p = systemPrompt("dialogue");
+  assert.ok(p.startsWith("STUDIO — DIALOGUE PARTNER / v1"));
+  assert.match(p, /never use the inactive NORM record/);
+  assert.match(p, /You cannot edit her script/);
+  assert.equal(openingFor("dialogue", { hasStory: true, runtime: "3-5", filmTitle: "Johnny" }),
+    "Let's hear your characters. Who is talking, and what does one of them want from the other?");
+  assert.match(openingFor("dialogue", { hasStory: true, runtime: "3-5", filmTitle: "Johnny", scenes: 7 }), /7 scenes in your script for “Johnny”/);
+});

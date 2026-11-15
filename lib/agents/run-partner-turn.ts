@@ -6,6 +6,7 @@ import { anthropicClient } from "../ai/client";
 import { costUsd, type Usage } from "../ai/pricing";
 import { supabaseService } from "../supabase/server";
 import { isRuntime } from "../runtime";
+import { parseScript } from "../screenplay";
 import { composeSentence, toWorld, worldOpsFromTool, type WorldOp } from "../world";
 import {
   type NoteOp, OFFER_CHOICES_TOOL, type PartnerProposal, type ProjectSnapshot, RECORD_RUNTIME_TOOL, type StoredMessage, SUGGEST_ITEM_TOOL,
@@ -105,6 +106,7 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
     // She saw an opening line before her first message; tell the model what it said.
     const opening = openingFor(partner, {
       hasStory: !!snapshot.synopsis.trim(), runtime: snapshot.runtime ?? null, filmTitle: snapshot.filmTitle,
+      scenes: snapshot.script?.text ? parseScript(snapshot.script.text).scenes.length : 0,
       worldSentence: snapshot.world ? (snapshot.world.confirmed.summary?.value.text ?? composeSentence(snapshot.world.confirmed)) : null,
     });
     if (typeof messages[0].content === "string") {
@@ -117,8 +119,9 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
 
     const tools = partner === "story" ? [SUGGEST_ITEM_TOOL, RECORD_RUNTIME_TOOL, UPDATE_NOTEBOOK_TOOL]
       : partner === "world" ? [UPDATE_WORLD_TOOL, OFFER_CHOICES_TOOL, RECORD_RUNTIME_TOOL, UPDATE_NOTEBOOK_TOOL]
+      : partner === "dialogue" ? [OFFER_CHOICES_TOOL, RECORD_RUNTIME_TOOL, UPDATE_NOTEBOOK_TOOL]
       : [SUGGEST_ITEM_TOOL];
-    const notesPartner = partner === "story" || partner === "world";
+    const notesPartner = partner === "story" || partner === "world" || partner === "dialogue";
     const worldOps: WorldOp[] = [];
     let choices: string[] = [];
     const herMessage = [...(history ?? [])].reverse().find((m) => m.role === "user")?.content ?? "";
@@ -149,7 +152,7 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
           results.push({ type: "tool_result", tool_use_id: b.id, content: (room > 0 ? report : ["Limit for this turn reached."]).join("\n") || "Nothing changed." });
           continue;
         }
-        if (partner === "world" && b.name === "offer_choices") {
+        if ((partner === "world" || partner === "dialogue") && b.name === "offer_choices") {
           const raw = (b.input as { choices?: unknown[] })?.choices ?? [];
           choices = raw.filter((c): c is string => typeof c === "string").map((c) => c.replace(/[|\[\]\n]/g, " ").trim().slice(0, 60)).filter(Boolean).slice(0, 3);
           results.push({ type: "tool_result", tool_use_id: b.id, content: choices.length ? "Shown under your reply." : "No choices shown." });

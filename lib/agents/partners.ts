@@ -2,6 +2,7 @@
 // about how they run inside STUDIO, the project snapshot they see each turn, and their one
 // tool. Pure functions, no I/O (unit-tested).
 import { DESIGN_PARTNER_SPEC } from "./specs/design-partner";
+import { DIALOGUE_PARTNER_SPEC } from "./specs/dialogue-partner";
 import { STORY_PARTNER_SPEC } from "./specs/story-partner";
 import { STORY_PROCESS_SPEC } from "./specs/story-process";
 import { runtimeInfo } from "../runtime";
@@ -9,8 +10,8 @@ import { parseScript } from "../screenplay";
 import { normalizeForMatch } from "./story-breakdown";
 import { COVERAGES, DEEPER_KEYS, PLACE_KINDS, PRECISIONS, renderWorld, type World } from "../world";
 
-export type PartnerId = "story" | "design" | "world";
-export const PARTNER_IDS: PartnerId[] = ["story", "design", "world"];
+export type PartnerId = "story" | "design" | "world" | "dialogue";
+export const PARTNER_IDS: PartnerId[] = ["story", "design", "world", "dialogue"];
 
 
 /** The World Builder's brief, from the parent's World & Time spec (docs/agents/world-and-time.txt). */
@@ -64,14 +65,26 @@ export const PARTNERS: Record<PartnerId, {
     spec: WORLD_BUILDER_SPEC,
     promptVersion: "world-builder-v1.0",
   },
+  dialogue: {
+    name: "Dialogue partner",
+    short: "Dialogue",
+    blurb: "Find each character's voice and write the lines they'd really say.",
+    opening: "Let's hear your characters. Who is talking, and what does one of them want from the other?",
+    spec: DIALOGUE_PARTNER_SPEC,
+    promptVersion: "dialogue-partner-v1.0",
+  },
 };
 
 /** The first line she sees. The Story partner builds on what's already in STUDIO
  * (her intake answers, film length) instead of asking her to repeat it. */
-export function openingFor(p: PartnerId, ctx: { hasStory: boolean; runtime: string | null; filmTitle: string; worldSentence?: string | null }): string {
+export function openingFor(p: PartnerId, ctx: { hasStory: boolean; runtime: string | null; filmTitle: string; worldSentence?: string | null; scenes?: number }): string {
   if (p === "world") {
     if (ctx.worldSentence) return `Here's your world so far: “${ctx.worldSentence}” What would you like to explore?`;
     return ctx.hasStory ? `I've read your story for “${ctx.filmTitle}”. Where do you imagine it happening?` : PARTNERS.world.opening;
+  }
+  if (p === "dialogue") {
+    if (ctx.scenes) return `I can see ${ctx.scenes} ${ctx.scenes === 1 ? "scene" : "scenes"} in your script for “${ctx.filmTitle}”. Which one shall we give a voice to?`;
+    return PARTNERS.dialogue.opening;
   }
   if (p !== "story" || !ctx.hasStory) return PARTNERS[p].opening;
   const rt = runtimeInfo(ctx.runtime);
@@ -81,7 +94,7 @@ export function openingFor(p: PartnerId, ctx: { hasStory: boolean; runtime: stri
 }
 
 export function isPartnerId(x: unknown): x is PartnerId {
-  return x === "story" || x === "design" || x === "world";
+  return x === "story" || x === "design" || x === "world" || x === "dialogue";
 }
 
 /** The creative-process part of the parent's story development spec (sections addressed to
@@ -117,7 +130,23 @@ ${SHARED_FACTS}
 - The Storybuilder and Design partner see World & Time as confirmed facts and open suggestions. They don't see this conversation.
 `;
 
-const STUDIO_FACTS = (p: PartnerId) => p === "world" ? WORLD_FACTS : p === "story" ? `
+const DIALOGUE_FACTS = `
+============================================================
+RUNNING INSIDE STUDIO (these facts are true for this session)
+
+- In STUDIO you are called "Dialogue partner". You work beside her Script desk. The Storybuilder, World Builder and Design partner are other team members.
+${SHARED_FACTS}
+- The snapshot gives you her script (scene headings, action, any lines she wrote, and [[…]] notes that don't print), her cast with descriptions, World & Time (era, places, any world rules) and the story notebook. Start from the scene she's working on. Lines like "(write the line)" mark dialogue she hasn't written yet.
+- You cannot edit her script. Offer drafts and alternatives in your reply, labelled as proposed, with her original lines kept alongside; she copies what she adopts into the Script desk herself. Never say you changed her script.
+- update_notebook keeps track of what she decides (one short note each):
+  - "decision" with her_words for a voice trait, relationship fact, scene objective or line she has clearly adopted in her latest message (STUDIO checks her words). Start voice notes with the character's name, e.g. "Voice — Marie: answers questions with questions when she's scared."
+  - "idea" for your provisional voice cards or suggestions; "question" when a line would change a story fact (flag it for the Storybuilder instead of changing canon); "for_later" to park bigger ideas.
+- record_runtime saves the film length when she states it. offer_choices adds up to 3 tap-to-answer options under your reply.
+- Reference cases in your instructions are background for you. Don't send her to watch or read them, don't quote them, and never use the inactive NORM record.
+- Keep vocabulary consistent with World & Time's era and rules, and physical business consistent with the places and props in the script's art notes.
+`;
+
+const STUDIO_FACTS = (p: PartnerId) => p === "dialogue" ? DIALOGUE_FACTS : p === "world" ? WORLD_FACTS : p === "story" ? `
 ============================================================
 STORY DEVELOPMENT PROCESS (from the parent; follow it. Where it differs from the earlier sections, this process wins.)
 

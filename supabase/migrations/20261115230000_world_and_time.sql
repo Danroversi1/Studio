@@ -1,5 +1,5 @@
 -- STUDIO — World & Time: where the story happens, when, and how much time it spans,
--- plus the World Builder partner.
+-- plus the World Builder partner, and the Dialogue partner.
 --
 -- One record per film (story_world). Its data keeps what she confirmed apart from
 -- suggestions she hasn't accepted:
@@ -261,9 +261,9 @@ begin
   return n;
 end $$;
 
--- The World Builder joins the partners.
+-- The World Builder and the Dialogue partner join the partners.
 alter table public.agent_threads drop constraint if exists agent_threads_agent_check;
-alter table public.agent_threads add constraint agent_threads_agent_check check (agent in ('story', 'design', 'world'));
+alter table public.agent_threads add constraint agent_threads_agent_check check (agent in ('story', 'design', 'world', 'dialogue'));
 
 create or replace function public.start_agent_thread(p_project uuid, p_agent text)
 returns uuid
@@ -271,7 +271,7 @@ language plpgsql security definer set search_path = '' as $$
 declare v_uid uuid; v_id uuid;
 begin
   v_uid := public.studio_require(p_project, 3, 'talk with the creative partners');
-  if p_agent not in ('story', 'design', 'world') then
+  if p_agent not in ('story', 'design', 'world', 'dialogue') then
     raise exception 'Unknown partner.' using errcode = '22023';
   end if;
   insert into public.agent_threads (project_id, agent, created_by) values (p_project, p_agent, v_uid)
@@ -318,7 +318,7 @@ begin
   values (t.project_id, case t.agent when 'design' then 'production_designer' else 'writer' end::public.agent_domain,
           'queued', 'conversation_turn',
           jsonb_build_object('thread_id', t.id, 'agent', t.agent, 'message_id', v_msg, 'entity_id', v_story),
-          'anthropic', case t.agent when 'story' then 'story-partner-v2.0' when 'world' then 'world-builder-v1.0' else 'design-partner-v1.0' end, v_uid)
+          'anthropic', case t.agent when 'story' then 'story-partner-v2.0' when 'world' then 'world-builder-v1.0' when 'dialogue' then 'dialogue-partner-v1.0' else 'design-partner-v1.0' end, v_uid)
   returning id into v_run;
   update public.agent_threads
      set last_message_at = now(), title = coalesce(title, left(regexp_replace(v_text, '\s+', ' ', 'g'), 80))
@@ -332,7 +332,7 @@ language plpgsql security definer set search_path = '' as $$
 declare r public.agent_runs; v_msg text; op jsonb; v_kind text; v_body text; v_words text; v_status text; n integer := 0;
 begin
   select * into r from public.agent_runs where id = p_run;
-  if r.id is null or r.task_type <> 'conversation_turn' or r.input_payload ->> 'agent' not in ('story', 'world') then
+  if r.id is null or r.task_type <> 'conversation_turn' or r.input_payload ->> 'agent' not in ('story', 'world', 'dialogue') then
     raise exception 'Run not found.' using errcode = 'PT404';
   end if;
   if r.status <> 'running' then

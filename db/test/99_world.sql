@@ -45,6 +45,16 @@ select public.accept_world_proposal(tests.v('A'), 'span', null);
 select tests.ok((select data -> 'confirmed' -> 'span' -> 'value' ->> 'text' from public.story_world where project_id = tests.v('A')) = 'ten years', 'accepting moves it to confirmed');
 select tests.ok((select (data -> 'proposals') ? 'span' from public.story_world where project_id = tests.v('A')) = false, 'and clears the suggestion');
 
+-- Dialogue partner.
+select tests.put('dt', public.start_agent_thread(tests.v('A'), 'dialogue'));
+select tests.put('dr', public.post_agent_message(tests.v('dt'), 'Marie: Who gets the fern?'));
+select tests.ok((select prompt_version from public.agent_runs where id = tests.v('dr')) = 'dialogue-partner-v1.0', 'dialogue turns use the Dialogue partner');
+:as_service
+select public.start_agent_run(tests.v('dr'));
+select tests.ok(public.apply_partner_notes(tests.v('dr'), '[{"op":"add","kind":"decision","body":"Voice — Marie: asks about the fern instead of asking him to stay.","her_words":"who gets the fern"}]', null, null) = 1, 'the Dialogue partner can keep notes');
+:as_dir
+select tests.ok((select status from public.story_notebook where body like 'Voice — Marie%') = 'confirmed', 'her words make a voice note hers');
+
 -- Reading her story.
 select tests.put('rr', public.request_world_read(tests.v('A')));
 select tests.ok(public.request_world_read(tests.v('A')) is null, 'one read at a time');
