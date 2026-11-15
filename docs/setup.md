@@ -145,3 +145,24 @@ This leaves a `tests` schema and seeded test users behind; run `supabase db rese
 | Treatment reader (`components/treatment-reader.tsx`) | Builds; not opened in a browser with a real Doc |
 | `scripts/seed-dev-users.mjs` | Not run |
 | Dev storage route handler | Adapter logic unit-tested; the HTTP route itself is not run |
+
+## Developer comments layer
+
+Accounts listed in `public.studio_developers` see a **+ Comment** / **Dev** control in the
+bottom-right corner of every page. Click **+ Comment**, click a spot on the page, write a
+note: it is pinned to that page and spot (with the element it was on). Nobody else sees
+the control or the comments (RLS + `is_studio_developer()`).
+
+Add a developer (SQL editor, service role):
+
+```sql
+insert into public.studio_developers (user_id)
+select id from auth.users where email = 'someone@example.com';
+```
+
+Read open comments (e.g. to work through them):
+
+```sql
+select path, body, anchor->>'selector' as element, anchor->>'snippet' as text, created_at
+from public.dev_comments where status = 'open' order by created_at;
+```
