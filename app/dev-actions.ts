@@ -35,3 +35,11 @@ export async function deleteDevComment(input: { id: string }) {
   const { error } = await sb.rpc("delete_dev_comment", { p_comment: input.id });
   return error ? { error: error.message } : {};
 }
+
+export async function editDevComment(input: { id: string; body: string }) {
+  const body = String(input?.body ?? "").trim();
+  if (!body) return { error: "A comment can't be empty." };
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("edit_dev_comment", { p_comment: input.id, p_body: body.slice(0, 4000) });
+  return error ? { error: error.message } : {};
+}

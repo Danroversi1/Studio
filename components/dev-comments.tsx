@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { type DevComment, addDevComment, deleteDevComment, listDevComments, setDevCommentStatus } from "@/app/dev-actions";
+import { type DevComment, addDevComment, deleteDevComment, editDevComment, listDevComments, setDevCommentStatus } from "@/app/dev-actions";
 
 function selectorFor(el: Element | null): string {
   const parts: string[] = [];
@@ -33,12 +33,38 @@ export function DevComments() {
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+
+  async function saveEdit() {
+    if (!editing || !editing.text.trim()) return;
+    setBusy(true);
+    const res = await editDevComment({ id: editing.id, body: editing.text });
+    setBusy(false);
+    if (res.error) { setError(res.error); return; }
+    setEditing(null);
+    setError(null);
+    reload();
+  }
+
+  const editor = (
+    <div className="flex flex-col gap-2">
+      <textarea autoFocus rows={4} maxLength={4000} value={editing?.text ?? ""} aria-label="Edit comment"
+        onChange={(e) => setEditing((x) => (x ? { ...x, text: e.target.value } : x))}
+        onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveEdit(); }}
+        className="field text-sm" />
+      {error && <p className="text-xs text-danger">{error}</p>}
+      <div className="flex gap-2">
+        <button type="button" className="btn btn-primary min-h-8 px-2 text-[11px]" disabled={busy || !editing?.text.trim()} onClick={saveEdit}>{busy ? "Saving…" : "Save"}</button>
+        <button type="button" className="btn min-h-8 px-2 text-[11px]" onClick={() => setEditing(null)}>Cancel</button>
+      </div>
+    </div>
+  );
 
   const reload = useCallback(async () => setComments(await listDevComments()), []);
   useEffect(() => { setMounted(true); reload(); }, [reload]);
   useEffect(() => { setDraft(null); setOpenPin(null); setPlacing(false); }, [path]);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setPlacing(false); setDraft(null); setOpenPin(null); } };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setPlacing(false); setDraft(null); setOpenPin(null); setEditing(null); } };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
@@ -116,16 +142,17 @@ export function DevComments() {
               aria-label={`Developer comment ${n}`}>{n}</button>
             {openPin === c.id && (
               <div className="absolute top-5 left-0 w-72 border border-line bg-panel-2 p-3 text-sm shadow-lg">
-                <p className="whitespace-pre-wrap">{c.body}</p>
+                {editing?.id === c.id ? editor : <p className="whitespace-pre-wrap">{c.body}</p>}
                 {c.resolution_note && <p className="mt-2 text-xs text-ok">Resolved: {c.resolution_note}</p>}
                 <p className="mt-2 text-[11px] text-muted">{new Date(c.created_at).toLocaleString()} · {c.anchor.selector}</p>
-                <div className="mt-2 flex gap-2">
+                {editing?.id !== c.id && <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" className="btn min-h-8 px-2 text-[11px]" onClick={() => { setEditing({ id: c.id, text: c.body }); setError(null); }}>Edit</button>
                   {c.status === "open"
                     ? <button type="button" className="btn min-h-8 px-2 text-[11px]" onClick={() => setStatus(c.id, "resolved")}>Resolve</button>
                     : <button type="button" className="btn min-h-8 px-2 text-[11px]" onClick={() => setStatus(c.id, "open")}>Reopen</button>}
                   {deleteButton(c.id)}
                   <button type="button" className="btn min-h-8 px-2 text-[11px]" onClick={() => { setOpenPin(null); setConfirmDelete(null); }}>Close</button>
-                </div>
+                </div>}
               </div>
             )}
           </div>
@@ -159,10 +186,13 @@ export function DevComments() {
             <ul className="overflow-y-auto">
               {comments.filter((c) => showResolved || c.status === "open").map((c) => (
                 <li key={c.id} className={`border-b border-line px-3 py-2 text-sm ${c.path === path ? "bg-accent-soft/40" : ""}`}>
-                  <p className={`line-clamp-3 ${c.status === "resolved" ? "text-muted line-through" : ""}`}>{c.body}</p>
+                  {editing?.id === c.id ? editor : (
+                    <p className={`line-clamp-3 ${c.status === "resolved" ? "text-muted line-through" : ""}`}>{c.body}</p>
+                  )}
                   <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-muted">
                     {c.path === path ? <span>This page</span> : <Link href={c.path} className="link-accent truncate">{c.path}</Link>}
                     <span className="flex shrink-0 gap-3">
+                      <button type="button" className="hover:text-accent" onClick={() => { setEditing({ id: c.id, text: c.body }); setError(null); }}>Edit</button>
                       {c.status === "open"
                         ? <button type="button" className="hover:text-accent" onClick={() => setStatus(c.id, "resolved")}>Resolve</button>
                         : <button type="button" className="hover:text-accent" onClick={() => setStatus(c.id, "open")}>Reopen</button>}

@@ -27,6 +27,11 @@ select tests.ok((select status = 'resolved' and resolution_note like 'Done%' fro
 :as_dir
 select tests.ok(tests.n($$select 1 from public.dev_comments$$) = 0, 'the director cannot see developer comments');
 select tests.throws(format($q$select public.delete_dev_comment(%L)$q$, tests.v('c1')), '42501', 'non-developers cannot delete');
+select tests.throws(format($q$select public.edit_dev_comment(%L, 'x')$q$, tests.v('c1')), '42501', 'non-developers cannot edit');
+:as_ep
+select tests.throws(format($q$select public.edit_dev_comment(%L, '  ')$q$, tests.v('c1')), '22023', 'empty edit refused');
+select public.edit_dev_comment(tests.v('c1'), 'Make the buttons much bigger');
+select tests.ok((select body from public.dev_comments where id = tests.v('c1')) = 'Make the buttons much bigger', 'developer edited the comment');
 :as_ep
 select public.delete_dev_comment(tests.v('c1'));
 select tests.ok(tests.n($$select 1 from public.dev_comments where id = tests.v('c1')$$) = 0, 'developer deleted the comment');
