@@ -56,6 +56,13 @@ export const IconBook = ({ className }: P) => (
   <svg {...base(className)}><path d="M12 6.5C10 5 7.5 4.5 4 4.5v14c3.5 0 6 .5 8 2 2-1.5 4.5-2 8-2v-14c-3.5 0-6 .5-8 2z" /><path d="M12 6.5v14" /></svg>
 );
 
+export const IconChat = ({ className }: P) => (
+  <svg {...base(className)}><path d="M4 5.5h16v10H9l-4 3.5v-3.5H4z" /><path d="M8 9.5h8M8 12.5h5" /></svg>
+);
+export const IconPalette = ({ className }: P) => (
+  <svg {...base(className)}><path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.4 0 1.8-1 1.3-2-.6-1.2.2-2.5 1.6-2.5H17a3.5 3.5 0 0 0 3.5-3.5c0-5-3.8-9-8.5-9z" /><circle cx="7.5" cy="11" r="1" /><circle cx="10" cy="7.5" r="1" /><circle cx="14.5" cy="7.5" r="1" /></svg>
+);
+
 export function Wordmark({ size = "md" }: { size?: "md" | "lg" }) {
   const big = size === "lg";
   return (

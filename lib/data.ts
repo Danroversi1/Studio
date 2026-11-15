@@ -116,7 +116,7 @@ export async function getSuggestions(projectId: string) {
   const [runs, proposals] = await Promise.all([
     sb.from("agent_runs")
       .select("id, status, task_type, created_at, completed_at, error_message, output_payload, source:input_payload->>source")
-      .eq("project_id", projectId).order("created_at", { ascending: false }).limit(5),
+      .eq("project_id", projectId).eq("task_type", "story_breakdown").order("created_at", { ascending: false }).limit(5),
     sb.from("agent_proposals")
       .select("id, agent_run_id, entity_kind, name, summary, evidence, match_entity_id, status, result_entity_id, created_at")
       .eq("project_id", projectId).order("created_at", { ascending: true }).limit(200),
@@ -168,4 +168,18 @@ export async function getEntityWorkspace(projectId: string, entityId: string) {
     relationships: relsRes.data ?? [],
     references: refsRes.data ?? [],
   };
+}
+
+export async function getPartnerThreads(projectId: string, agent: string) {
+  const sb = await supabaseServer();
+  const { data } = await sb.from("agent_threads").select("id, title, created_at, last_message_at")
+    .eq("project_id", projectId).eq("agent", agent).order("last_message_at", { ascending: false }).limit(30);
+  return data ?? [];
+}
+
+export async function getThreadMessages(projectId: string, threadId: string) {
+  const sb = await supabaseServer();
+  const { data } = await sb.from("agent_messages").select("id, role, content, created_at")
+    .eq("project_id", projectId).eq("thread_id", threadId).order("created_at", { ascending: true }).limit(400);
+  return (data ?? []) as { id: string; role: "user" | "assistant"; content: string; created_at: string }[];
 }

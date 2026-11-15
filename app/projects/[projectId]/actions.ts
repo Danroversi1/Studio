@@ -4,6 +4,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
+import { isPartnerId } from "@/lib/agents/partners";
+import { runPartnerTurn } from "@/lib/agents/run-partner-turn";
 import { aiConfigured, runStoryBreakdown } from "@/lib/agents/run-story-breakdown";
 import { friendlyError, withMessage } from "@/lib/errors";
 import { TREATMENT_ATTRIBUTION, TREATMENT_NOTES } from "@/lib/intake";
@@ -266,4 +268,29 @@ export async function deleteProject(fd: FormData) {
   if (error) redirect(withMessage(`/projects/${projectId}/settings`, "error", friendlyError(error).message));
   revalidatePath("/projects");
   redirect(withMessage("/projects", "notice", "Film deleted. If that was a mistake, it can still be recovered — ask for help soon."));
+}
+
+/**
+ * Talk to a creative partner. The database checks Edit access, the budget and that the
+ * previous reply has finished; the reply is produced here and recorded by the service role.
+ */
+export async function sendPartnerMessage(input: {
+  projectId: string; agent: string; threadId: string | null; content: string;
+}): Promise<{ threadId?: string; error?: string }> {
+  if (!aiConfigured()) return { error: "The AI team isn't set up yet. Ask your Executive Producer." };
+  if (!isPartnerId(input?.agent)) return { error: "Unknown partner." };
+  const sb = await supabaseServer();
+  let threadId = input.threadId;
+  if (!threadId) {
+    const { data, error } = await sb.rpc("start_agent_thread", { p_project: input.projectId, p_agent: input.agent });
+    if (error) return { error: friendlyError(error).message };
+    threadId = data as string;
+  }
+  const { data: runId, error } = await sb.rpc("post_agent_message", { p_thread: threadId, p_content: input.content });
+  if (error) return { threadId, error: friendlyError(error).message };
+  const failure = await runPartnerTurn(runId as string);
+  revalidatePath(`/projects/${input.projectId}`, "layout");
+  return failure
+    ? { threadId, error: "Your partner couldn't answer just now. Your message is saved; try sending a short follow-up." }
+    : { threadId };
 }

@@ -52,3 +52,12 @@ The project creator is granted, explicitly and visibly in `create_project()` and
 1. Who may grant or revoke `can_approve_creative` and `can_authorize_spend`? An Admin must not be able to grant themselves creative authority. Membership changes are therefore service-role only until this is decided.
 2. A single person can't currently be both Director and Executive Producer (one `project_role`). That's fine for the expected household (daughter = Director, parent = EP), but confirm it.
 3. Should a Commit user be able to merge a revision that a Director approved earlier (a two-step flow)? The `approvals` table supports it; this milestone uses the single-step Director + Commit approval.
+
+## Creative partners (Story partner, Design partner)
+
+- Instructions: the parent's specs in `docs/agents/*.txt`, embedded verbatim (`lib/agents/specs/`, regenerate from the .txt), plus a short "Running inside STUDIO" section that states what the partner can and cannot see or do (`lib/agents/partners.ts`).
+- Talking to a partner needs **Edit** access (`post_agent_message`). **Review** access and above can read conversations (so the EP can see what the partners say). View access can't.
+- Every reply is an `agent_runs` row (`task_type = 'conversation_turn'`) charged to the monthly AI budget. One reply at a time per conversation; at most 300 replies per film per day.
+- Each turn the partner sees a fresh snapshot: synopsis, the last treatment text the Story Lead read, characters/locations with latest descriptions and approval state, reference titles/credits/notes, pending suggestions. It sees no images.
+- Its only tool, `suggest_item`, adds a pending suggestion (same inbox and rules as the Story Lead). Nothing a partner does approves or edits the film.
+- Messages are append-only.
