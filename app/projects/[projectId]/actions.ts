@@ -268,9 +268,9 @@ export async function addTreatmentLink(fd: FormData) {
     p_notes: TREATMENT_NOTES,
     p_rights_status: "permission_granted",
   });
-  if (error) redirect(withMessage(addPath(projectId), "error", friendlyError(error).message));
-  revalidatePath(addPath(projectId));
-  redirect(withMessage(addPath(projectId), "notice", "Treatment link added to your story."));
+  if (error) redirect(withMessage(backTo(fd, projectId, `/projects/${projectId}/treatment`), "error", friendlyError(error).message));
+  revalidatePath(backTo(fd, projectId, `/projects/${projectId}/treatment`));
+  redirect(withMessage(backTo(fd, projectId, `/projects/${projectId}/treatment`), "notice", "Treatment link added to your story."));
 }
 
 export async function deleteProject(fd: FormData) {

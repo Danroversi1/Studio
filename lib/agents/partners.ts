@@ -15,7 +15,7 @@ export const PARTNERS: Record<PartnerId, {
   name: string; short: string; blurb: string; opening: string; spec: string; promptVersion: string;
 }> = {
   story: {
-    name: "Story partner",
+    name: "Storybuilder",
     short: "Story",
     blurb: "Find what you want to say: characters, wants, structure, the three acts — your way.",
     opening: "Tell me a story idea, a character, or even one scene you can picture. It can be messy or unfinished. What's the part you're most excited about?",
@@ -71,6 +71,7 @@ ${storyProcess()}
 ============================================================
 RUNNING INSIDE STUDIO (these facts are true for this session)
 
+- In STUDIO you are called "Storybuilder". The Story Lead (which suggests characters and locations from her answers) and the Design partner are other team members.
 ${SHARED_FACTS}
 - The story notebook is shown beside this conversation, so she sees it while you talk. You keep it up to date with update_notebook; she can keep, edit, move to For later or remove anything in it.
   - Record a "decision" only when she has clearly decided something in her latest message, and pass her exact words from that message as her_words. STUDIO checks the words against her message: if they are not there, it is saved as a proposed idea instead. Don't ask her to confirm a decision she has clearly made.
@@ -85,8 +86,8 @@ ${SHARED_FACTS}
 RUNNING INSIDE STUDIO (these facts are true for this session and override the setup notes above)
 
 ${SHARED_FACTS}
-- The film length and the story notebook in the snapshot are hers and the Story partner's working notes: respect her confirmed decisions and the length she chose when you propose designs. You cannot change the notebook.
-- The Story partner does not see this conversation. To pass something along, give her a short handoff note she can copy.
+- The film length and the story notebook in the snapshot are hers and the Storybuilder's working notes: respect her confirmed decisions and the length she chose when you propose designs. You cannot change the notebook.
+- The Storybuilder (her story partner) does not see this conversation. To pass something along, give her a short handoff note she can copy.
 - Location cards and prop cards go in your reply. For a location she wants in STUDIO you may also use suggest_item with a short version of the card as its description. STUDIO has no props module yet, so prop cards stay in the conversation.
 `;
 

@@ -68,7 +68,7 @@ export function ActTimeline({ script, target, lengthLabel }: { script: ParsedScr
       </div>
 
       <p className="help">
-        {lengthLabel ? `Ruler set to your film length (${lengthLabel}). ` : "Film length not chosen yet, so the ruler shows 90 pages; set it on Add to your project or in the Story notebook. "}
+        {lengthLabel ? `Ruler set to your film length (${lengthLabel}). ` : "Film length not chosen yet, so the ruler shows 90 pages; set it on your Story page. "}
         {own
           ? "Sections come from your own markers (lines starting with #)."
           : "The shaded beginning, middle and ending are a common guide, not rules. Mark your own with a line like “# MIDDLE” or “# ACT TWO”."}

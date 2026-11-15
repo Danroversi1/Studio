@@ -65,110 +65,12 @@ export default async function AddToProject({
           <IconArrowLeft /> Overview
         </Link>
         <p className="eyebrow">Add to your project</p>
-        <h1 className="display text-4xl leading-none sm:text-5xl">Bring in your film</h1>
-        <p className="max-w-2xl text-muted">Start by answering three questions about your story, link your director&apos;s treatment, or add characters and locations yourself. You can change any of it later.</p>
+        <h1 className="display text-4xl leading-none sm:text-5xl">Characters &amp; locations</h1>
+        <p className="max-w-2xl text-muted">Add the people and places in your film. You can describe them and add artwork on their pages.</p>
       </header>
       <Flash error={error} notice={notice} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="lg:col-span-2">
-        <Section id="story" icon={<IconStory />} title="Your story"
-          help="A few questions to get your film started. Short answers are fine, and you can come back and change them any time.">
-          <form action={setRuntime} className="flex flex-col gap-2 border-b border-line pb-5">
-            <input type="hidden" name="projectId" value={projectId} />
-            <input type="hidden" name="back" value={`/projects/${projectId}/add`} />
-            <p className="font-semibold">How long are you imagining your film?</p>
-            <p className="text-sm">Length is a creative choice, not a measure of how good a film is. A complete one-minute film is a real achievement.</p>
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Film length">
-              {RUNTIMES.map((r) => (
-                <button key={r.value} type="submit" name="runtime" value={r.value} aria-pressed={runtime === r.value}
-                  className={`btn ${runtime === r.value ? "btn-primary" : ""}`}>{r.label}</button>
-              ))}
-              {canAsk || aiConfigured() ? (
-                <Link href={`/projects/${projectId}/partners/story`} className="btn">Help me choose</Link>
-              ) : null}
-            </div>
-            <p className="text-xs text-muted">
-              {runtimeInfo(runtime)?.focus ?? "Not sure yet? Your Story partner can help you choose based on your idea."}
-            </p>
-          </form>
-          <form action={saveSynopsis} className="flex flex-col gap-5">
-            <input type="hidden" name="projectId" value={projectId} />
-            <input type="hidden" name="entityId" value={story.id} />
-            <input type="hidden" name="parentVersionId" value={latest?.id ?? ""} />
-            <input type="hidden" name="baseVersionId" value={story.current_version_id ?? ""} />
-            <ol className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-              {INTAKE_QUESTIONS.map((q, i) => (
-                <li key={q.key} className="flex flex-col gap-2">
-                  <label htmlFor={`intake-${q.key}`} className="flex items-baseline gap-2">
-                    <span className="display text-2xl leading-none text-accent">{i + 1}</span>
-                    <span className="font-semibold">{q.heading}</span>
-                  </label>
-                  <p id={`intake-${q.key}-help`} className="text-sm">{q.help}</p>
-                  <textarea id={`intake-${q.key}`} name={q.key} rows={8} maxLength={60000}
-                    required={q.key === "idea"} aria-describedby={`intake-${q.key}-help intake-${q.key}-why`}
-                    defaultValue={answers[q.key]} placeholder={q.placeholder}
-                    className="field font-serif leading-7" />
-                  <p id={`intake-${q.key}-why`} className="text-xs text-muted">{q.why}</p>
-                </li>
-              ))}
-            </ol>
-            <div className="flex flex-wrap items-center gap-3">
-              <SubmitButton variant="primary" pendingText="Saving…">{latest ? "Save as a new revision" : "Save my story"}</SubmitButton>
-              <p className="text-xs text-muted">{latest ? "Saving keeps every earlier version in the story's history." : "Only the first question is needed to start."}</p>
-            </div>
-          </form>
-          {canAsk && (
-            <form action={requestBreakdown} className="flex flex-col gap-2 border-t border-line pt-4">
-              <input type="hidden" name="projectId" value={projectId} />
-              <input type="hidden" name="entityId" value={story.id} />
-              <SubmitButton pendingText="Sending…">Suggest characters &amp; locations</SubmitButton>
-              <p className="text-xs text-muted">Your Story Lead reads your saved answers. To use your treatment instead, use Break down with Story Lead under Director treatment. It is sent to Anthropic&apos;s Claude AI.</p>
-            </form>
-          )}
-        </Section>
-        </div>
-
-        <Section id="treatment" icon={<IconLink />} title="Director treatment"
-          help="Link your treatment as a Google Doc or Google Slides. You can read it inside STUDIO, pull its pictures in, and let the Story Lead break it down.">
-          {treatments.length > 0 && (
-            <ul className="flex flex-col">
-              {treatments.map((t) => (
-                <li key={t.id} className="border-b border-line py-3 first:border-t">
-                  <a href={t.source_url} target="_blank" rel="noopener noreferrer" className="font-medium hover:text-accent">↗ {t.title || t.source_domain}</a>
-                  <p className="text-xs text-muted">{t.source_domain} · added {new Date(t.created_at).toLocaleDateString("en-US", { dateStyle: "medium" })}</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <Link href={`/projects/${projectId}/treatment?ref=${t.id}`} className="btn">Read here</Link>
-                    {parseGoogleLink(t.source_url)?.kind === "doc" && (
-                      <Link href={`/projects/${projectId}/import?from=treatment&ref=${t.id}`} className="btn">Pull its images</Link>
-                    )}
-                  </div>
-                  {aiConfigured() && budget.available && (() => {
-                    const g = parseGoogleLink(t.source_url);
-                    return g && (g.kind === "doc" || g.kind === "slides") ? (
-                      <div className="mt-3"><TreatmentBreakdown projectId={projectId} storyId={story.id} referenceId={t.id} fileId={g.id} kind={g.kind} /></div>
-                    ) : null;
-                  })()}
-                </li>
-              ))}
-            </ul>
-          )}
-          <form action={addTreatmentLink} className="flex flex-col gap-3">
-            <input type="hidden" name="projectId" value={projectId} />
-            <input type="hidden" name="entityId" value={story.id} />
-            <div>
-              <label className="label" htmlFor="treatment-url">Link</label>
-              <input id="treatment-url" name="url" type="url" required placeholder="https://docs.google.com/…" className="field" />
-            </div>
-            <div>
-              <label className="label" htmlFor="treatment-title">Title (optional)</label>
-              <input id="treatment-title" name="title" maxLength={300} placeholder="Treatment, draft 2" className="field" />
-            </div>
-            <SubmitButton pendingText="Adding…">{treatments.length ? "Add another link" : "Add treatment link"}</SubmitButton>
-            <p className="text-xs text-muted">If the document is private, people on your team will need access to it in Google Drive too.</p>
-          </form>
-        </Section>
-
         {(["character", "location"] as const).map((kind) => (
           <Section key={kind} id={`new-${kind}s`} icon={kind === "character" ? <IconCharacter /> : <IconLocation />}
             title={kind === "character" ? "New character" : "New location"}

@@ -2,13 +2,14 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Empty, Flash } from "@/components/flash";
 import { SubmitButton } from "@/components/ui";
-import { TreatmentBreakdown } from "@/components/treatment-breakdown";
+import { OutlineBox } from "@/components/outline-box";
+import { RUNTIMES, runtimeInfo } from "@/lib/runtime";
 import { UploadArtwork } from "@/components/upload-artwork";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
 import { parseGoogleLink, slidesEmbedUrl } from "@/lib/google/links";
 import { INTAKE_QUESTIONS, TREATMENT_ATTRIBUTION, parseIntake, isTreatmentRef } from "@/lib/intake";
-import { currentUser, getAiBudget, getEntityWorkspace, getProjectShell, type VersionRow } from "@/lib/data";
-import { addReference, approveRevision, linkEntities, renameEntity, requestBreakdown, saveRevision, saveSynopsis, unlinkEntities } from "../../actions";
+import { currentUser, getAiBudget, getNotebook, getEntityWorkspace, getProjectShell, type VersionRow } from "@/lib/data";
+import { addReference, approveRevision, linkEntities, renameEntity, requestBreakdown, saveRevision, saveSynopsis, setRuntime, unlinkEntities } from "../../actions";
 
 export const maxDuration = 300;
 
@@ -44,13 +45,15 @@ export default async function ItemWorkspace({
 }) {
   const { projectId, entityId } = await params;
   const { v, error, notice } = await searchParams;
-  const [shell, ws, user, budget] = await Promise.all([
+  const [shell, ws, user, budget, notebook] = await Promise.all([
     getProjectShell(projectId), getEntityWorkspace(projectId, entityId), currentUser(), getAiBudget(projectId),
+    getNotebook(projectId),
   ]);
   if (!shell || !ws) notFound();
   const { caps, entities } = shell;
   const { entity, versions, assets, artworkByVersion, relationships, references } = ws;
   const kind = entity.kind;
+  const runtime = (shell.project as { runtime?: string | null }).runtime ?? null;
   if ((kind as string) === "screenplay") redirect(`/projects/${projectId}/script`);
 
   const canonical = versions.find((x) => x.id === entity.current_version_id) ?? null;
@@ -236,100 +239,43 @@ export default async function ItemWorkspace({
     </>
   );
   const followUps = INTAKE_QUESTIONS.filter((q) => q.key !== "idea");
-  const nextQ = answers.idea.trim() ? followUps.find((q) => !answers[q.key].trim()) : undefined;
+  const allAnswered = followUps.every((q) => answers[q.key].trim());
   const storyLead = isStory && (
-    <section className="panel flex flex-col gap-4 border-accent/40 p-4" aria-labelledby="lead-h">
-      <h3 id="lead-h" className="font-medium">Story Lead</h3>
-      {!answers.idea.trim() ? (
-        <p className="help">Start with your synopsis. The next questions open here as you go.</p>
-      ) : (
-        followUps.map((q) => {
-          const answered = !!answers[q.key].trim();
-          if (!answered && q !== nextQ) return null;
-          return answered ? (
-            <details key={q.key} className="border-b border-line pb-3">
-              <summary className="cursor-pointer list-none">
-                <span className="block text-sm font-semibold">{q.heading}</span>
-                <span className="mt-1 line-clamp-3 block text-sm whitespace-pre-wrap text-muted">{answers[q.key]}</span>
-              </summary>
-              {caps.can_edit && (
-                <form action={saveSynopsis} className="mt-2 flex flex-col gap-2">
-                  {storyHidden(q.key)}
-                  <textarea name={q.key} defaultValue={answers[q.key]} rows={5} className="field font-serif" aria-label={q.heading} />
-                  <SubmitButton pendingText="Saving…">Save</SubmitButton>
-                </form>
-              )}
-            </details>
-          ) : caps.can_edit ? (
-            <form key={q.key} action={saveSynopsis} className="flex flex-col gap-2">
-              {storyHidden(q.key)}
-              <label htmlFor={`lead-${q.key}`} className="font-semibold">{q.heading}</label>
-              <p className="text-sm">{q.help}</p>
-              <textarea id={`lead-${q.key}`} name={q.key} rows={5} required placeholder={q.placeholder} className="field font-serif" />
-              <p className="text-xs text-muted">{q.why}</p>
-              <SubmitButton variant="primary" pendingText="Saving…">Save answer</SubmitButton>
-            </form>
-          ) : null;
-        })
-      )}
-      {caps.can_edit && answers.idea.trim() && !nextQ && (
-        <div className="flex flex-col gap-2 border-t border-line pt-3">
-          {!aiConfigured() ? (
-            <p className="text-sm text-warn">The AI team isn&apos;t set up yet.</p>
-          ) : !budget.available ? (
-            <p className="text-sm text-warn">The team is resting until next month.</p>
-          ) : (
-            <form action={requestBreakdown} className="flex flex-col gap-2">
-              <input type="hidden" name="projectId" value={projectId} />
-              <input type="hidden" name="entityId" value={entityId} />
-              <SubmitButton variant="primary" pendingText="Sending to the Story Lead…">Suggest characters &amp; locations</SubmitButton>
-              <p className="text-xs text-muted">Your Story Lead reads your answers and suggests who and where. You decide what joins the film. Sent to Anthropic&apos;s Claude AI.</p>
-            </form>
-          )}
-        </div>
-      )}
-    </section>
-  );
-
-  const treatmentPanel = isStory && (
-    <section className="panel corner-marks flex flex-col gap-4 p-5" aria-labelledby="treat-h">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="treat-h" className="display text-xl">Director treatment</h2>
-        {caps.can_edit && <Link href={`${base}/add#treatment`} className="link-accent text-sm">{treatments.length ? "Add another link" : "Link your treatment"}</Link>}
-      </div>
-      {treatments.length === 0 && <p className="help">No treatment linked yet. Link a Google Doc or Google Slides treatment and it appears here.</p>}
-      {treatments.map((t) => {
-        const g = parseGoogleLink(t.source_url);
-        return (
-          <div key={t.id} className="flex flex-col gap-3">
-            {g?.kind === "slides" && (
-              <div className="relative aspect-video w-full overflow-hidden border border-line bg-text">
-                <iframe title={`Treatment: ${t.title || "Google Slides"}`} src={slidesEmbedUrl(g.id)} className="absolute inset-0 size-full"
-                  allow="fullscreen" allowFullScreen loading="lazy" referrerPolicy="strict-origin-when-cross-origin"
-                  sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation" />
-              </div>
+    <section className="panel flex flex-col gap-4 border-accent/40 p-4" aria-label="Story questions">
+      {followUps.map((q) => {
+        const answered = !!answers[q.key].trim();
+        return answered ? (
+          <details key={q.key} className="border-b border-line pb-3">
+            <summary className="cursor-pointer list-none">
+              <span className="block text-sm font-semibold">{q.heading}</span>
+              <span className="mt-1 line-clamp-3 block text-sm whitespace-pre-wrap text-muted">{answers[q.key]}</span>
+            </summary>
+            {caps.can_edit && (
+              <form action={saveSynopsis} className="mt-2 flex flex-col gap-2">
+                {storyHidden(q.key)}
+                <textarea name={q.key} defaultValue={answers[q.key]} rows={5} className="field font-serif" aria-label={q.heading} />
+                <SubmitButton pendingText="Saving…">Save</SubmitButton>
+              </form>
             )}
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="mr-auto font-medium">{t.title || t.source_domain}</p>
-              <Link href={`${base}/treatment?ref=${t.id}`} className="btn">{g?.kind === "doc" ? "Read it here" : "Open full size"}</Link>
-              <a href={t.source_url} target="_blank" rel="noopener noreferrer" className="btn">Open in Google ↗</a>
-              {caps.can_edit && g?.kind === "doc" && <Link href={`${base}/import?from=treatment&ref=${t.id}`} className="btn">Pull its images</Link>}
-            </div>
-            {caps.can_edit && aiConfigured() && budget.available && g && (g.kind === "doc" || g.kind === "slides") && (
-              <TreatmentBreakdown projectId={projectId} storyId={entityId} referenceId={t.id} fileId={g.id} kind={g.kind} />
-            )}
-          </div>
-        );
+          </details>
+        ) : caps.can_edit ? (
+          <form key={q.key} action={saveSynopsis} className="flex flex-col gap-2 border-b border-line pb-4 last:border-0">
+            {storyHidden(q.key)}
+            <label htmlFor={`lead-${q.key}`} className="font-semibold">{q.heading}</label>
+            <p className="text-sm">{q.help}</p>
+            <textarea id={`lead-${q.key}`} name={q.key} rows={4} required placeholder={q.placeholder} className="field font-serif" />
+            <p className="text-xs text-muted">{q.why}</p>
+            <span><SubmitButton variant="primary" pendingText="Saving…">Save answer</SubmitButton></span>
+          </form>
+        ) : null;
       })}
-      {(otherRefs.length > 0 || caps.can_edit) && (
-        <div className="flex flex-col gap-3 border-t border-line pt-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-medium">{treatments.length ? "Additional references" : "References"}</h3>
-            <Link href={`${base}/references`} className="link-accent text-sm">All references by department ↗</Link>
-          </div>
-          {otherRefs.length > 0 && refList(otherRefs)}
-          {addRefForm}
-        </div>
+      {caps.can_edit && answers.idea.trim() && allAnswered && aiConfigured() && budget.available && (
+        <form action={requestBreakdown} className="flex flex-col gap-2">
+          <input type="hidden" name="projectId" value={projectId} />
+          <input type="hidden" name="entityId" value={entityId} />
+          <SubmitButton pendingText="Sending…">Suggest characters &amp; locations</SubmitButton>
+          <p className="text-xs text-muted">Suggestions wait for you in Suggestions. Sent to Anthropic&apos;s Claude AI.</p>
+        </form>
       )}
     </section>
   );
@@ -360,11 +306,27 @@ export default async function ItemWorkspace({
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="flex flex-col gap-6">
+          {isStory && caps.can_edit && (
+            <form action={setRuntime} className="panel flex flex-col gap-2 p-5">
+              <input type="hidden" name="projectId" value={projectId} />
+              <input type="hidden" name="back" value={`${base}/items/${entityId}`} />
+              <p className="font-semibold">How long are you imagining your film?</p>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Film length">
+                {RUNTIMES.map((r) => (
+                  <button key={r.value} type="submit" name="runtime" value={r.value} aria-pressed={runtime === r.value}
+                    className={`btn ${runtime === r.value ? "btn-primary" : ""}`}>{r.label}</button>
+                ))}
+                <Link href={`${base}/partners/story`} className="btn">Help me choose</Link>
+              </div>
+              <p className="text-xs text-muted">{runtimeInfo(runtime)?.focus ?? "Length is a creative choice, not a measure of how good a film is. A complete one-minute film is a real achievement."}</p>
+            </form>
+          )}
           {isStory ? (
             caps.can_edit ? (
               <form action={saveSynopsis} className="panel flex flex-col gap-3 p-5" key={selected?.id ?? "new"}>
                 {storyHidden("idea")}
                 <label className="label" htmlFor="idea">Synopsis</label>
+                <p className="text-sm">{INTAKE_QUESTIONS[0].heading} {INTAKE_QUESTIONS[0].help}</p>
                 <textarea id="idea" name="idea" defaultValue={answers.idea} rows={12} required
                   placeholder={INTAKE_QUESTIONS[0].placeholder} className="field font-serif text-lg leading-relaxed" />
                 <div className="flex flex-wrap items-center gap-3">
@@ -427,7 +389,8 @@ export default async function ItemWorkspace({
             <Empty title="Nothing written yet" />
           )}
 
-          {treatmentPanel}
+          {isStory && <OutlineBox projectId={projectId} items={notebook.filter((n) => ["beginning", "middle", "ending"].includes(n.kind))}
+            runtime={runtime} canEdit={!!caps.can_edit} back={`${base}/items/${entityId}`} />}
 
           {!isStory && (
             <section className="panel flex flex-col gap-4 p-5" aria-labelledby="artwork-h">

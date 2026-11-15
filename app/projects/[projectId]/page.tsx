@@ -91,6 +91,7 @@ export default async function ProjectOverview({
   const canAsk = !!story && caps.can_edit && aiConfigured() && budget.available && synopsis.length >= 50;
   const pieces = (story ? 2 : 0) + characters.length + locations.length;
   const addHref = `/projects/${projectId}/add`;
+  const storyHref = story ? `/projects/${projectId}/items/${story.id}` : addHref;
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-10">
@@ -101,7 +102,7 @@ export default async function ProjectOverview({
           <p className="mt-5 max-w-xl text-base leading-relaxed text-muted">A spark of an idea. A world of possibilities. Bring it all together here.</p>
         </div>
         {caps.can_edit && (
-          <Link href={addHref} className="btn-primary min-h-12 px-6"><IconPlus /> Add to your project</Link>
+          <Link href={storyHref} className="btn-primary min-h-12 px-6">Let&apos;s build your story <IconArrowUpRight /></Link>
         )}
       </header>
 
@@ -113,23 +114,10 @@ export default async function ProjectOverview({
           <div className="min-w-60 flex-1">
             <p className="display text-xl">One story. Many ways forward.</p>
             <p className="mt-1 text-sm leading-relaxed text-panel-2/75">
-              {synopsis.length < 50
-                ? "Start by answering three questions about your story. Your Story Lead can then suggest the characters and locations in it."
-                : "Your Story Lead reads your synopsis and suggests characters and locations. You decide what joins the film."}
+              Your Storybuilder helps you find what you want to say, one question at a time. You decide what joins the film.
             </p>
           </div>
-          {synopsis.length < 50 ? (
-            <Link href={addHref} className="btn-primary">Start your story <IconArrowUpRight /></Link>
-          ) : canAsk ? (
-            <form action={requestBreakdown}>
-              <input type="hidden" name="projectId" value={projectId} />
-              <input type="hidden" name="entityId" value={story.id} />
-              <SubmitButton variant="primary" pendingText="Sending to your Story Lead…">Develop your story</SubmitButton>
-            </form>
-          ) : (
-            <Link href={`/projects/${projectId}/suggestions`} className="btn-primary">See your agents <IconArrowUpRight /></Link>
-          )}
-          {canAsk && <p className="w-full text-xs text-panel-2/60">Your saved synopsis is sent to Anthropic&apos;s Claude AI to make suggestions.</p>}
+          <Link href={`/projects/${projectId}/partners/story`} className="btn-primary">Meet Your Storybuilder <IconArrowUpRight /></Link>
         </section>
       )}
 
@@ -141,7 +129,7 @@ export default async function ProjectOverview({
               icon={<IconStory />} title="Synopsis" badge={statusBadge(!!story.current_version_id, storyLatest)}
               preview={<><p className="mb-2 font-semibold tracking-[0.06em] text-text uppercase">{project.name}</p><p className="line-clamp-4">{preview || "Your first page is waiting. Open to start writing."}</p></>}
               heading="The seed of your story" sub="Your idea. Your starting point." agent="Story Lead"
-              href={synopsis ? `/projects/${projectId}/items/${story.id}` : addHref}
+              href={storyHref}
             />
             <Card
               icon={<IconLink />} title="Treatment"
@@ -150,7 +138,7 @@ export default async function ProjectOverview({
                 <ul className="flex flex-col gap-1">{treatments.slice(0, 4).map((t) => <li key={t.id} className="truncate">↗ {t.title || t.source_domain}</li>)}</ul>
               ) : <p>Your bigger picture lives here. Link your director&apos;s treatment to keep it with your story.</p>}</>}
               heading="The bigger picture, scene by scene" sub="An emerging arc. Room to discover more."
-              href={treatments.length ? `/projects/${projectId}/treatment` : `${addHref}#treatment`} openLabel={treatments.length ? "Read" : "Open"}
+              href={`/projects/${projectId}/treatment`} openLabel={treatments.length ? "Read" : "Link it"}
             />
           </div>
         </section>
@@ -167,7 +155,7 @@ export default async function ProjectOverview({
           {sec.items.length === 0 ? (
             <div className="border border-dashed border-line px-6 py-10 text-center">
               <p className="font-medium">{sec.empty}</p>
-              <p className="help mt-1">Add them yourself, or let your Story Lead suggest them from your synopsis.</p>
+              <p className="help mt-1">Add them yourself, or let your Story Lead suggest them from your story.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">

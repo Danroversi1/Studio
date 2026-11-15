@@ -52,11 +52,11 @@ export function SidebarNav({ projectId, storyId, characters, locations, pendingS
         <Item href={base} active={path === base || path === `${base}/add`} icon={<IconOverview />}>Overview</Item>
         {storyId && (
           <Item href={`${base}/items/${storyId}`} active={path === `${base}/items/${storyId}`} icon={<IconStory />}>
-            Story &amp; treatment
+            Story
           </Item>
         )}
         <Item href={`${base}/script`} active={path === `${base}/script`} icon={<IconScript />}>Script desk</Item>
-        <Item href={`${base}/treatment`} active={path === `${base}/treatment`} icon={<IconBook />}>Read treatment</Item>
+        <Item href={`${base}/treatment`} active={path === `${base}/treatment`} icon={<IconBook />}>Treatment</Item>
         {showImport && (
           <Item href={`${base}/references`} active={path === `${base}/references` || path === `${base}/import`} icon={<IconImage />}>References</Item>
         )}
@@ -69,7 +69,7 @@ export function SidebarNav({ projectId, storyId, characters, locations, pendingS
       {showAgents && (
         <div className="flex flex-col gap-1">
           <p className="eyebrow mb-2 px-3">Your partners</p>
-          <Item href={`${base}/partners/story`} active={path === `${base}/partners/story`} icon={<IconChat />}>Story partner</Item>
+          <Item href={`${base}/partners/story`} active={path === `${base}/partners/story`} icon={<IconChat />}>Storybuilder</Item>
           <Item href={`${base}/partners/design`} active={path === `${base}/partners/design`} icon={<IconPalette />}>Design partner</Item>
         </div>
       )}

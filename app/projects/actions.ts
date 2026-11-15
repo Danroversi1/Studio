@@ -10,6 +10,7 @@ export async function createProject(formData: FormData) {
     p_description: String(formData.get("description") ?? "") || null,
   });
   if (error) redirect(withMessage("/projects", "error", friendlyError(error).message));
-  // New films start at the story intake (three guided questions).
-  redirect(`/projects/${data}/add`);
+  // New films start at the story desk (film length, synopsis, guided questions).
+  const { data: story } = await sb.from("entities").select("id").eq("project_id", data).eq("kind", "story").limit(1).maybeSingle();
+  redirect(story ? `/projects/${data}/items/${story.id}` : `/projects/${data}`);
 }

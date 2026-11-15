@@ -102,7 +102,7 @@ export function StoryNotebook({ projectId, runtime, items, canEdit, back, storyH
         ) : (
           <p className="text-sm">{rt?.label ?? "Not decided yet"}</p>
         )}
-        <p className="text-xs text-muted">{rt ? rt.focus : "Your Story partner can help you choose. Any length is a real film."}</p>
+        <p className="text-xs text-muted">{rt ? rt.focus : "Your Storybuilder can help you choose. Any length is a real film."}</p>
       </div>
 
       {visible.length === 0 ? (

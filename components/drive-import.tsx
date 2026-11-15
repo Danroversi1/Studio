@@ -179,7 +179,7 @@ export function DriveImport({ targets, defaultTargetId, treatment, startWithTrea
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="panel flex flex-col gap-3 p-5">
           <p className="eyebrow">From your treatment</p>
-          <p className="help">{treatment ? `Find every picture in “${treatment.title}”.` : "Link a Google Docs treatment first (Add to your project → Director treatment)."}</p>
+          <p className="help">{treatment ? `Find every picture in “${treatment.title}”.` : "Link a Google Docs treatment first (Treatment page)."}</p>
           <button type="button" className={`btn ${startWithTreatment ? "btn-primary" : ""} self-start`} disabled={busy || !treatment} onClick={fromTreatment}>
             Get images from treatment
           </button>
