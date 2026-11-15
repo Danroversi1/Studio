@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Empty, Flash } from "@/components/flash";
 import { IconArrowLeft, IconCharacter, IconLink, IconLocation, IconStory } from "@/components/icons";
+import { TreatmentBreakdown } from "@/components/treatment-breakdown";
 import { SubmitButton } from "@/components/ui";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
 import { getAiBudget, getEntityWorkspace, getProjectShell } from "@/lib/data";
@@ -85,13 +86,13 @@ export default async function AddToProject({
               <input type="hidden" name="projectId" value={projectId} />
               <input type="hidden" name="entityId" value={story.id} />
               <SubmitButton pendingText="Sending…">Suggest characters &amp; locations</SubmitButton>
-              <p className="text-xs text-muted">Your Story Lead reads the saved synopsis (not the linked treatment). It is sent to Anthropic&apos;s Claude AI.</p>
+              <p className="text-xs text-muted">Your Story Lead reads the saved synopsis. To use your treatment instead, use Break down with Story Lead under Director treatment. It is sent to Anthropic&apos;s Claude AI.</p>
             </form>
           )}
         </Section>
 
         <Section id="treatment" icon={<IconLink />} title="Director treatment"
-          help="Link your treatment, for example a Google Doc. You can then read it inside STUDIO and pull its pictures in. The Story Lead doesn't read it yet.">
+          help="Link your treatment as a Google Doc or Google Slides. You can read it inside STUDIO, pull its pictures in, and let the Story Lead break it down.">
           {treatments.length > 0 && (
             <ul className="flex flex-col">
               {treatments.map((t) => (
@@ -104,6 +105,12 @@ export default async function AddToProject({
                       <Link href={`/projects/${projectId}/import?from=treatment&ref=${t.id}`} className="btn">Pull its images</Link>
                     )}
                   </div>
+                  {aiConfigured() && budget.available && (() => {
+                    const g = parseGoogleLink(t.source_url);
+                    return g && (g.kind === "doc" || g.kind === "slides") ? (
+                      <div className="mt-3"><TreatmentBreakdown projectId={projectId} storyId={story.id} referenceId={t.id} fileId={g.id} kind={g.kind} /></div>
+                    ) : null;
+                  })()}
                 </li>
               ))}
             </ul>

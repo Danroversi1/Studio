@@ -168,24 +168,42 @@ export async function exportDocZip(accessToken: string, id: string): Promise<Zip
   return readZip(new Uint8Array(await res.arrayBuffer()));
 }
 
+export const SLIDES_MIME = "application/vnd.google-apps.presentation";
+
+/** Plain text of a Google Doc or Slides deck (Google's own text export). */
+export async function exportText(accessToken: string, id: string): Promise<string> {
+  const res = await driveFetch(accessToken, `files/${encodeURIComponent(id)}/export?mimeType=text%2Fplain`);
+  return (await res.text()).replace(/^\uFEFF/, "");
+}
+
 /**
- * Open a Google Doc, asking her to pick it in the Picker the first time (that is what
- * gives STUDIO permission under drive.file). Returns the export.
+ * Run fn with a Google token that can open this file. Under drive.file, STUDIO may only
+ * open files she has picked, so the first time we ask her to select it in the Picker.
  */
-export async function openDocWithPermission(cfg: GoogleConfig, docId: string): Promise<{ entries: ZipEntry[]; name: string }> {
+export async function withFilePermission<T>(
+  cfg: GoogleConfig, fileId: string, mimeType: string, title: string, fn: (token: string) => Promise<T>,
+): Promise<T> {
   let t = await getGoogleToken(cfg);
   try {
-    return { entries: await exportDocZip(t, docId), name: await getDriveFileName(t, docId) };
+    return await fn(t);
   } catch (e) {
     if (!(e instanceof GoogleAccessError) || (e.status !== 403 && e.status !== 404 && e.status !== 401)) throw e;
     if (e.message.includes("too big")) throw e;
   }
   if (!token) t = await getGoogleToken(cfg);
-  const picked = await pickFromDrive(cfg, t, {
-    mimeTypes: [DOC_MIME], multiselect: false, fileIds: [docId],
-    title: "Select your treatment so STUDIO can open it",
-  });
+  const picked = await pickFromDrive(cfg, t, { mimeTypes: [mimeType], multiselect: false, fileIds: [fileId], title });
   if (!picked.length) throw new Error("Pick your treatment in Google Drive to let STUDIO open it.");
-  if (picked[0].id !== docId) throw new Error("That's a different document from the linked treatment. Please pick the treatment.");
-  return { entries: await exportDocZip(t, docId), name: picked[0].name };
+  if (picked[0].id !== fileId) throw new Error("That's a different file from the linked treatment. Please pick the treatment.");
+  return fn(t);
+}
+
+/**
+ * Open a Google Doc, asking her to pick it in the Picker the first time (that is what
+ * gives STUDIO permission under drive.file). Returns the export.
+ */
+export async function openDocWithPermission(cfg: GoogleConfig, docId: string): Promise<{ entries: ZipEntry[]; name: string }> {
+  return withFilePermission(cfg, docId, DOC_MIME, "Select your treatment so STUDIO can open it", async (t) => ({
+    entries: await exportDocZip(t, docId),
+    name: await getDriveFileName(t, docId),
+  }));
 }

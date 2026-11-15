@@ -4,8 +4,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Empty } from "@/components/flash";
 import { IconArrowLeft } from "@/components/icons";
+import { TreatmentBreakdown } from "@/components/treatment-breakdown";
 import { TreatmentReader } from "@/components/treatment-reader";
-import { getProjectShell, getStoryReferences } from "@/lib/data";
+import { aiConfigured } from "@/lib/agents/run-story-breakdown";
+import { getAiBudget, getProjectShell, getStoryReferences } from "@/lib/data";
 import { parseGoogleLink, slidesEmbedUrl } from "@/lib/google/links";
 import { TREATMENT_ATTRIBUTION } from "@/lib/intake";
 
@@ -27,6 +29,8 @@ export default async function TreatmentPage({
   const current = treatments.find((t) => t.id === ref) ?? treatments[0];
   const base = `/projects/${projectId}`;
   const link = current ? parseGoogleLink(current.source_url) : null;
+  const canBreakDown = !!(story && current && shell.caps.can_edit && aiConfigured() &&
+    (link?.kind === "doc" || link?.kind === "slides") && (await getAiBudget(projectId)).available);
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -53,6 +57,14 @@ export default async function TreatmentPage({
                   className={`btn ${t.id === current.id ? "btn-primary" : ""}`}>{t.title || t.source_domain}</Link>
               ))}
             </nav>
+          )}
+          {canBreakDown && story && current && (link?.kind === "doc" || link?.kind === "slides") && (
+            <section className="panel corner-marks flex flex-col gap-2 p-5" aria-labelledby="bd-h">
+              <p id="bd-h" className="eyebrow">Your Story Lead</p>
+              <p className="text-sm">Let the Story Lead read this treatment and suggest the characters and locations in it.</p>
+              <TreatmentBreakdown key={current.id} projectId={projectId} storyId={story.id} referenceId={current.id}
+                fileId={link.id} kind={link.kind} primary />
+            </section>
           )}
           {link?.kind === "doc" ? (
             <TreatmentReader key={current.id} docId={link.id} title={current.title || "Treatment"} sourceUrl={current.source_url}

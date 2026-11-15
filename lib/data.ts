@@ -115,7 +115,7 @@ export async function getSuggestions(projectId: string) {
   const sb = await supabaseServer();
   const [runs, proposals] = await Promise.all([
     sb.from("agent_runs")
-      .select("id, status, task_type, created_at, completed_at, error_message, output_payload, input_payload")
+      .select("id, status, task_type, created_at, completed_at, error_message, output_payload, source:input_payload->>source")
       .eq("project_id", projectId).order("created_at", { ascending: false }).limit(5),
     sb.from("agent_proposals")
       .select("id, agent_run_id, entity_kind, name, summary, evidence, match_entity_id, status, result_entity_id, created_at")

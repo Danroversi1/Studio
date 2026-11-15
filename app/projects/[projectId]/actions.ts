@@ -133,6 +133,27 @@ export async function requestBreakdown(fd: FormData) {
   redirect(suggestionsPath(projectId));
 }
 
+/**
+ * The Story Lead reads the director's treatment. The browser fetched the text with the
+ * Director's own Google permission; the database checks the treatment link belongs to this
+ * story, stores the text with the run, and applies the usual access and budget rules.
+ */
+export async function requestTreatmentBreakdown(input: {
+  projectId: string; storyId: string; referenceId: string; text: string;
+}): Promise<{ error: string } | void> {
+  if (!aiConfigured()) return { error: "The AI team isn't set up yet. Ask your Executive Producer." };
+  if (typeof input?.text !== "string") return { error: "No treatment text was received." };
+  const sb = await supabaseServer();
+  const { data: runId, error } = await sb.rpc("request_treatment_breakdown", {
+    p_entity: input.storyId,
+    p_reference: input.referenceId,
+    p_text: input.text,
+  });
+  if (error) return { error: friendlyError(error).message };
+  after(() => runStoryBreakdown(runId as string));
+  redirect(suggestionsPath(input.projectId));
+}
+
 export async function acceptProposal(fd: FormData) {
   const projectId = s(fd, "projectId");
   const sb = await supabaseServer();
@@ -144,6 +165,31 @@ export async function acceptProposal(fd: FormData) {
   if (error) redirect(withMessage(suggestionsPath(projectId), "error", friendlyError(error).message));
   revalidatePath(`/projects/${projectId}`, "layout");
   redirect(withMessage(suggestionsPath(projectId), "notice", "Added to your film as a proposed revision. Approve it from its page when you're happy."));
+}
+
+/**
+ * Add every waiting suggestion that isn't a likely duplicate, as-is. Each one becomes a new
+ * item with a proposed (unapproved) revision; possible duplicates are left for her to decide.
+ */
+export async function acceptAllProposals(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const sb = await supabaseServer();
+  const { data: pending, error: readErr } = await sb.from("agent_proposals")
+    .select("id, name, summary").eq("project_id", projectId).eq("status", "pending").is("match_entity_id", null)
+    .order("created_at", { ascending: true }).limit(100);
+  if (readErr) redirect(withMessage(suggestionsPath(projectId), "error", friendlyError(readErr).message));
+  let added = 0;
+  for (const p of pending ?? []) {
+    const { error } = await sb.rpc("accept_proposal", { p_proposal: p.id, p_name: null, p_summary: p.summary ?? "" });
+    if (error) {
+      revalidatePath(`/projects/${projectId}`, "layout");
+      redirect(withMessage(suggestionsPath(projectId), "error", `${added} added, then: ${friendlyError(error).message}`));
+    }
+    added++;
+  }
+  revalidatePath(`/projects/${projectId}`, "layout");
+  redirect(withMessage(suggestionsPath(projectId), "notice",
+    `Added ${added} ${added === 1 ? "item" : "items"} to your film as proposed revisions. Approve each from its page when you're happy.`));
 }
 
 export async function mergeProposal(fd: FormData) {

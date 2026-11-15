@@ -4,13 +4,13 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { Empty, Flash } from "@/components/flash";
 import { SubmitButton } from "@/components/ui";
 import { getAiBudget, getProjectShell, getSuggestions } from "@/lib/data";
-import { acceptProposal, dismissProposal, mergeProposal, setAiBudget } from "../actions";
+import { acceptAllProposals, acceptProposal, dismissProposal, mergeProposal, setAiBudget } from "../actions";
 
 export const maxDuration = 300;
 
 const RUN_LABEL: Record<string, string> = {
   queued: "Waiting to start…",
-  running: "The Story Lead is reading your story…",
+  running: "The Story Lead is reading…",
   succeeded: "Finished",
   failed: "Didn't finish",
   cancelled: "Cancelled",
@@ -51,14 +51,27 @@ export default async function SuggestionsPage({
 
       {latest && (
         <div className={`panel px-4 py-3 text-sm ${latest.status === "failed" ? "border-danger/50" : ""}`} role="status">
-          <strong>Story Lead:</strong> {RUN_LABEL[latest.status] ?? latest.status}
+          <strong>Story Lead{latest.source === "treatment" ? " · treatment" : ""}:</strong> {RUN_LABEL[latest.status] ?? latest.status}
           {latest.status === "succeeded" && ` · ${latest.output_payload?.proposal_count ?? 0} suggestions`}
-          {latest.status === "failed" && <span className="help"> · {latest.error_message} Your story was not changed; you can try again.</span>}
+          {latest.status === "failed" && <span className="help"> · {latest.error_message} Nothing in your film was changed; you can try again.</span>}
         </div>
       )}
 
       <section className="flex flex-col gap-4" aria-labelledby="pending-h">
-        <h3 id="pending-h" className="text-lg font-medium">Waiting for you ({pending.length})</h3>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 id="pending-h" className="text-lg font-medium">Waiting for you ({pending.length})</h3>
+          {caps.can_edit && pending.filter((p) => !p.match_entity_id).length > 1 && (
+            <form action={acceptAllProposals}>
+              <input type="hidden" name="projectId" value={projectId} />
+              <SubmitButton variant="primary" pendingText="Adding…">
+                Add all {pending.filter((p) => !p.match_entity_id).length} new items
+              </SubmitButton>
+            </form>
+          )}
+        </div>
+        {caps.can_edit && pending.some((p) => p.match_entity_id) && pending.filter((p) => !p.match_entity_id).length > 1 && (
+          <p className="help">Possible duplicates of things already in your film are left for you to decide one by one.</p>
+        )}
         {pending.length === 0 ? (
           <Empty title={inProgress ? "Suggestions will appear here in a moment" : "No suggestions waiting"}>
             {!inProgress && "Open your story and ask the Story Lead to suggest characters and locations."}

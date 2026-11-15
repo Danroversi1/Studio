@@ -27,9 +27,17 @@ export async function runStoryBreakdown(runId: string): Promise<void> {
     const { data: run, error: runErr } = await db
       .from("agent_runs").select("project_id, input_payload").eq("id", runId).single();
     if (runErr || !run) throw new Error("Run not found.");
-    const { data: version } = await db
-      .from("versions").select("content").eq("id", run.input_payload.version_id).single();
-    const story = String(version?.content?.body ?? "");
+    // Either the director's treatment (a text snapshot stored with the run when it was
+    // requested) or the saved synopsis revision.
+    const fromTreatment = run.input_payload.source === "treatment";
+    let story = "";
+    if (fromTreatment) {
+      story = String(run.input_payload.text ?? "");
+    } else {
+      const { data: version } = await db
+        .from("versions").select("content").eq("id", run.input_payload.version_id).single();
+      story = String(version?.content?.body ?? "");
+    }
     const { data: existing } = await db
       .from("entities").select("id, kind, name").eq("project_id", run.project_id).in("kind", ["character", "location"]);
 
@@ -38,7 +46,7 @@ export async function runStoryBreakdown(runId: string): Promise<void> {
       model: STORY_BREAKDOWN_MODEL,
       max_tokens: 8000,
       system: STORY_BREAKDOWN_SYSTEM,
-      messages: [{ role: "user", content: buildUserMessage(story, (existing ?? []) as ExistingItem[]) }],
+      messages: [{ role: "user", content: buildUserMessage(story, (existing ?? []) as ExistingItem[], fromTreatment ? "treatment" : "story") }],
       output_config: { effort: "medium", format: { type: "json_schema", schema: STORY_BREAKDOWN_SCHEMA as unknown as Record<string, unknown> } },
     });
     usage = res.usage as Usage;
