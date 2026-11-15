@@ -77,6 +77,7 @@ Environment variables:
 - **From the Supabase integration (production only):** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` and others. Preview builds don't get them, so previews won't reach the database.
 - **Added manually (production + preview):** `STORAGE_DRIVER=r2`, `STORAGE_BUCKET=studio-media`.
 - **AI agents:** `ANTHROPIC_API_KEY` (Sensitive, production) is set. It's billed to the Claude Console workspace; STUDIO's own monthly budget is enforced in the database.
+- If the key is not scoped to a workspace, also set `ANTHROPIC_WORKSPACE_ID` (the workspace id from the Claude Console). Otherwise every AI request is refused with "This API key is not scoped to a workspace".
 - **Still needed for artwork uploads and Drive imports:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (see "Cloudflare R2"). Until they're set, the upload and image routes return errors; everything else works.
 - **Still needed for Google Drive:** `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_GOOGLE_API_KEY`, `NEXT_PUBLIC_GOOGLE_APP_ID` (see "Google Drive"). Until they're set, the Drive pages say Google isn't connected.
 

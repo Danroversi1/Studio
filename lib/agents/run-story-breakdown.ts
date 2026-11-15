@@ -1,6 +1,7 @@
 // SERVER ONLY. Runs one queued Story Lead breakdown. Uses the service role solely to read
 // the run's inputs and to record results through the trusted database functions.
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
+import { anthropicClient } from "../ai/client";
 import { costUsd, type Usage } from "../ai/pricing";
 import { supabaseService } from "../supabase/server";
 import {
@@ -41,7 +42,7 @@ export async function runStoryBreakdown(runId: string): Promise<void> {
     const { data: existing } = await db
       .from("entities").select("id, kind, name").eq("project_id", run.project_id).in("kind", ["character", "location"]);
 
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const client = anthropicClient();
     const res = await client.messages.create({
       model: STORY_BREAKDOWN_MODEL,
       max_tokens: 8000,

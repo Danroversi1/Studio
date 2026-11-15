@@ -530,6 +530,10 @@ async function planScenes(projectId: string): Promise<number> {
   const todo = uncoveredBeats(body, beats).slice(0, 40);
   if (!todo.length) return 0;
 
+  // After a failed attempt, wait a few minutes instead of retrying on every visit.
+  const { data: failed } = await sb.from("agent_runs").select("id").eq("project_id", projectId).eq("task_type", "scene_plan")
+    .eq("status", "failed").gt("created_at", new Date(Date.now() - 10 * 60_000).toISOString()).limit(1);
+  if (failed?.length) return 0;
   const { data: runId, error } = await sb.rpc("request_scene_plan", { p_project: projectId, p_beats: todo });
   if (error || !runId) return 0;
   const chars = (ents ?? []).filter((e) => e.kind === "character");

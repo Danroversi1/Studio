@@ -1,7 +1,8 @@
 // SERVER ONLY. Lays out scenes for new outline beats. The model classifies each beat
 // (interior or exterior, where, when, who is in it, what the art department needs);
 // her beat text is used as written. Service role only to run and record the agent run.
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
+import { anthropicClient } from "../ai/client";
 import { costUsd, type Usage } from "../ai/pricing";
 import { supabaseService } from "../supabase/server";
 import type { Beat, PlannedScene } from "../scene-plan";
@@ -46,7 +47,7 @@ export async function runScenePlan(runId: string, input: {
   let usage: Usage = {};
   let cost = 0;
   try {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const client = anthropicClient();
     const film = JSON.stringify({ story: input.story.slice(0, 6000), cast: input.cast, locations: input.locations, beats: input.beats });
     const res = await client.messages.create({
       model: STORY_BREAKDOWN_MODEL,

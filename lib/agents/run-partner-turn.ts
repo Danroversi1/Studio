@@ -1,7 +1,8 @@
 // SERVER ONLY. Answers one message to a creative partner. The run was created (and
 // authorized, and budget-checked) by post_agent_message(); this uses the service role only
 // to read the film's snapshot and to record the reply through complete_agent_turn().
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
+import { anthropicClient } from "../ai/client";
 import { costUsd, type Usage } from "../ai/pricing";
 import { supabaseService } from "../supabase/server";
 import { isRuntime } from "../runtime";
@@ -94,7 +95,7 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
       .eq("thread_id", run.input_payload.thread_id).order("created_at", { ascending: true }).limit(200);
     const { snapshot, existing } = await loadSnapshot(db, run.project_id);
 
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const client = anthropicClient();
     const messages: Anthropic.MessageParam[] = toApiMessages((history ?? []) as StoredMessage[]);
     if (!messages.length) throw new Error("No message to answer.");
     // She saw an opening line before her first message; tell the model what it said.
