@@ -6,7 +6,7 @@ import { Empty } from "@/components/flash";
 import { IconArrowLeft } from "@/components/icons";
 import { TreatmentReader } from "@/components/treatment-reader";
 import { getProjectShell, getStoryReferences } from "@/lib/data";
-import { parseGoogleLink } from "@/lib/google/links";
+import { parseGoogleLink, slidesEmbedUrl } from "@/lib/google/links";
 import { TREATMENT_ATTRIBUTION } from "@/lib/intake";
 
 export default async function TreatmentPage({
@@ -57,9 +57,31 @@ export default async function TreatmentPage({
           {link?.kind === "doc" ? (
             <TreatmentReader key={current.id} docId={link.id} title={current.title || "Treatment"} sourceUrl={current.source_url}
               importHref={shell.caps.can_edit ? `${base}/import?from=treatment&ref=${current.id}` : null} />
+          ) : link?.kind === "slides" ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap gap-2">
+                <a href={current.source_url} target="_blank" rel="noopener noreferrer" className="btn">Open in Google Slides ↗</a>
+              </div>
+              <div className="panel relative aspect-video w-full overflow-hidden bg-text">
+                <iframe
+                  title={`Treatment: ${current.title || "Google Slides"}`}
+                  src={slidesEmbedUrl(link.id)}
+                  className="absolute inset-0 size-full"
+                  allow="fullscreen"
+                  allowFullScreen
+                  sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                />
+              </div>
+              <p className="help">
+                This is Google&apos;s own slide player. It shows the deck to anyone signed in to Google with access to it. If you
+                see &ldquo;You need access&rdquo; or a sign-in box (common on iPad), open it in Google Slides, or share the deck
+                as &ldquo;Anyone with the link can view&rdquo; in Google Slides.
+              </p>
+            </div>
           ) : (
             <div className="panel flex flex-col gap-3 p-5">
-              <p className="help">STUDIO can show Google Docs here. This treatment is a different kind of link, so it opens in a new tab.</p>
+              <p className="help">STUDIO can show Google Docs and Google Slides here. This treatment is a different kind of link, so it opens in a new tab.</p>
               <a href={current.source_url} target="_blank" rel="noopener noreferrer nofollow" className="btn btn-primary self-start">
                 Open {current.source_domain} ↗
               </a>

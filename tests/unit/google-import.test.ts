@@ -65,6 +65,7 @@ test("recognizes Google Docs and Drive links only", () => {
   assert.deepEqual(parseGoogleLink("https://docs.google.com/document/u/0/d/1AbCdEfGhIjKlMnOp/"), { kind: "doc", id: "1AbCdEfGhIjKlMnOp" });
   assert.deepEqual(parseGoogleLink("https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view"), { kind: "file", id: "1AbCdEfGhIjKlMnOp" });
   assert.deepEqual(parseGoogleLink("https://drive.google.com/open?id=1AbCdEfGhIjKlMnOp"), { kind: "file", id: "1AbCdEfGhIjKlMnOp" });
+  assert.deepEqual(parseGoogleLink("https://docs.google.com/presentation/d/1AbCdEfGhIjKlMnOp/edit#slide=id.p"), { kind: "slides", id: "1AbCdEfGhIjKlMnOp" });
   assert.equal(parseGoogleLink("http://docs.google.com/document/d/1AbCdEfGhIjKlMnOp/edit"), null);
   assert.equal(parseGoogleLink("https://docs.google.com.evil.com/document/d/1AbCdEfGhIjKlMnOp/edit"), null);
   assert.equal(parseGoogleLink("https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOp/edit"), null);

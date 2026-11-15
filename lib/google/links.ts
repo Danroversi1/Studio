@@ -4,6 +4,7 @@ const ID = "[A-Za-z0-9_-]{10,200}";
 
 export type GoogleLink =
   | { kind: "doc"; id: string }
+  | { kind: "slides"; id: string }
   | { kind: "file"; id: string }
   | null;
 
@@ -19,7 +20,9 @@ export function parseGoogleLink(raw: string): GoogleLink {
   const host = url.hostname.toLowerCase();
   if (host === "docs.google.com") {
     const m = url.pathname.match(new RegExp(`^/document/(?:u/\\d+/)?d/(${ID})(?:/|$)`));
-    return m ? { kind: "doc", id: m[1] } : null;
+    if (m) return { kind: "doc", id: m[1] };
+    const s = url.pathname.match(new RegExp(`^/presentation/(?:u/\\d+/)?d/(${ID})(?:/|$)`));
+    return s ? { kind: "slides", id: s[1] } : null;
   }
   if (host === "drive.google.com") {
     const m = url.pathname.match(new RegExp(`^/file/(?:u/\\d+/)?d/(${ID})(?:/|$)`));
@@ -31,6 +34,9 @@ export function parseGoogleLink(raw: string): GoogleLink {
 }
 
 export const docUrl = (id: string) => `https://docs.google.com/document/d/${id}/edit`;
+/** Google's own embeddable player for a Slides deck (no autoplay). */
+export const slidesEmbedUrl = (id: string) =>
+  `https://docs.google.com/presentation/d/${id}/embed?start=false&loop=false&delayms=60000`;
 export const driveFileUrl = (id: string) => `https://drive.google.com/file/d/${id}/view`;
 
 /**
