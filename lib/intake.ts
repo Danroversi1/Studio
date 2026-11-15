@@ -13,21 +13,21 @@ export const INTAKE_QUESTIONS = [
     heading: "What's your story idea?",
     help: "A few sentences, a scene you imagine, or a “what if…” is enough.",
     why: "This is your premise: your starting point.",
-    placeholder: "What if a curious being from far away watched our planet for thousands of years…",
+    placeholder: "What if the last lighthouse keeper found out the light was keeping something away…",
   },
   {
     key: "who",
     heading: "Whose story is it?",
     help: "Tell us about the main character, or group. What do they want?",
     why: "A point of view, and a want that can drive the action.",
-    placeholder: "The Observer. It wants to understand the people it watches, without being seen…",
+    placeholder: "Mira, 13, the keeper's granddaughter. She wants to prove she can run the lighthouse alone…",
   },
   {
     key: "difficulty",
     heading: "What makes it difficult?",
     help: "What stands in their way? What could happen if things go wrong?",
     why: "Conflict, and what's at stake.",
-    placeholder: "The longer it stays, the more its borrowed body changes. If it's discovered…",
+    placeholder: "A storm is coming, and nobody believes her about what's out there. If the light goes out…",
   },
 ] as const;
 
