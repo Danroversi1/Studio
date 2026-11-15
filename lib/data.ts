@@ -63,7 +63,7 @@ export async function getProjectShell(projectId: string) {
     sb.from("projects").select("id, name, description, runtime:settings->>runtime").eq("id", projectId).maybeSingle(),
     sb.rpc("my_project_capabilities", { p_project: projectId }),
     sb.from("entities").select("id, kind, name, status, current_version_id, created_at, metadata")
-      .eq("project_id", projectId).in("kind", ["story", "character", "location"]).order("created_at"),
+      .eq("project_id", projectId).in("kind", ["story", "character", "location"]).neq("status", "archived").order("created_at"),
   ]);
   if (!project) return null;
   return { project, caps: (caps ?? { member: false }) as Capabilities, entities: (entities ?? []) as EntityRow[] };
@@ -235,7 +235,7 @@ export async function getCast(projectId: string) {
   const sb = await supabaseServer();
   const [{ data: ents }, { data: vers }] = await Promise.all([
     sb.from("entities").select("id, name, current_version_id, created_at")
-      .eq("project_id", projectId).eq("kind", "character").neq("status", "deleted").order("created_at"),
+      .eq("project_id", projectId).eq("kind", "character").neq("status", "archived").order("created_at"),
     sb.from("versions").select("id, entity_id, version_number, content")
       .eq("project_id", projectId).order("version_number", { ascending: false }),
   ]);

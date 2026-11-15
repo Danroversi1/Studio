@@ -415,7 +415,7 @@ type Sb = Awaited<ReturnType<typeof supabaseServer>>;
  *  changed "Name: who they are" line becomes a new revision of that character. */
 async function addCastFromText(sb: Sb, projectId: string, text: string): Promise<string[]> {
   const changed: string[] = [];
-  const { data: existing } = await sb.from("entities").select("id, name").eq("project_id", projectId).eq("kind", "character").neq("status", "deleted");
+  const { data: existing } = await sb.from("entities").select("id, name").eq("project_id", projectId).eq("kind", "character").neq("status", "archived");
   const byName = new Map((existing ?? []).map((e) => [String(e.name).trim().toLowerCase(), String(e.id)]));
   const ids = [...byName.values()];
   const latest = new Map<string, { id: string; content: Record<string, string> }>();

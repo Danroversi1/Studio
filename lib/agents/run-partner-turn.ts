@@ -21,7 +21,7 @@ async function loadSnapshot(db: Db, projectId: string): Promise<{ snapshot: Proj
   const [{ data: project }, { data: entities }, { data: treatmentRun }, { data: pending }, { data: notebook }] = await Promise.all([
     db.from("projects").select("name, runtime:settings->>runtime").eq("id", projectId).single(),
     db.from("entities").select("id, kind, name, current_version_id, created_at")
-      .eq("project_id", projectId).in("kind", ["story", "character", "location", "screenplay"]).order("created_at"),
+      .eq("project_id", projectId).in("kind", ["story", "character", "location", "screenplay"]).neq("status", "archived").order("created_at"),
     db.from("agent_runs").select("title:input_payload->>title, text:input_payload->>text")
       .eq("project_id", projectId).eq("task_type", "story_breakdown").eq("input_payload->>source", "treatment")
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
