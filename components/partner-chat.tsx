@@ -137,7 +137,7 @@ export function PartnerChat({ projectId, agent, partnerName, opening, threadId, 
       ) : (
         <p className="help">You can read this conversation. Only people with Edit access can talk to the partners.</p>
       )}
-      {agent !== "world" && <p className="text-xs text-muted">
+      {(agent === "story" || agent === "design") && <p className="text-xs text-muted">
         Characters and locations your partner suggests wait in <Link href={`/projects/${projectId}/suggestions`} className="link-accent">Suggestions</Link> for your decision.
       </p>}
     </div>
