@@ -1,43 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { SubmitButton } from "@/components/ui";
-import { countPendingSuggestions, getProjectShell, type Capabilities, type EntityRow } from "@/lib/data";
-import { createEntity } from "./actions";
+import { IconArrowLeft, IconFilm, Wordmark } from "@/components/icons";
+import { SidebarNav } from "@/components/sidebar-nav";
+import { countPendingSuggestions, currentUser, getProjectShell, type Capabilities } from "@/lib/data";
+import { signOut } from "../../login/actions";
 
-function accessSummary(c: Capabilities) {
+function roleLabel(c: Capabilities) {
   const role = c.project_role === "executive_producer" ? "Executive Producer" : c.project_role === "director" ? "Director" : "Collaborator";
-  const parts = [role, `${c.access_level?.[0].toUpperCase()}${c.access_level?.slice(1)} access`];
-  if (c.can_admin) parts.push("Admin");
-  if (c.can_approve_canonical) parts.push("Can approve");
-  return parts.join(" · ");
+  return c.can_edit ? role : `${role} · ${c.can_review ? "can review" : "can view"}`;
 }
 
-function NavGroup({ title, items, projectId }: { title: string; items: EntityRow[]; projectId: string }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <h3 className="px-2 text-xs font-semibold tracking-wide text-muted uppercase">{title}</h3>
-      {items.length === 0 && <p className="help px-2">None yet.</p>}
-      {items.map((e) => (
-        <Link key={e.id} href={`/projects/${projectId}/items/${e.id}`}
-          className="flex min-h-11 items-center justify-between rounded-lg px-2 hover:bg-panel-2">
-          <span className="truncate">{e.name}</span>
-          {!e.current_version_id && <span className="text-xs text-warn">not approved</span>}
-        </Link>
-      ))}
-    </div>
-  );
-}
-
-function NewItemForm({ projectId, kind, label }: { projectId: string; kind: "character" | "location"; label: string }) {
-  return (
-    <form action={createEntity} className="flex gap-2">
-      <input type="hidden" name="projectId" value={projectId} />
-      <input type="hidden" name="kind" value={kind} />
-      <label className="sr-only" htmlFor={`new-${kind}`}>{label}</label>
-      <input id={`new-${kind}`} name="name" required maxLength={120} placeholder={label} className="field min-w-0 flex-1" />
-      <SubmitButton pendingText="…">Add</SubmitButton>
-    </form>
-  );
+function initials(email?: string | null) {
+  const name = (email ?? "").split("@")[0].replace(/[^a-zA-Z]+/g, " ").trim();
+  const parts = name.split(" ").filter(Boolean);
+  return ((parts[0]?.[0] ?? "S") + (parts[1]?.[0] ?? parts[0]?.[1] ?? "")).toUpperCase();
 }
 
 export default async function ProjectLayout({
@@ -48,58 +24,62 @@ export default async function ProjectLayout({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const shell = await getProjectShell(projectId);
+  const [shell, user] = await Promise.all([getProjectShell(projectId), currentUser()]);
   if (!shell || !shell.caps.member) notFound();
   const { project, caps, entities } = shell;
-  const pendingSuggestions = caps.can_review ? await countPendingSuggestions(projectId) : 0;
-  const stories = entities.filter((e) => e.kind === "story");
-  const characters = entities.filter((e) => e.kind === "character");
-  const locations = entities.filter((e) => e.kind === "location");
+  const pending = caps.can_review ? await countPendingSuggestions(projectId) : 0;
+  const story = entities.find((e) => e.kind === "story");
+  const nav = (kind: string) =>
+    entities.filter((e) => e.kind === kind).map((e) => ({ id: e.id, name: e.name, approved: !!e.current_version_id }));
 
   return (
     <div className="flex min-h-dvh flex-col lg:flex-row">
-      <aside className="flex flex-col gap-5 border-line bg-panel p-4 lg:sticky lg:top-0 lg:h-dvh lg:w-72 lg:shrink-0 lg:overflow-y-auto lg:border-r">
-        <div>
-          <Link href="/projects" className="help hover:text-text">← All films</Link>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight leading-tight">
-            <Link href={`/projects/${projectId}`} className="hover:text-accent">{project.name}</Link>
-          </h1>
-          <p className="mt-1 text-xs text-muted">{accessSummary(caps)}</p>
-        </div>
-        <Link href={`/projects/${projectId}`}
-          className="flex min-h-11 items-center rounded-lg border border-line px-3 hover:border-muted">
-          Start: story &amp; treatment
+      <aside className="flex flex-col gap-6 border-line bg-panel px-5 py-6 lg:sticky lg:top-0 lg:h-dvh lg:w-80 lg:shrink-0 lg:overflow-y-auto lg:border-r">
+        <Link href="/projects" className="px-1" aria-label="STUDIO — all films"><Wordmark /></Link>
+
+        <Link href="/projects" className="panel flex items-center gap-3 p-3 hover:border-text/30" title="Switch film">
+          <span className="flex size-12 shrink-0 items-center justify-center bg-text text-brand"><IconFilm /></span>
+          <span className="min-w-0">
+            <span className="display block truncate text-lg">{project.name}</span>
+            <span className="block truncate text-sm text-muted">Short film · {roleLabel(caps)}</span>
+          </span>
         </Link>
-        {caps.can_review && (
-          <Link href={`/projects/${projectId}/suggestions`}
-            className="flex min-h-11 items-center justify-between rounded-lg border border-line px-3 hover:border-muted">
-            <span>Suggestions</span>
-            {pendingSuggestions > 0 && (
-              <span className="rounded-full bg-accent px-2 text-xs font-semibold text-ink">{pendingSuggestions}</span>
-            )}
-          </Link>
-        )}
-        {/* On iPad portrait the groups sit side by side; on desktop they stack in the sidebar. */}
-        <nav className="grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-1" aria-label="Project">
-          <NavGroup title="Write" items={stories} projectId={projectId} />
-          <div className="flex flex-col gap-2">
-            <NavGroup title="Characters" items={characters} projectId={projectId} />
-            {caps.can_edit && <NewItemForm projectId={projectId} kind="character" label="New character" />}
-          </div>
-          <div className="flex flex-col gap-2">
-            <NavGroup title="Locations" items={locations} projectId={projectId} />
-            {caps.can_edit && <NewItemForm projectId={projectId} kind="location" label="New location" />}
-          </div>
-        </nav>
-        {!caps.can_edit && (
-          <p className="help rounded-lg border border-line p-3">
-            {caps.can_review
-              ? "You can read all work in progress and leave comments, but not change it."
-              : "You can read the approved versions of this film."}
-          </p>
-        )}
+
+        <SidebarNav
+          projectId={projectId}
+          storyId={story?.id}
+          characters={nav("character")}
+          locations={nav("location")}
+          pendingSuggestions={pending}
+          showAgents={!!caps.can_review}
+          showSettings={!!(caps.can_admin && caps.can_approve_creative)}
+        />
+
+        <div className="mt-auto flex items-center gap-3 border-t border-line pt-4">
+          <span className="flex size-11 shrink-0 items-center justify-center bg-text text-sm font-semibold text-panel-2">
+            {initials(user?.email)}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">{user?.email}</span>
+            <span className="block text-xs text-muted">Your creative space</span>
+          </span>
+          <form action={signOut}><button className="btn min-h-9 px-3 text-xs">Sign out</button></form>
+        </div>
       </aside>
-      <main className="min-w-0 flex-1 p-4 sm:p-6">{children}</main>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-line bg-panel px-5 py-3 sm:px-8">
+          <nav aria-label="Breadcrumb" className="flex items-center gap-3 text-[15px]">
+            <Link href="/projects" className="inline-flex min-h-11 items-center gap-1.5 text-muted hover:text-text">
+              <IconArrowLeft /> All films
+            </Link>
+            <span className="text-line">/</span>
+            <Link href={`/projects/${projectId}`} className="text-xs font-medium tracking-[0.12em] uppercase hover:text-accent">{project.name}</Link>
+          </nav>
+          <span className="inline-flex items-center gap-2 text-xs tracking-[0.12em] text-muted uppercase"><span className="size-2 bg-brand" aria-hidden /> Saved to the cloud</span>
+        </header>
+        <main className="min-w-0 flex-1 px-5 py-8 sm:px-8 lg:px-12">{children}</main>
+      </div>
     </div>
   );
 }

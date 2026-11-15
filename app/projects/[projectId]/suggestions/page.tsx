@@ -42,7 +42,7 @@ export default async function SuggestionsPage({
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
       <AutoRefresh active={inProgress} />
       <header>
-        <h2 className="text-3xl font-semibold tracking-tight">Suggestions</h2>
+        <h2 className="display text-4xl leading-none">Suggestions</h2>
         <p className="help mt-1">
           Ideas from your team. Nothing joins your film until you accept it, and accepted items still need your approval.
         </p>

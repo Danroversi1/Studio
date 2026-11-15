@@ -21,7 +21,7 @@ export async function createEntity(fd: FormData) {
     p_kind: s(fd, "kind"),
     p_name: s(fd, "name"),
   });
-  if (error) redirect(withMessage(`/projects/${projectId}`, "error", friendlyError(error).message));
+  if (error) redirect(withMessage(`/projects/${projectId}/add`, "error", friendlyError(error).message));
   revalidatePath(`/projects/${projectId}`, "layout");
   redirect(itemPath(projectId, data));
 }
@@ -176,6 +176,7 @@ export async function setAiBudget(fd: FormData) {
 // ---------------------------------------------------------------- Project intake (Start page)
 
 const startPath = (p: string) => `/projects/${p}`;
+const addPath = (p: string) => `/projects/${p}/add`;
 
 export async function saveSynopsis(fd: FormData) {
   const projectId = s(fd, "projectId");
@@ -190,9 +191,9 @@ export async function saveSynopsis(fd: FormData) {
     p_asset_ids: [],
     p_status: "submitted",
   });
-  if (error) redirect(withMessage(startPath(projectId), "error", friendlyError(error).message));
+  if (error) redirect(withMessage(addPath(projectId), "error", friendlyError(error).message));
   revalidatePath(`/projects/${projectId}`, "layout");
-  redirect(withMessage(startPath(projectId), "notice", "Synopsis saved as a new story revision."));
+  redirect(withMessage(addPath(projectId), "notice", "Synopsis saved as a new story revision."));
 }
 
 export async function addTreatmentLink(fd: FormData) {
@@ -207,16 +208,16 @@ export async function addTreatmentLink(fd: FormData) {
     p_notes: TREATMENT_NOTES,
     p_rights_status: "permission_granted",
   });
-  if (error) redirect(withMessage(startPath(projectId), "error", friendlyError(error).message));
-  revalidatePath(startPath(projectId));
-  redirect(withMessage(startPath(projectId), "notice", "Treatment link added to your story."));
+  if (error) redirect(withMessage(addPath(projectId), "error", friendlyError(error).message));
+  revalidatePath(addPath(projectId));
+  redirect(withMessage(addPath(projectId), "notice", "Treatment link added to your story."));
 }
 
 export async function deleteProject(fd: FormData) {
   const projectId = s(fd, "projectId");
   const sb = await supabaseServer();
   const { error } = await sb.rpc("delete_project", { p_project: projectId, p_confirm_name: s(fd, "confirmName") });
-  if (error) redirect(withMessage(startPath(projectId), "error", friendlyError(error).message));
+  if (error) redirect(withMessage(`/projects/${projectId}/settings`, "error", friendlyError(error).message));
   revalidatePath("/projects");
   redirect(withMessage("/projects", "notice", "Film deleted. If that was a mistake, it can still be recovered — ask for help soon."));
 }

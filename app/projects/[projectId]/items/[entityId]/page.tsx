@@ -71,11 +71,11 @@ export default async function ItemWorkspace({
               <input type="hidden" name="entityId" value={entityId} />
               <label className="sr-only" htmlFor="rename">Name</label>
               <input id="rename" name="name" defaultValue={entity.name} maxLength={120}
-                className="min-h-11 rounded-lg border border-transparent bg-transparent text-3xl font-semibold tracking-tight hover:border-line focus:border-accent focus:outline-none" />
+                className="min-h-11 rounded-lg border border-transparent bg-transparent text-3xl display hover:border-line focus:border-accent focus:outline-none" />
               <SubmitButton pendingText="…">Rename</SubmitButton>
             </form>
           ) : (
-            <h2 className="text-3xl font-semibold tracking-tight">{entity.name}</h2>
+            <h2 className="display text-4xl leading-none">{entity.name}</h2>
           )}
         </div>
         <p className="help">{canonical ? `Approved: revision ${canonical.version_number}` : "No approved version yet"}</p>

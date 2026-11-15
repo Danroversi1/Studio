@@ -67,6 +67,28 @@ export async function getProjectShell(projectId: string) {
   return { project, caps: (caps ?? { member: false }) as Capabilities, entities: (entities ?? []) as EntityRow[] };
 }
 
+/** Latest visible revision per item, for overview card previews. */
+export async function getLatestVersions(projectId: string) {
+  const sb = await supabaseServer();
+  const { data } = await sb
+    .from("versions").select("entity_id, version_number, status, content")
+    .eq("project_id", projectId).order("version_number", { ascending: false });
+  const latest = new Map<string, { version_number: number; status: VersionStatus; content: Record<string, string> }>();
+  for (const v of data ?? []) if (!latest.has(v.entity_id)) latest.set(v.entity_id, v as never);
+  return latest;
+}
+
+export async function getStoryReferences(projectId: string, storyId: string) {
+  const sb = await supabaseServer();
+  const { data: boards } = await sb.from("research_boards").select("id").eq("project_id", projectId).eq("entity_id", storyId);
+  const ids = (boards ?? []).map((b) => b.id);
+  if (!ids.length) return [];
+  const { data } = await sb.from("research_references")
+    .select("id, title, source_url, source_domain, attribution, created_at")
+    .in("board_id", ids).order("created_at", { ascending: false });
+  return data ?? [];
+}
+
 export interface AiBudget {
   can_manage: boolean;
   available: boolean;
