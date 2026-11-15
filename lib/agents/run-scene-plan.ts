@@ -16,9 +16,10 @@ const SCHEMA = {
       type: "array",
       items: {
         type: "object", additionalProperties: false,
-        required: ["beat_id", "int_ext", "location", "time", "characters", "set_dressing", "props", "wardrobe", "special_effects"],
+        required: ["beat_id", "excerpt", "int_ext", "location", "time", "characters", "set_dressing", "props", "wardrobe", "special_effects"],
         properties: {
           beat_id: { type: "string" },
+          excerpt: { type: "string" },
           int_ext: { type: "string", enum: ["INT", "EXT", "INT/EXT"] },
           location: { type: "string" },
           time: { type: "string", enum: ["DAY", "NIGHT", "MORNING", "EVENING", "DAWN", "DUSK", "CONTINUOUS", "LATER"] },
@@ -30,7 +31,8 @@ const SCHEMA = {
 } as const;
 
 const SYSTEM = `You help a young film director (age 13) turn her outline into screenplay scenes in STUDIO.
-For each outline beat you receive, return the scene (or, rarely, two scenes) it happens in:
+For each outline beat you receive, return the scene it happens in. If the beat clearly moves between places (often one line per place), return one scene per place, in order.
+- excerpt: the part of her beat text that happens in this scene, copied exactly, character for character (a sentence or a line of hers). If the beat is a single scene, copy the whole beat.
 - int_ext: INT if it happens inside, EXT if outside, INT/EXT if it moves between (e.g. a car).
 - location: a short place name in her terms (2–4 words, e.g. "MARIE'S APARTMENT", "ROOFTOP"). Reuse an existing location name when it is the same place. If the beat doesn't say, choose the most likely place from her story and keep it simple.
 - time: DAY or NIGHT unless the beat says otherwise.

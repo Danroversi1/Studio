@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { classify } from "../../lib/screenplay";
-import { insertScenes, parseBreakdown, parseHeading, sceneBlock, uncoveredBeats, type PlannedScene } from "../../lib/scene-plan";
+import { blocksFor, excerptsFor, insertScenes, parseBreakdown, parseHeading, sceneBlock, uncoveredBeats, type PlannedScene } from "../../lib/scene-plan";
 
 const scene: PlannedScene = {
   beat_id: "b1", int_ext: "EXT", location: "the lighthouse", time: "night", characters: ["Mira", "Old Tom"],
@@ -37,4 +37,21 @@ test("breakdown reads places, cast and notes", () => {
   assert.deepEqual(bd[0].props, ["brass key"]);
   assert.deepEqual(bd[1].characters, ["Mira"]);
   assert.deepEqual(parseHeading("INT./EXT. CAR - MOVING").intExt, "Interior & exterior");
+});
+
+test("a beat across several scenes is split, never duplicated", () => {
+  const two = [{ ...scene, location: "CAFE" }, { ...scene, location: "HOME" }];
+  assert.deepEqual(excerptsFor("- At the cafe.\n- At home.", two), ["- At the cafe.", "- At home."]);
+  assert.deepEqual(excerptsFor("She runs. Then sleeps.", [{ ...two[0], excerpt: "She runs." }, { ...two[1], excerpt: "Then sleeps." }]), ["She runs.", "Then sleeps."]);
+  assert.deepEqual(excerptsFor("One line only.", two), ["One line only.", ""]);
+  const blocks = blocksFor(two, [{ id: "b1", part: "middle", text: "- At the cafe.\n- At home." }]);
+  assert.equal(blocks.length, 2);
+  assert.ok(blocks[0].text.includes("At the cafe.") && !blocks[0].text.includes("At home."));
+});
+
+test("extra lines stay with the scene of the people they name", () => {
+  const sc = (loc: string, characters: string[]) => ({ ...scene, location: loc, characters });
+  const r = excerptsFor("- Johnny picks up Marie.\n- Jacques is also there.\n- Armand reports to the president.\n- Johnny gets a message.",
+    [sc("OFFICE", ["Johnny", "Marie", "Jacques"]), sc("WHITE HOUSE", ["Armand"]), sc("STREET", ["Johnny"])]);
+  assert.deepEqual(r, ["- Johnny picks up Marie.\n- Jacques is also there.", "- Armand reports to the president.", "- Johnny gets a message."]);
 });

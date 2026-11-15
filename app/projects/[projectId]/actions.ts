@@ -10,7 +10,7 @@ import { aiConfigured, runStoryBreakdown } from "@/lib/agents/run-story-breakdow
 import { friendlyError, withMessage } from "@/lib/errors";
 import { parseCast } from "@/lib/cast";
 import { runScenePlan } from "@/lib/agents/run-scene-plan";
-import { PARTS, insertScenes, parseBreakdown, sceneBlock, titleCase, uncoveredBeats, type Beat, type Part } from "@/lib/scene-plan";
+import { PARTS, blocksFor, insertScenes, parseBreakdown, titleCase, uncoveredBeats, type Beat, type Part } from "@/lib/scene-plan";
 import { TREATMENT_ATTRIBUTION, TREATMENT_NOTES, composeIntake } from "@/lib/intake";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -554,8 +554,7 @@ async function planScenes(projectId: string): Promise<number> {
   const fresh = await latestOf(entityId);
   const current = String(fresh?.content?.body ?? "");
   const stillTodo = uncoveredBeats(current, todo);
-  const byId = new Map(stillTodo.map((b) => [b.id, b]));
-  const blocks = scenes.filter((x) => byId.has(x.beat_id)).map((x) => ({ part: byId.get(x.beat_id)!.part, text: sceneBlock(x, byId.get(x.beat_id)!.text) }));
+  const blocks = blocksFor(scenes, stillTodo);
   if (!blocks.length) return 0;
   const next = insertScenes(current, blocks);
   const { data: cur } = await sb.from("entities").select("current_version_id").eq("id", entityId).single();

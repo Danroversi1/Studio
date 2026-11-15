@@ -13,6 +13,8 @@ const PART_LABEL: Record<Part, string> = { beginning: "BEGINNING", middle: "MIDD
 export interface Beat { id: string; part: Part; text: string }
 export interface PlannedScene {
   beat_id: string;
+  /** Her words from the beat that belong to this scene (copied exactly), when a beat spans several scenes. */
+  excerpt?: string;
   int_ext: "INT" | "EXT" | "INT/EXT";
   location: string;
   time: string;
@@ -45,8 +47,41 @@ export function sceneHeading(s: Pick<PlannedScene, "int_ext" | "location" | "tim
   return `${ie} ${where}${when ? ` - ${when}` : ""}`;
 }
 
+const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+
+/** Which of her words go in each scene of one beat. Her text is never rewritten: a scene
+ *  gets an exact excerpt from the beat, or the beat's own lines in order, and if neither
+ *  fits, the whole beat goes in the first scene. */
+export function excerptsFor(beatText: string, scenes: PlannedScene[]): string[] {
+  const text = beatText.trim();
+  if (scenes.length <= 1) return [text];
+  const ex = scenes.map((s) => (s.excerpt ?? "").trim());
+  if (ex.every((e) => e && norm(text).includes(norm(e)))) return ex;
+  const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === scenes.length) return lines;
+  if (lines.length > scenes.length) {
+    // More lines than scenes: walk forward, moving to the next scene when a line names
+    // someone who isn't in the current scene but is in a later one.
+    const has = (line: string, name: string) => new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(line);
+    const out: string[][] = scenes.map(() => []);
+    let idx = 0;
+    for (const line of lines) {
+      const names = [...new Set(scenes.flatMap((sc) => sc.characters))].filter((n) => has(line, n));
+      const inCur = names.some((n) => scenes[idx].characters.includes(n));
+      if (names.length && !inCur) {
+        const j = scenes.findIndex((sc, k) => k > idx && names.some((n) => sc.characters.includes(n)));
+        if (j > idx) idx = j;
+      }
+      out[idx].push(line);
+    }
+    return out.map((x) => x.join("\n"));
+  }
+  return scenes.map((_, i) => (i === 0 ? text : ""));
+}
+
 export function sceneBlock(scene: PlannedScene, beatText: string): string {
-  const out = [`${sceneHeading(scene)}\n[[beat:${scene.beat_id}]]`, beatText.trim().replace(/\n{2,}/g, "\n")];
+  const out = [`${sceneHeading(scene)}\n[[beat:${scene.beat_id}]]`];
+  if (beatText.trim()) out.push(beatText.trim().replace(/\n{2,}/g, "\n"));
   const notes: [string, string[]][] = [["Set", scene.set_dressing], ["Props", scene.props], ["Wardrobe", scene.wardrobe], ["SFX", scene.special_effects]];
   for (const [k, xs] of notes) if (list(xs)) out.push(`[[${k}: ${list(xs)}]]`);
   for (const c of scene.characters.map((c) => clean(c, 40).toUpperCase()).filter(Boolean).slice(0, 8)) {
@@ -137,4 +172,17 @@ export function parseBreakdown(src: string): BreakdownScene[] {
   }
   for (const s of scenes) for (const k of ["set", "props", "wardrobe", "sfx"] as const) s[k] = [...new Set(s[k])];
   return scenes;
+}
+
+/** Script blocks for a plan: scenes in order, each with its share of her beat text. */
+export function blocksFor(plan: PlannedScene[], beats: Beat[]): { part: Part; text: string }[] {
+  const byId = new Map(beats.map((b) => [b.id, b]));
+  const out: { part: Part; text: string }[] = [];
+  for (const b of beats) {
+    const mine = plan.filter((p) => p.beat_id === b.id);
+    if (!mine.length || !byId.has(b.id)) continue;
+    const ex = excerptsFor(b.text, mine);
+    mine.forEach((sc, i) => out.push({ part: b.part, text: sceneBlock(sc, ex[i] ?? "") }));
+  }
+  return out;
 }
