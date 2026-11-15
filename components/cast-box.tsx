@@ -2,15 +2,15 @@
 // STUDIO item everywhere: editing it here saves a new revision of that character, so
 // every desk shows the change.
 import Link from "next/link";
-import { addCharacter, importCast, saveCharacter } from "@/app/projects/[projectId]/actions";
+import { addCharacter, saveCharacter } from "@/app/projects/[projectId]/actions";
 import { SubmitButton } from "./ui";
 
 export interface CastMemberRow { id: string; name: string; summary: string; notes: string; latestId: string | null; approved: boolean }
 
-export function CastBox({ projectId, back, cast, canEdit, castText, pendingFromText }: {
+export function CastBox({ projectId, back, cast, canEdit, children }: {
   projectId: string; back: string; cast: CastMemberRow[]; canEdit: boolean;
-  /** Her written cast answer, offered as a one-click import when it names people not yet in Characters. */
-  castText?: string; pendingFromText?: string[];
+  /** Optional editor shown above the list (the Story desk's written cast answer). */
+  children?: React.ReactNode;
 }) {
   return (
     <section id="cast" className="panel flex scroll-mt-6 flex-col gap-3 p-4" aria-labelledby="cast-h">
@@ -18,6 +18,7 @@ export function CastBox({ projectId, back, cast, canEdit, castText, pendingFromT
         <h2 id="cast-h" className="font-semibold">Cast</h2>
         <Link href={`/projects/${projectId}#characters`} className="text-xs text-accent">All characters</Link>
       </div>
+      {children}
       {cast.length === 0 && <p className="text-sm text-muted">No characters yet.</p>}
       <ul className="flex flex-col gap-2">
         {cast.map((c) => (
@@ -48,15 +49,6 @@ export function CastBox({ projectId, back, cast, canEdit, castText, pendingFromT
           </li>
         ))}
       </ul>
-      {canEdit && pendingFromText && pendingFromText.length > 0 && (
-        <form action={importCast} className="flex flex-col gap-2 border border-line p-3">
-          <input type="hidden" name="projectId" value={projectId} />
-          <input type="hidden" name="back" value={back} />
-          <input type="hidden" name="who" value={castText ?? ""} />
-          <p className="text-sm">Your cast answer names {pendingFromText.join(", ")}.</p>
-          <span><SubmitButton variant="primary" pendingText="Adding…">Add to Characters</SubmitButton></span>
-        </form>
-      )}
       {canEdit && (
         <details>
           <summary className="cursor-pointer list-none text-sm text-accent">+ Add a character</summary>

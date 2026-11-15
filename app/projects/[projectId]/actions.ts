@@ -257,7 +257,7 @@ export async function saveSynopsis(fd: FormData) {
   const added = fd.get("syncCast") === "1" ? await addCastFromText(sb, projectId, s(fd, "who")) : [];
   revalidatePath(`/projects/${projectId}`, "layout");
   const note = added.length
-    ? `Saved. Added ${joinNames(added)} to Characters.`
+    ? `Saved. Characters updated: ${joinNames(added)}.`
     : "Saved. Earlier versions are kept under Revisions.";
   redirect(withMessage(back.includes("/items/") ? `${back}?v=${newVersion}` : back, "notice", note));
 }
@@ -411,37 +411,39 @@ export async function setThumbnail(fd: FormData) {
 
 type Sb = Awaited<ReturnType<typeof supabaseServer>>;
 
-/** Adds the "Name: who they are" lines she wrote that aren't characters yet. */
+/** Keeps Characters in step with her cast answer: new names become characters, and a
+ *  changed "Name: who they are" line becomes a new revision of that character. */
 async function addCastFromText(sb: Sb, projectId: string, text: string): Promise<string[]> {
-  const added: string[] = [];
-  const { data: existing } = await sb.from("entities").select("name").eq("project_id", projectId).eq("kind", "character").neq("status", "deleted");
-  const have = new Set((existing ?? []).map((e) => String(e.name).trim().toLowerCase()));
-  for (const c of parseCast(text)) {
-    if (have.has(c.name.toLowerCase())) continue;
-    const { data: id, error } = await sb.rpc("create_entity", { p_project: projectId, p_kind: "character", p_name: c.name });
-    if (error || !id) continue;
-    if (c.description) {
-      await sb.rpc("create_revision", {
-        p_entity: id, p_content: { summary: c.description, notes: "" }, p_change_summary: "From your cast answer",
-        p_parent_version: null, p_base_version: null, p_asset_ids: [], p_status: "submitted",
-      });
-    }
-    have.add(c.name.toLowerCase());
-    added.push(c.name);
+  const changed: string[] = [];
+  const { data: existing } = await sb.from("entities").select("id, name").eq("project_id", projectId).eq("kind", "character").neq("status", "deleted");
+  const byName = new Map((existing ?? []).map((e) => [String(e.name).trim().toLowerCase(), String(e.id)]));
+  const ids = [...byName.values()];
+  const latest = new Map<string, { id: string; content: Record<string, string> }>();
+  if (ids.length) {
+    const { data: vers } = await sb.from("versions").select("id, entity_id, version_number, content").in("entity_id", ids).order("version_number", { ascending: false });
+    for (const v of vers ?? []) if (!latest.has(v.entity_id)) latest.set(v.entity_id, v as never);
   }
-  return added;
+  for (const c of parseCast(text)) {
+    let id = byName.get(c.name.toLowerCase()) ?? null;
+    if (!id) {
+      const { data, error } = await sb.rpc("create_entity", { p_project: projectId, p_kind: "character", p_name: c.name });
+      if (error || !data) continue;
+      id = String(data);
+      byName.set(c.name.toLowerCase(), id);
+    }
+    const prev = latest.get(id);
+    if (c.description && (prev?.content?.summary ?? "").trim() !== c.description.trim()) {
+      await sb.rpc("create_revision", {
+        p_entity: id, p_content: { summary: c.description, notes: prev?.content?.notes ?? "" }, p_change_summary: "From your cast answer",
+        p_parent_version: prev?.id ?? null, p_base_version: null, p_asset_ids: [], p_status: "submitted",
+      });
+      changed.push(c.name);
+    } else if (!prev) changed.push(c.name);
+  }
+  return changed;
 }
 
 const joinNames = (n: string[]) => (n.length === 1 ? n[0] : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]}`);
-
-export async function importCast(fd: FormData) {
-  const projectId = s(fd, "projectId");
-  const back = backTo(fd, projectId, `/projects/${projectId}`);
-  const sb = await supabaseServer();
-  const added = await addCastFromText(sb, projectId, s(fd, "who"));
-  revalidatePath(`/projects/${projectId}`, "layout");
-  redirect(withMessage(back, "notice", added.length ? `Added ${joinNames(added)} to Characters.` : "Everyone is already in Characters."));
-}
 
 export async function addCharacter(fd: FormData) {
   const projectId = s(fd, "projectId");

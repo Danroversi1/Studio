@@ -11,7 +11,6 @@ import { parseGoogleLink, slidesEmbedUrl } from "@/lib/google/links";
 import { INTAKE_QUESTIONS, TREATMENT_ATTRIBUTION, parseIntake, isTreatmentRef } from "@/lib/intake";
 import { currentUser, getAiBudget, getCast, getNotebook, getEntityWorkspace, getProjectShell, type VersionRow } from "@/lib/data";
 import { CastBox } from "@/components/cast-box";
-import { parseCast } from "@/lib/cast";
 import { addReference, approveRevision, linkEntities, renameEntity, requestBreakdown, saveRevision, saveSynopsis, setThumbnail, unlinkEntities } from "../../actions";
 
 export const maxDuration = 300;
@@ -243,16 +242,26 @@ export default async function ItemWorkspace({
   );
   const followUps = INTAKE_QUESTIONS.filter((q) => q.key !== "idea");
   const allAnswered = followUps.every((q) => answers[q.key].trim() || (q.key === "who" && cast.length > 0));
-  const castNames = new Set(cast.map((c) => c.name.toLowerCase()));
-  const pendingFromText = parseCast(answers.who).map((c) => c.name).filter((n) => !castNames.has(n.toLowerCase()));
   const storyLead = isStory && (
     <div className="flex flex-col gap-4" aria-label="Story questions">
       {followUps.map((q) => {
         const answered = !!answers[q.key].trim();
         if (q.key === "who" && (answered || cast.length > 0)) {
           return (
-            <CastBox key={q.key} projectId={projectId} back={`${base}/items/${entityId}`} cast={cast} canEdit={!!caps.can_edit}
-              castText={answers.who} pendingFromText={pendingFromText} />
+            <CastBox key={q.key} projectId={projectId} back={`${base}/items/${entityId}`} cast={cast} canEdit={!!caps.can_edit}>
+              {caps.can_edit && answered && (
+                <details>
+                  <summary className="cursor-pointer list-none text-xs text-accent">Edit your cast answer</summary>
+                  <form action={saveSynopsis} className="mt-2 flex flex-col gap-2">
+                    {storyHidden(q.key)}
+                    <input type="hidden" name="syncCast" value="1" />
+                    <textarea name={q.key} defaultValue={answers[q.key]} rows={6} className="field font-serif" aria-label={q.label} />
+                    <p className="text-xs text-muted">Write each as “Name: who they are”. Saving updates Characters on every desk.</p>
+                    <span><SubmitButton pendingText="Saving…">Save</SubmitButton></span>
+                  </form>
+                </details>
+              )}
+            </CastBox>
           );
         }
         return (

@@ -3,6 +3,7 @@ import { runtimeInfo } from "@/lib/runtime";
 import { notFound } from "next/navigation";
 import { IconArrowLeft, IconFilm, Wordmark } from "@/components/icons";
 import { SidebarNav } from "@/components/sidebar-nav";
+import { RefreshOnReturn } from "@/components/refresh-on-return";
 import { countPendingSuggestions, currentUser, getProjectShell, type Capabilities } from "@/lib/data";
 import { signOut } from "../../login/actions";
 
@@ -35,6 +36,7 @@ export default async function ProjectLayout({
 
   return (
     <div className="flex min-h-dvh flex-col lg:flex-row">
+      <RefreshOnReturn />
       <aside className="flex flex-col gap-6 border-line bg-panel px-5 py-6 lg:sticky lg:top-0 lg:h-dvh lg:w-80 lg:shrink-0 lg:overflow-y-auto lg:border-r">
         <Link href="/projects" className="px-1" aria-label="STUDIO — all films"><Wordmark /></Link>
 
