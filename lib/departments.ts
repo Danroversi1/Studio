@@ -5,6 +5,7 @@ export const DEPARTMENTS = [
   { value: "wardrobe", label: "Wardrobe", blurb: "Clothes, fabrics, colors and accessories." },
   { value: "production_design", label: "Production design", blurb: "Sets, objects, materials and the look of the world." },
   { value: "special_effects", label: "Special effects", blurb: "Magic, weather, light, smoke and anything impossible." },
+  { value: "inspiration", label: "Inspiration", blurb: "Other films, creative works, music: anything that sparks an idea." },
 ] as const;
 
 export type Department = (typeof DEPARTMENTS)[number]["value"];

@@ -392,3 +392,13 @@ export async function fileReference(fd: FormData) {
   revalidatePath(back);
   redirect(back);
 }
+
+export async function setThumbnail(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const entityId = s(fd, "entityId");
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("set_entity_thumbnail", { p_entity: entityId, p_asset: opt(fd, "assetId") });
+  if (error) redirect(withMessage(itemPath(projectId, entityId), "error", friendlyError(error).message));
+  revalidatePath(`/projects/${projectId}`, "layout");
+  redirect(`${withMessage(itemPath(projectId, entityId), "notice", "Thumbnail updated.")}#thumbnail`);
+}

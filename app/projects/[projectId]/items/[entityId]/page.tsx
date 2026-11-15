@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Empty, Flash } from "@/components/flash";
 import { SubmitButton } from "@/components/ui";
+import { LengthPicker } from "@/components/length-picker";
 import { OutlineBox } from "@/components/outline-box";
 import { RUNTIMES, runtimeInfo } from "@/lib/runtime";
 import { UploadArtwork } from "@/components/upload-artwork";
@@ -9,7 +10,7 @@ import { aiConfigured } from "@/lib/agents/run-story-breakdown";
 import { parseGoogleLink, slidesEmbedUrl } from "@/lib/google/links";
 import { INTAKE_QUESTIONS, TREATMENT_ATTRIBUTION, parseIntake, isTreatmentRef } from "@/lib/intake";
 import { currentUser, getAiBudget, getNotebook, getEntityWorkspace, getProjectShell, type VersionRow } from "@/lib/data";
-import { addReference, approveRevision, linkEntities, renameEntity, requestBreakdown, saveRevision, saveSynopsis, setRuntime, unlinkEntities } from "../../actions";
+import { addReference, approveRevision, linkEntities, renameEntity, requestBreakdown, saveRevision, saveSynopsis, setThumbnail, unlinkEntities } from "../../actions";
 
 export const maxDuration = 300;
 
@@ -241,42 +242,87 @@ export default async function ItemWorkspace({
   const followUps = INTAKE_QUESTIONS.filter((q) => q.key !== "idea");
   const allAnswered = followUps.every((q) => answers[q.key].trim());
   const storyLead = isStory && (
-    <section className="panel flex flex-col gap-4 border-accent/40 p-4" aria-label="Story questions">
+    <div className="flex flex-col gap-4" aria-label="Story questions">
       {followUps.map((q) => {
         const answered = !!answers[q.key].trim();
-        return answered ? (
-          <details key={q.key} className="border-b border-line pb-3">
-            <summary className="cursor-pointer list-none">
-              <span className="block text-sm font-semibold">{q.heading}</span>
-              <span className="mt-1 line-clamp-3 block text-sm whitespace-pre-wrap text-muted">{answers[q.key]}</span>
-            </summary>
-            {caps.can_edit && (
-              <form action={saveSynopsis} className="mt-2 flex flex-col gap-2">
+        return (
+          <section key={q.key} className="panel flex flex-col gap-2 p-4">
+            {answered ? (
+              <details>
+                <summary className="cursor-pointer list-none">
+                  <span className="block font-semibold">{q.label}</span>
+                  <span className="mt-1 line-clamp-4 block text-sm whitespace-pre-wrap text-muted">{answers[q.key]}</span>
+                  {caps.can_edit && <span className="mt-1 block text-xs text-accent">Edit</span>}
+                </summary>
+                {caps.can_edit && (
+                  <form action={saveSynopsis} className="mt-2 flex flex-col gap-2">
+                    {storyHidden(q.key)}
+                    <textarea name={q.key} defaultValue={answers[q.key]} rows={5} className="field font-serif" aria-label={q.label} />
+                    <span><SubmitButton pendingText="Saving…">Save</SubmitButton></span>
+                  </form>
+                )}
+              </details>
+            ) : caps.can_edit ? (
+              <form action={saveSynopsis} className="flex flex-col gap-2">
                 {storyHidden(q.key)}
-                <textarea name={q.key} defaultValue={answers[q.key]} rows={5} className="field font-serif" aria-label={q.heading} />
-                <SubmitButton pendingText="Saving…">Save</SubmitButton>
+                <label htmlFor={`lead-${q.key}`} className="font-semibold">{q.label}</label>
+                <p className="text-sm">{q.help}</p>
+                <textarea id={`lead-${q.key}`} name={q.key} rows={4} required placeholder={q.placeholder} className="field font-serif" />
+                <p className="text-xs text-muted">{q.why}</p>
+                <span><SubmitButton variant="primary" pendingText="Saving…">Save answer</SubmitButton></span>
               </form>
+            ) : (
+              <p className="text-sm text-muted">{q.label} Not answered yet.</p>
             )}
-          </details>
-        ) : caps.can_edit ? (
-          <form key={q.key} action={saveSynopsis} className="flex flex-col gap-2 border-b border-line pb-4 last:border-0">
-            {storyHidden(q.key)}
-            <label htmlFor={`lead-${q.key}`} className="font-semibold">{q.heading}</label>
-            <p className="text-sm">{q.help}</p>
-            <textarea id={`lead-${q.key}`} name={q.key} rows={4} required placeholder={q.placeholder} className="field font-serif" />
-            <p className="text-xs text-muted">{q.why}</p>
-            <span><SubmitButton variant="primary" pendingText="Saving…">Save answer</SubmitButton></span>
-          </form>
-        ) : null;
+          </section>
+        );
       })}
       {caps.can_edit && answers.idea.trim() && allAnswered && aiConfigured() && budget.available && (
-        <form action={requestBreakdown} className="flex flex-col gap-2">
+        <form action={requestBreakdown} className="panel flex flex-col gap-2 p-4">
           <input type="hidden" name="projectId" value={projectId} />
           <input type="hidden" name="entityId" value={entityId} />
           <SubmitButton pendingText="Sending…">Suggest characters &amp; locations</SubmitButton>
           <p className="text-xs text-muted">Suggestions wait for you in Suggestions. Sent to Anthropic&apos;s Claude AI.</p>
         </form>
       )}
+    </div>
+  );
+
+  // Thumbnail chooser for characters and locations: their artwork or reference images.
+  const thumbId = (entity as { metadata?: Record<string, unknown> | null }).metadata?.thumbnail_asset_id as string | undefined;
+  const thumbChoices = [
+    ...assets.map((a) => ({ id: a.id, name: a.display_name })),
+    ...references.filter((r) => r.preview_asset_id).map((r) => ({ id: r.preview_asset_id as string, name: r.title ?? "Reference" })),
+  ];
+  const thumbnailPanel = !isStory && (
+    <section id="thumbnail" className="panel flex scroll-mt-6 flex-col gap-3 p-4" aria-labelledby="thumb-h">
+      <h3 id="thumb-h" className="font-medium">Thumbnail</h3>
+      {thumbId ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={`/api/assets/${thumbId}`} alt={`${entity.name} thumbnail`} className="aspect-[4/3] w-full border border-line object-cover" />
+      ) : (
+        <p className="help">Pick the picture that shows on {entity.name}&apos;s card.</p>
+      )}
+      {caps.can_edit && (thumbChoices.length === 0 ? (
+        <p className="text-xs text-muted">Upload artwork or add a reference image here first, then choose it as the thumbnail.</p>
+      ) : (
+        <ul className="grid grid-cols-3 gap-2">
+          {thumbChoices.map((c) => (
+            <li key={c.id}>
+              <form action={setThumbnail}>
+                <input type="hidden" name="projectId" value={projectId} />
+                <input type="hidden" name="entityId" value={entityId} />
+                <input type="hidden" name="assetId" value={c.id} />
+                <button type="submit" title={`Use ${c.name}`} aria-pressed={c.id === thumbId}
+                  className={`block aspect-square w-full overflow-hidden border-2 ${c.id === thumbId ? "border-brand" : "border-transparent hover:border-line"}`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`/api/assets/${c.id}`} alt={c.name} className="size-full object-cover" loading="lazy" />
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      ))}
     </section>
   );
 
@@ -306,27 +352,16 @@ export default async function ItemWorkspace({
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="flex flex-col gap-6">
-          {isStory && caps.can_edit && (
-            <form action={setRuntime} className="panel flex flex-col gap-2 p-5">
-              <input type="hidden" name="projectId" value={projectId} />
-              <input type="hidden" name="back" value={`${base}/items/${entityId}`} />
-              <p className="font-semibold">How long are you imagining your film?</p>
-              <div className="flex flex-wrap gap-2" role="group" aria-label="Film length">
-                {RUNTIMES.map((r) => (
-                  <button key={r.value} type="submit" name="runtime" value={r.value} aria-pressed={runtime === r.value}
-                    className={`btn ${runtime === r.value ? "btn-primary" : ""}`}>{r.label}</button>
-                ))}
-                <Link href={`${base}/partners/story`} className="btn">Help me choose</Link>
-              </div>
-              <p className="text-xs text-muted">{runtimeInfo(runtime)?.focus ?? "Length is a creative choice, not a measure of how good a film is. A complete one-minute film is a real achievement."}</p>
-            </form>
+          {isStory && (
+            <LengthPicker projectId={projectId} back={`${base}/items/${entityId}`} runtime={runtime}
+              canEdit={!!caps.can_edit} helpHref={`${base}/partners/story`} />
           )}
           {isStory ? (
             caps.can_edit ? (
               <form action={saveSynopsis} className="panel flex flex-col gap-3 p-5" key={selected?.id ?? "new"}>
                 {storyHidden("idea")}
                 <label className="label" htmlFor="idea">Synopsis</label>
-                <p className="text-sm">{INTAKE_QUESTIONS[0].heading} {INTAKE_QUESTIONS[0].help}</p>
+                <p className="text-sm">{INTAKE_QUESTIONS[0].label} {INTAKE_QUESTIONS[0].help}</p>
                 <textarea id="idea" name="idea" defaultValue={answers.idea} rows={12} required
                   placeholder={INTAKE_QUESTIONS[0].placeholder} className="field font-serif text-lg leading-relaxed" />
                 <div className="flex flex-wrap items-center gap-3">
@@ -419,6 +454,7 @@ export default async function ItemWorkspace({
 
         <aside className="flex flex-col gap-6">
           {storyLead}
+          {thumbnailPanel}
           {connected}
           {!isStory && (
             <section className="panel flex flex-col gap-3 p-4" aria-labelledby="refs-h">

@@ -1,6 +1,7 @@
 // Project overview: every piece of the film as a card. Content comes from the shared
 // project graph; nothing here is a placeholder for an unbuilt feature.
 import Link from "next/link";
+import { parseGoogleLink, slidesEmbedUrl } from "@/lib/google/links";
 import { parseIntake, isTreatmentRef } from "@/lib/intake";
 import { notFound } from "next/navigation";
 import { Flash } from "@/components/flash";
@@ -25,9 +26,9 @@ function statusBadge(approved: boolean, latest?: { status: VersionStatus }) {
   return <Badge tone="explore">Start exploring</Badge>;
 }
 
-function Card({ icon, title, badge, preview, heading, sub, agent, href, openLabel = "Open" }: {
+function Card({ icon, title, badge, preview, heading, sub, agent, href, openLabel = "Open", bleed = false }: {
   icon: React.ReactNode; title: string; badge: React.ReactNode; preview: React.ReactNode;
-  heading: string; sub: string; agent?: string; href: string; openLabel?: string;
+  heading: string; sub: string; agent?: string; href: string; openLabel?: string; bleed?: boolean;
 }) {
   return (
     <article className="panel flex flex-col">
@@ -36,7 +37,7 @@ function Card({ icon, title, badge, preview, heading, sub, agent, href, openLabe
         <h3 className="flex-1 truncate text-base font-semibold tracking-[0.04em] uppercase">{title}</h3>
         {badge}
       </div>
-      <div className="h-44 overflow-hidden border-b border-line bg-panel-2 px-5 py-4 font-serif text-[14px] leading-7 text-text/85">{preview}</div>
+      <div className={`relative h-44 overflow-hidden border-b border-line bg-panel-2 font-serif text-[14px] leading-7 text-text/85 ${bleed ? "" : "px-5 py-4"}`}>{preview}</div>
       <div className="flex flex-1 flex-col gap-1 px-5 py-4">
         <p className="font-semibold">{heading}</p>
         <p className="help">{sub}</p>
@@ -91,6 +92,11 @@ export default async function ProjectOverview({
   const canAsk = !!story && caps.can_edit && aiConfigured() && budget.available && synopsis.length >= 50;
   const pieces = (story ? 2 : 0) + characters.length + locations.length;
   const addHref = `/projects/${projectId}/add`;
+  const firstTreatment = treatments.map((t) => parseGoogleLink(t.source_url)).find((g) => g?.kind === "slides" || g?.kind === "doc");
+  const thumbSrc = firstTreatment
+    ? firstTreatment.kind === "slides" ? slidesEmbedUrl(firstTreatment.id) : `https://docs.google.com/document/d/${firstTreatment.id}/preview`
+    : null;
+  const thumbOf = (e: { metadata?: Record<string, unknown> | null }) => (e.metadata?.thumbnail_asset_id as string | undefined) ?? null;
   const storyHref = story ? `/projects/${projectId}/items/${story.id}` : addHref;
 
   return (
@@ -134,7 +140,14 @@ export default async function ProjectOverview({
             <Card
               icon={<IconLink />} title="Treatment"
               badge={treatments.length ? <Badge tone="approved">{treatments.length} linked</Badge> : <Badge tone="explore">Start exploring</Badge>}
-              preview={<><p className="mb-2 font-semibold tracking-[0.06em] text-text uppercase">{project.name}</p>{treatments.length ? (
+              bleed={!!thumbSrc}
+              preview={thumbSrc ? (
+                // A live miniature of the linked treatment (Google's own viewer, scaled down; not clickable).
+                <iframe title="Treatment thumbnail" src={thumbSrc} tabIndex={-1} loading="lazy" aria-hidden
+                  sandbox="allow-scripts allow-same-origin" referrerPolicy="strict-origin-when-cross-origin"
+                  className="pointer-events-none absolute top-0 left-0 origin-top-left border-0"
+                  style={{ width: "400%", height: "400%", transform: "scale(0.25)" }} />
+              ) : <><p className="mb-2 font-semibold tracking-[0.06em] text-text uppercase">{project.name}</p>{treatments.length ? (
                 <ul className="flex flex-col gap-1">{treatments.slice(0, 4).map((t) => <li key={t.id} className="truncate">↗ {t.title || t.source_domain}</li>)}</ul>
               ) : <p>Your bigger picture lives here. Link your director&apos;s treatment to keep it with your story.</p>}</>}
               heading="The bigger picture, scene by scene" sub="An emerging arc. Room to discover more."
@@ -163,7 +176,20 @@ export default async function ProjectOverview({
                 const v = latest.get(e.id);
                 return (
                   <Card key={e.id} icon={sec.icon} title={e.name} badge={statusBadge(!!e.current_version_id, v)}
-                    preview={<p className="line-clamp-5">{v?.content.summary || "Nothing written yet. Open to describe them."}</p>}
+                    bleed={!!thumbOf(e)}
+                    preview={thumbOf(e) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={`/api/assets/${thumbOf(e)}`} alt={`${e.name} thumbnail`} className="size-full object-cover" loading="lazy" />
+                    ) : (
+                      <div className="flex h-full flex-col gap-2">
+                        <p className="line-clamp-3">{v?.content.summary || "Nothing written yet. Open to describe them."}</p>
+                        {caps.can_edit && (
+                          <Link href={`/projects/${projectId}/items/${e.id}#thumbnail`} className="mt-auto inline-flex w-fit items-center gap-1.5 border border-dashed border-line px-3 py-1.5 font-sans text-xs tracking-[0.08em] text-muted uppercase hover:border-text hover:text-text">
+                            <IconPlus /> Choose a thumbnail
+                          </Link>
+                        )}
+                      </div>
+                    )}
                     heading={sec.id === "characters" ? "Who they are" : "What it feels like"}
                     sub={v ? `Revision ${v.version_number}` : "No revisions yet"}
                     href={`/projects/${projectId}/items/${e.id}`} />

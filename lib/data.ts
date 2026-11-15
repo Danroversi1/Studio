@@ -25,6 +25,7 @@ export interface EntityRow {
   status: string;
   current_version_id: string | null;
   created_at: string;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface VersionRow {
@@ -61,7 +62,7 @@ export async function getProjectShell(projectId: string) {
   const [{ data: project }, { data: caps }, { data: entities }] = await Promise.all([
     sb.from("projects").select("id, name, description, runtime:settings->>runtime").eq("id", projectId).maybeSingle(),
     sb.rpc("my_project_capabilities", { p_project: projectId }),
-    sb.from("entities").select("id, kind, name, status, current_version_id, created_at")
+    sb.from("entities").select("id, kind, name, status, current_version_id, created_at, metadata")
       .eq("project_id", projectId).in("kind", ["story", "character", "location"]).order("created_at"),
   ]);
   if (!project) return null;
@@ -129,7 +130,7 @@ export async function getEntityWorkspace(projectId: string, entityId: string) {
   const sb = await supabaseServer();
   const { data: entity } = await sb
     .from("entities")
-    .select("id, kind, name, status, current_version_id, created_at")
+    .select("id, kind, name, status, current_version_id, created_at, metadata")
     .eq("id", entityId).eq("project_id", projectId).maybeSingle();
   if (!entity) return null;
 

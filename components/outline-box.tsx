@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { addNote, updateNote } from "@/app/projects/[projectId]/actions";
 import type { NotebookItem } from "@/lib/data";
+import { runtimeInfo, targetPages } from "@/lib/runtime";
 import { SubmitButton } from "./ui";
 
 const PARTS = [
@@ -35,6 +36,68 @@ function hint(runtime: string | null) {
   }
 }
 
+const BANDS = [
+  { kind: "beginning", label: "Beginning", from: 0, to: 0.25 },
+  { kind: "middle", label: "Middle", from: 0.25, to: 0.75 },
+  { kind: "ending", label: "Ending", from: 0.75, to: 1 },
+] as const;
+
+function fmt(minutes: number) {
+  if (minutes < 2) {
+    const sec = Math.round(minutes * 60);
+    return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+  }
+  return `${Math.round(minutes)} min`;
+}
+
+/** A linear view of the story: beginning, middle and ending across the film's length,
+ * with each beat placed in order. Suggested beats are drawn hollow. */
+function OutlineGraph({ beats, runtime }: { beats: NotebookItem[]; runtime: string | null }) {
+  const total = runtime ? targetPages(runtime) : null;
+  const placed = BANDS.flatMap((b) => {
+    const list = beats.filter((x) => x.kind === b.kind);
+    return list.map((x, i) => ({ beat: x, at: b.from + ((i + 1) / (list.length + 1)) * (b.to - b.from) }));
+  });
+  return (
+    <figure className="flex flex-col gap-2" aria-label="Story outline from beginning to end">
+      <div className="relative h-10 border border-line bg-panel-2">
+        {BANDS.map((b, i) => (
+          <div key={b.kind} className={`absolute inset-y-0 border-r border-line ${i === 1 ? "bg-text/5" : "bg-brand/10"}`}
+            style={{ left: `${b.from * 100}%`, width: `${(b.to - b.from) * 100}%` }}>
+            <span className="absolute top-1 left-1.5 text-[10px] font-semibold tracking-[0.12em] uppercase">{b.label}</span>
+          </div>
+        ))}
+        {placed.map((p, i) => (
+          <span key={p.beat.id} title={p.beat.body}
+            className={`absolute bottom-1 flex size-5 -translate-x-1/2 items-center justify-center rounded-full text-[10px] font-bold ${p.beat.status === "proposed" ? "border-2 border-brand bg-panel-2 text-text" : "bg-brand text-text"}`}
+            style={{ left: `${p.at * 100}%` }}>{i + 1}</span>
+        ))}
+      </div>
+      <div className="relative h-4 text-[10px] text-muted">
+        {[0, 0.25, 0.75, 1].map((t) => (
+          <span key={t} className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: `${t * 100}%` }}>
+            {total ? fmt(t * total) : t === 0 ? "start" : t === 1 ? "end" : ""}
+          </span>
+        ))}
+      </div>
+      {placed.length > 0 && (
+        <ol className="flex flex-col gap-0.5 text-xs">
+          {placed.map((p, i) => (
+            <li key={p.beat.id} className="flex gap-2">
+              <span className="w-4 shrink-0 text-right font-bold text-accent">{i + 1}</span>
+              <span className={`line-clamp-1 ${p.beat.status === "proposed" ? "text-muted italic" : ""}`}>{p.beat.body}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+      <figcaption className="text-[11px] text-muted">
+        {total ? `Across about ${runtimeInfo(runtime)?.short}. ` : "Set the film length to see minutes. "}
+        The split is a common guide, not a rule; hollow dots are suggestions.
+      </figcaption>
+    </figure>
+  );
+}
+
 export function OutlineBox({ projectId, items, runtime, canEdit, back }: {
   projectId: string; items: NotebookItem[]; runtime: string | null; canEdit: boolean; back: string;
 }) {
@@ -51,6 +114,7 @@ export function OutlineBox({ projectId, items, runtime, canEdit, back }: {
         <span className="text-xs tracking-[0.08em] text-muted uppercase">{filled} of 3 parts</span>
       </div>
       <p className="text-sm text-muted">{hint(runtime)}</p>
+      <OutlineGraph beats={beats} runtime={runtime} />
 
       <ol className="flex flex-col gap-4">
         {PARTS.map((p, i) => {

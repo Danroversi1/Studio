@@ -16,13 +16,15 @@ export const INTAKE_QUESTIONS = [
   {
     key: "idea",
     heading: "What's your story idea?",
+    label: "What's your story idea?",
     help: "A few sentences, a scene you imagine, or a “what if…” is enough.",
     why: "This is your premise: your starting point.",
     placeholder: "What if the last lighthouse keeper found out the light was keeping something away…",
   },
   {
     key: "who",
-    heading: "Whose story is it?",
+    heading: "Whose story is it?", // saved heading (kept stable so earlier answers still load)
+    label: "Tell me about your hero/s.",
     help: "Tell us about the main character, or group. What do they want?",
     why: "A point of view, and a want that can drive the action.",
     placeholder: "Mira, 13, the keeper's granddaughter. She wants to prove she can run the lighthouse alone…",
@@ -30,6 +32,7 @@ export const INTAKE_QUESTIONS = [
   {
     key: "difficulty",
     heading: "What makes it difficult?",
+    label: "What makes it difficult?",
     help: "What stands in their way? What could happen if things go wrong?",
     why: "Conflict, and what's at stake.",
     placeholder: "A storm is coming, and nobody believes her about what's out there. If the light goes out…",
