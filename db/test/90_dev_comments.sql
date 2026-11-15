@@ -26,6 +26,10 @@ select public.set_dev_comment_status(tests.v('c1'), 'resolved', 'Done in the nex
 select tests.ok((select status = 'resolved' and resolution_note like 'Done%' from public.dev_comments where id = tests.v('c1')), 'resolved with a note');
 :as_dir
 select tests.ok(tests.n($$select 1 from public.dev_comments$$) = 0, 'the director cannot see developer comments');
+select tests.throws(format($q$select public.delete_dev_comment(%L)$q$, tests.v('c1')), '42501', 'non-developers cannot delete');
+:as_ep
+select public.delete_dev_comment(tests.v('c1'));
+select tests.ok(tests.n($$select 1 from public.dev_comments where id = tests.v('c1')$$) = 0, 'developer deleted the comment');
 :as_owner
 delete from public.studio_developers where user_id = tests.v('ep');
 

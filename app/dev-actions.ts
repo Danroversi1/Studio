@@ -29,3 +29,9 @@ export async function setDevCommentStatus(input: { id: string; status: "open" | 
   const { error } = await sb.rpc("set_dev_comment_status", { p_comment: input.id, p_status: input.status, p_note: null });
   return error ? { error: error.message } : {};
 }
+
+export async function deleteDevComment(input: { id: string }) {
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("delete_dev_comment", { p_comment: input.id });
+  return error ? { error: error.message } : {};
+}

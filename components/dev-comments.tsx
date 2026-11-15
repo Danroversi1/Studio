@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { type DevComment, addDevComment, listDevComments, setDevCommentStatus } from "@/app/dev-actions";
+import { type DevComment, addDevComment, deleteDevComment, listDevComments, setDevCommentStatus } from "@/app/dev-actions";
 
 function selectorFor(el: Element | null): string {
   const parts: string[] = [];
@@ -32,6 +32,7 @@ export function DevComments() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const reload = useCallback(async () => setComments(await listDevComments()), []);
   useEffect(() => { setMounted(true); reload(); }, [reload]);
@@ -71,6 +72,22 @@ export function DevComments() {
     reload();
   }
 
+  async function remove(id: string) {
+    if (confirmDelete !== id) { setConfirmDelete(id); return; }
+    await deleteDevComment({ id });
+    setConfirmDelete(null);
+    setOpenPin(null);
+    reload();
+  }
+
+  const deleteButton = (id: string, small = false) => (
+    <button type="button" onClick={() => remove(id)}
+      className={small ? `hover:text-danger ${confirmDelete === id ? "font-semibold text-danger" : ""}`
+        : `btn min-h-8 px-2 text-[11px] ${confirmDelete === id ? "border-danger text-danger" : ""}`}>
+      {confirmDelete === id ? "Confirm delete" : "Delete"}
+    </button>
+  );
+
   async function setStatus(id: string, status: "open" | "resolved") {
     await setDevCommentStatus({ id, status });
     setOpenPin(null);
@@ -106,7 +123,8 @@ export function DevComments() {
                   {c.status === "open"
                     ? <button type="button" className="btn min-h-8 px-2 text-[11px]" onClick={() => setStatus(c.id, "resolved")}>Resolve</button>
                     : <button type="button" className="btn min-h-8 px-2 text-[11px]" onClick={() => setStatus(c.id, "open")}>Reopen</button>}
-                  <button type="button" className="btn min-h-8 px-2 text-[11px]" onClick={() => setOpenPin(null)}>Close</button>
+                  {deleteButton(c.id)}
+                  <button type="button" className="btn min-h-8 px-2 text-[11px]" onClick={() => { setOpenPin(null); setConfirmDelete(null); }}>Close</button>
                 </div>
               </div>
             )}
@@ -144,9 +162,12 @@ export function DevComments() {
                   <p className={`line-clamp-3 ${c.status === "resolved" ? "text-muted line-through" : ""}`}>{c.body}</p>
                   <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-muted">
                     {c.path === path ? <span>This page</span> : <Link href={c.path} className="link-accent truncate">{c.path}</Link>}
-                    {c.status === "open"
-                      ? <button type="button" className="hover:text-accent" onClick={() => setStatus(c.id, "resolved")}>Resolve</button>
-                      : <button type="button" className="hover:text-accent" onClick={() => setStatus(c.id, "open")}>Reopen</button>}
+                    <span className="flex shrink-0 gap-3">
+                      {c.status === "open"
+                        ? <button type="button" className="hover:text-accent" onClick={() => setStatus(c.id, "resolved")}>Resolve</button>
+                        : <button type="button" className="hover:text-accent" onClick={() => setStatus(c.id, "open")}>Reopen</button>}
+                      {deleteButton(c.id, true)}
+                    </span>
                   </div>
                 </li>
               ))}
