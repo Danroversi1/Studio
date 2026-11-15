@@ -52,8 +52,10 @@ export function PartnerChat({ projectId, agent, partnerName, opening, threadId, 
   const [pending, start] = useTransition();
   const end = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setMessages(initial), [initial]);
-  useEffect(() => end.current?.scrollIntoView({ block: "end" }), [messages.length, pending]);
+  useEffect(() => { setMessages(initial); }, [initial]);
+  // Braces matter: newer browsers return a Promise from scrollIntoView, and an effect must
+  // return nothing (or a cleanup function), or React crashes when the page is left.
+  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [messages.length, pending]);
 
   function send(text?: string) {
     const content = (text ?? draft).trim();
