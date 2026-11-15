@@ -7,6 +7,7 @@ import { IconArrowLeft, IconCharacter, IconLink, IconLocation, IconStory } from 
 import { SubmitButton } from "@/components/ui";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
 import { getAiBudget, getEntityWorkspace, getProjectShell } from "@/lib/data";
+import { parseGoogleLink } from "@/lib/google/links";
 import { TREATMENT_ATTRIBUTION } from "@/lib/intake";
 import { addTreatmentLink, createEntity, requestBreakdown, saveSynopsis } from "../actions";
 
@@ -90,13 +91,19 @@ export default async function AddToProject({
         </Section>
 
         <Section id="treatment" icon={<IconLink />} title="Director treatment"
-          help="Link your treatment, for example a Google Doc. STUDIO keeps the link with your story; it doesn't copy or read the document yet.">
+          help="Link your treatment, for example a Google Doc. You can then read it inside STUDIO and pull its pictures in. The Story Lead doesn't read it yet.">
           {treatments.length > 0 && (
             <ul className="flex flex-col">
               {treatments.map((t) => (
                 <li key={t.id} className="border-b border-line py-3 first:border-t">
                   <a href={t.source_url} target="_blank" rel="noopener noreferrer" className="font-medium hover:text-accent">↗ {t.title || t.source_domain}</a>
                   <p className="text-xs text-muted">{t.source_domain} · added {new Date(t.created_at).toLocaleDateString("en-US", { dateStyle: "medium" })}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Link href={`/projects/${projectId}/treatment?ref=${t.id}`} className="btn">Read here</Link>
+                    {parseGoogleLink(t.source_url)?.kind === "doc" && (
+                      <Link href={`/projects/${projectId}/import?from=treatment&ref=${t.id}`} className="btn">Pull its images</Link>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

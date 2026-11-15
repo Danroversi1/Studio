@@ -49,6 +49,13 @@ export const IconFilm = ({ className }: P) => (
 );
 
 /** The studio mark: an orange signal square and a blocky wordmark. */
+export const IconImage = ({ className }: P) => (
+  <svg {...base(className)}><rect x="3.5" y="4.5" width="17" height="15" rx="1" /><circle cx="9" cy="10" r="1.8" /><path d="m4 17.5 5-4.5 4 3.5 3-2.5 4.5 3.5" /></svg>
+);
+export const IconBook = ({ className }: P) => (
+  <svg {...base(className)}><path d="M12 6.5C10 5 7.5 4.5 4 4.5v14c3.5 0 6 .5 8 2 2-1.5 4.5-2 8-2v-14c-3.5 0-6 .5-8 2z" /><path d="M12 6.5v14" /></svg>
+);
+
 export function Wordmark({ size = "md" }: { size?: "md" | "lg" }) {
   const big = size === "lg";
   return (

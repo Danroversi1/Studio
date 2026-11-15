@@ -307,13 +307,22 @@ export default async function ItemWorkspace({
 
           <section className="panel flex flex-col gap-3 p-4" aria-labelledby="refs-h">
             <h3 id="refs-h" className="font-medium">References</h3>
-            <p className="help">Inspiration from the web. Always note who made it — references are for study, not for copying into the film.</p>
+            <p className="help">Inspiration from the web or your Drive. Always note who made it — references are for study, not for copying into the film.</p>
+            {caps.can_edit && (
+              <Link href={`/projects/${projectId}/import?to=${entityId}`} className="btn self-start">Add images from Google Drive</Link>
+            )}
             {references.length === 0 ? (
               <Empty title="No references yet" />
             ) : (
               <ul className="flex flex-col gap-3">
                 {references.map((r) => (
                   <li key={r.id} className="rounded-lg border border-line p-3">
+                    {r.preview_asset_id && (
+                      <a href={`/api/assets/${r.preview_asset_id}`} target="_blank" rel="noopener" className="mb-2 block bg-panel">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={`/api/assets/${r.preview_asset_id}`} alt={r.title ?? "Reference image"} loading="lazy" className="max-h-64 w-full object-contain" />
+                      </a>
+                    )}
                     <a href={r.source_url} target="_blank" rel="noopener noreferrer nofollow" className="font-medium hover:text-accent">
                       {r.title || r.source_domain}
                     </a>

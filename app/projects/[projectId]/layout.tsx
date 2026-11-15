@@ -53,6 +53,7 @@ export default async function ProjectLayout({
           pendingSuggestions={pending}
           showAgents={!!caps.can_review}
           showSettings={!!(caps.can_admin && caps.can_approve_creative)}
+          showImport={!!caps.can_edit}
         />
 
         <div className="mt-auto flex items-center gap-3 border-t border-line pt-4">

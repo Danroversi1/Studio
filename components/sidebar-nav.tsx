@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconCharacter, IconLocation, IconOverview, IconSettings, IconSparkle, IconStory } from "./icons";
+import { IconBook, IconCharacter, IconImage, IconLocation, IconOverview, IconSettings, IconSparkle, IconStory } from "./icons";
 
 export interface NavEntity { id: string; name: string; approved: boolean }
 
@@ -39,9 +39,9 @@ function SubList({ projectId, items, path }: { projectId: string; items: NavEnti
   );
 }
 
-export function SidebarNav({ projectId, storyId, characters, locations, pendingSuggestions, showAgents, showSettings }: {
+export function SidebarNav({ projectId, storyId, characters, locations, pendingSuggestions, showAgents, showSettings, showImport }: {
   projectId: string; storyId?: string; characters: NavEntity[]; locations: NavEntity[];
-  pendingSuggestions: number; showAgents: boolean; showSettings: boolean;
+  pendingSuggestions: number; showAgents: boolean; showSettings: boolean; showImport: boolean;
 }) {
   const path = usePathname();
   const base = `/projects/${projectId}`;
@@ -54,6 +54,10 @@ export function SidebarNav({ projectId, storyId, characters, locations, pendingS
           <Item href={`${base}/items/${storyId}`} active={path === `${base}/items/${storyId}`} icon={<IconStory />}>
             Story &amp; treatment
           </Item>
+        )}
+        <Item href={`${base}/treatment`} active={path === `${base}/treatment`} icon={<IconBook />}>Read treatment</Item>
+        {showImport && (
+          <Item href={`${base}/import`} active={path === `${base}/import`} icon={<IconImage />}>Images from Drive</Item>
         )}
         {showAgents && (
           <Item href={`${base}/suggestions`} active={path === `${base}/suggestions`} icon={<IconSparkle />} badge={pendingSuggestions}>

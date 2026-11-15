@@ -137,7 +137,7 @@ export async function getEntityWorkspace(projectId: string, entityId: string) {
       .select("id, version_number, status, content, change_summary, created_by, created_at, parent_version_id, base_version_id")
       .eq("entity_id", entityId).order("version_number", { ascending: false }),
     sb.from("assets").select("id, display_name, mime_type, byte_size, created_at")
-      .eq("entity_id", entityId).order("created_at", { ascending: false }),
+      .eq("entity_id", entityId).neq("origin", "import").order("created_at", { ascending: false }),
     sb.from("entity_relationships").select("id, source_entity_id, target_entity_id, relationship_type")
       .eq("project_id", projectId).or(`source_entity_id.eq.${entityId},target_entity_id.eq.${entityId}`),
     sb.from("research_boards").select("id").eq("entity_id", entityId),
@@ -150,7 +150,7 @@ export async function getEntityWorkspace(projectId: string, entityId: string) {
       : Promise.resolve({ data: [] as { version_id: string; asset_id: string; position: number }[] }),
     boardIds.length
       ? sb.from("research_references")
-          .select("id, title, source_url, source_domain, attribution, rights_status, observations, created_at")
+          .select("id, title, source_url, source_domain, attribution, rights_status, observations, preview_asset_id, created_at")
           .in("board_id", boardIds).order("created_at", { ascending: false })
       : Promise.resolve({ data: [] as never[] }),
   ]);

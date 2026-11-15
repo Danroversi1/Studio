@@ -77,7 +77,35 @@ Environment variables:
 - **From the Supabase integration (production only):** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` and others. Preview builds don't get them, so previews won't reach the database.
 - **Added manually (production + preview):** `STORAGE_DRIVER=r2`, `STORAGE_BUCKET=studio-media`.
 - **AI agents:** `ANTHROPIC_API_KEY` (Sensitive, production) is set. It's billed to the Claude Console workspace; STUDIO's own monthly budget is enforced in the database.
-- **Still needed for artwork uploads:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`. Until they're set, the upload and image routes return errors; everything else works.
+- **Still needed for artwork uploads and Drive imports:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (see "Cloudflare R2"). Until they're set, the upload and image routes return errors; everything else works.
+- **Still needed for Google Drive:** `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_GOOGLE_API_KEY`, `NEXT_PUBLIC_GOOGLE_APP_ID` (see "Google Drive"). Until they're set, the Drive pages say Google isn't connected.
+
+### Google Drive (images and reading the treatment)
+
+STUDIO reads Google Drive **in the browser**, with the person's own Google sign-in and only the
+`drive.file` permission: it can open files they pick in Google's Picker (or picked before), nothing
+else. The Google token never reaches STUDIO's server. One-time setup, about 15 minutes, free:
+
+1. Go to https://console.cloud.google.com, create a project named `STUDIO`.
+2. **APIs & Services → Library:** enable **Google Drive API** and **Google Picker API**.
+3. **Google Auth Platform → Branding / Audience:** app name `STUDIO`, user type **External**, publishing status **Testing**. Under **Test users**, add the Google accounts that will use STUDIO (yours and your daughter's). Testing mode needs no Google review.
+4. **Data access:** add the scope `.../auth/drive.file`.
+5. **Clients → Create client → Web application.** Authorized JavaScript origins: `https://studio-one-omega-46.vercel.app` (and `http://localhost:3000` for local work). No redirect URIs. Copy the **Client ID**.
+6. **APIs & Services → Credentials → Create credentials → API key.** Restrict it: *Websites* → `https://studio-one-omega-46.vercel.app/*`; *API restrictions* → Google Picker API. Copy the key.
+7. **Project number:** Cloud console home (Project info card).
+8. In Vercel (Production), add `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_GOOGLE_API_KEY`, `NEXT_PUBLIC_GOOGLE_APP_ID` (= project number). These three are public by design (they ship to the browser), so they don't need the Sensitive flag. Redeploy.
+
+Imports also need R2 (below), because each picked image is stored privately in STUDIO.
+
+### Cloudflare R2 (private image storage)
+
+1. Cloudflare dashboard → **R2 Object Storage** → enable R2 (free tier: 10 GB). Create bucket `studio-media`, location Automatic. Leave public access **off**.
+2. Bucket → **Settings → CORS policy**:
+   ```json
+   [{"AllowedOrigins":["https://studio-one-omega-46.vercel.app"],"AllowedMethods":["PUT","GET"],"AllowedHeaders":["Content-Type","If-None-Match"],"MaxAgeSeconds":3600}]
+   ```
+3. R2 → **Manage API tokens → Create API token**: permission *Object Read & Write*, applied to `studio-media` only.
+4. In Vercel (Production, mark Sensitive): `R2_ACCOUNT_ID` (shown on the R2 overview page), `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`. Redeploy.
 
 Before giving anyone access, turn off public sign-ups in Supabase (Authentication → Sign In / Providers → "Allow new users to sign up") and create accounts under Authentication → Users.
 
@@ -113,5 +141,7 @@ This leaves a `tests` schema and seeded test users behind; run `supabase db rese
 | Supabase Auth / PostgREST via supabase-js | Not exercised. The DB functions they call are tested directly in SQL |
 | PostgREST mapping of `PT409`/`PT404` to HTTP 409/404 | Based on PostgREST documentation; not observed |
 | Cloudflare R2 adapter (`lib/storage/r2.ts`) | Not run against R2; `If-None-Match` write-once on presigned PUT is unconfirmed |
+| Google sign-in, Picker, Drive download and Docs ZIP export (`lib/google/client.ts`) | Written against Google's documented APIs; **not run** (no Google project yet). ZIP reader and link parsing are unit-tested |
+| Treatment reader (`components/treatment-reader.tsx`) | Builds; not opened in a browser with a real Doc |
 | `scripts/seed-dev-users.mjs` | Not run |
 | Dev storage route handler | Adapter logic unit-tested; the HTTP route itself is not run |

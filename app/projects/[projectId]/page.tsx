@@ -147,7 +147,7 @@ export default async function ProjectOverview({
                 <ul className="flex flex-col gap-1">{treatments.slice(0, 4).map((t) => <li key={t.id} className="truncate">↗ {t.title || t.source_domain}</li>)}</ul>
               ) : <p>Your bigger picture lives here. Link your director&apos;s treatment to keep it with your story.</p>}</>}
               heading="The bigger picture, scene by scene" sub="An emerging arc. Room to discover more."
-              href={`${addHref}#treatment`} openLabel={treatments.length ? "Manage" : "Open"}
+              href={treatments.length ? `/projects/${projectId}/treatment` : `${addHref}#treatment`} openLabel={treatments.length ? "Read" : "Open"}
             />
           </div>
         </section>
