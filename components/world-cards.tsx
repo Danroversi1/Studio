@@ -62,8 +62,10 @@ function Suggestion({ ctx, section, label, source, why }: { ctx: Ctx; section: S
   );
 }
 
-function Card({ title, big, small, source, children, editing, onEdit, canEdit, flag }: {
+function Card({ title, big, small, source, children, editing, onEdit, canEdit, flag, prompt }: {
   title: string; big: string; small: string; source?: string; children?: React.ReactNode; editing: boolean; onEdit: () => void; canEdit: boolean; flag?: string | null;
+  /** Shown above the editor when the card is still empty. */
+  prompt?: string;
 }) {
   return (
     <section className="panel relative flex min-h-56 flex-col gap-3 p-5" aria-label={title}>
@@ -72,6 +74,7 @@ function Card({ title, big, small, source, children, editing, onEdit, canEdit, f
         <h2 className="eyebrow text-text">{title}</h2>
         {canEdit && !editing && <button type="button" className="text-xs text-accent underline-offset-2 hover:underline" onClick={onEdit}>Edit<span className="sr-only"> {title.toLowerCase()}</span></button>}
       </div>
+      {editing && prompt && <p className="text-sm">{prompt}</p>}
       {!editing && (
         <div className="flex flex-col gap-1">
           <p className={`display leading-tight ${big.length > 28 ? "text-xl" : "text-3xl"} ${big === "Not decided" ? "text-muted" : ""}`}>{big}</p>
@@ -85,17 +88,17 @@ function Card({ title, big, small, source, children, editing, onEdit, canEdit, f
   );
 }
 
-function EditActions({ pending, onCancel }: { pending: boolean; onCancel: () => void }) {
+function EditActions({ pending, onCancel }: { pending: boolean; onCancel?: () => void }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <button type="submit" className="btn-primary min-h-9 text-xs" disabled={pending}>{pending ? "Saving…" : "Save"}</button>
-      <button type="button" className="btn min-h-9 text-xs" onClick={onCancel} disabled={pending}>Cancel</button>
+      {onCancel && <button type="button" className="btn min-h-9 text-xs" onClick={onCancel} disabled={pending}>Cancel</button>}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-function WhereEditor({ ctx, initial, locations, onDone }: { ctx: Ctx; initial?: WhereValue; locations: { id: string; name: string }[]; onDone: () => void }) {
+function WhereEditor({ ctx, initial, locations, onDone, onCancel }: { ctx: Ctx; initial?: WhereValue; locations: { id: string; name: string }[]; onDone: () => void; onCancel?: () => void }) {
   const id = useId();
   const [places, setPlaces] = useState<Place[]>(initial?.places.length ? initial.places : [{ name: "", kind: "unknown" }]);
   const [note, setNote] = useState(initial?.note ?? "");
@@ -155,13 +158,13 @@ function WhereEditor({ ctx, initial, locations, onDone }: { ctx: Ctx; initial?: 
       </fieldset>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={undecided} onChange={(e) => setUndecided(e.target.checked)} /> Not decided yet</label>
       <p className="text-xs text-muted">These are places in your story, not where you&apos;ll film.</p>
-      <EditActions pending={s.pending} onCancel={onDone} />
+      <EditActions pending={s.pending} onCancel={onCancel} />
       <Status msg={s.msg} />
     </form>
   );
 }
 
-function WhenEditor({ ctx, initial, onDone }: { ctx: Ctx; initial?: WhenValue; onDone: () => void }) {
+function WhenEditor({ ctx, initial, onDone, onCancel }: { ctx: Ctx; initial?: WhenValue; onDone: () => void; onCancel?: () => void }) {
   const id = useId();
   const [periods, setPeriods] = useState<Period[]>(initial?.periods.length ? initial.periods : [{ label: "", precision: "undecided" }]);
   const [touched, setTouched] = useState<Record<number, boolean>>({});
@@ -207,13 +210,13 @@ function WhenEditor({ ctx, initial, onDone }: { ctx: Ctx; initial?: WhenValue; o
         </label>
       </fieldset>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={undecided} onChange={(e) => setUndecided(e.target.checked)} /> Not decided yet</label>
-      <EditActions pending={s.pending} onCancel={onDone} />
+      <EditActions pending={s.pending} onCancel={onCancel} />
       <Status msg={s.msg} />
     </form>
   );
 }
 
-function SpanEditor({ ctx, initial, calcText, onDone }: { ctx: Ctx; initial?: SpanValue; calcText: string | null; onDone: () => void }) {
+function SpanEditor({ ctx, initial, calcText, onDone, onCancel }: { ctx: Ctx; initial?: SpanValue; calcText: string | null; onDone: () => void; onCancel?: () => void }) {
   const id = useId();
   const [text, setText] = useState(initial?.text ?? "");
   const [unusual, setUnusual] = useState(!!initial?.unusual);
@@ -234,7 +237,7 @@ function SpanEditor({ ctx, initial, calcText, onDone }: { ctx: Ctx; initial?: Sp
       </div>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={unusual} disabled={undecided} onChange={(e) => setUnusual(e.target.checked)} /> Time passes differently for some characters or worlds</label>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={undecided} onChange={(e) => setUndecided(e.target.checked)} /> Not decided yet</label>
-      <EditActions pending={s.pending} onCancel={onDone} />
+      <EditActions pending={s.pending} onCancel={onCancel} />
       <Status msg={s.msg} />
     </form>
   );
@@ -309,23 +312,16 @@ export function WorldCards({ projectId, world, canEdit, locations }: {
   const ctx: Ctx = { projectId, version: world.version, canEdit };
   const [editing, setEditing] = useState<Section | null>(null);
   const c = world.confirmed, p = world.proposals;
-  const empty = !Object.keys(c).length && !Object.keys(p).length;
 
   const where = c.where?.value;
   const when = c.when?.value;
   const span = c.span?.value;
   const calc = calculateSpan(when);
   const conflict = spanConflict(span, calc);
-
-  if (empty && editing !== "where") {
-    return (
-      <section className="panel flex flex-col gap-4 p-6" aria-labelledby="world-start">
-        <h2 id="world-start" className="display text-2xl sm:text-3xl">Where do you imagine your story happening?</h2>
-        <p className="help max-w-xl">A real city, an invented planet, one room — or not sure yet. You can write it here, or talk it through with the World Builder.</p>
-        {canEdit && <button type="button" className="btn-primary self-start" onClick={() => setEditing("where")}>Write where it happens</button>}
-      </section>
-    );
-  }
+  // Empty cards open straight into their editor: no extra click to start.
+  const isOpen = (sec: Section, has: boolean) => canEdit && (editing === sec || (!has && !p[sec]));
+  const close = () => setEditing(null);
+  const cancelFor = (has: boolean) => (has ? close : undefined);
 
   const whereBig = where ? (where.undecided ? "Not decided" : placesText(where)) : "Not decided";
   const whereSmall = where && !where.undecided ? (where.note || (where.places.length > 1 ? `${where.places.length} places` : KIND_LABEL[where.places[0]?.kind ?? "unknown"])) : "";
@@ -340,22 +336,20 @@ export function WorldCards({ projectId, world, canEdit, locations }: {
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card title="Where" big={whereBig} small={whereSmall} source={c.where ? SOURCE_LABEL[c.where.source] : undefined}
-          editing={editing === "where"} onEdit={() => setEditing("where")} canEdit={canEdit}>
-          {editing === "where" && <WhereEditor ctx={ctx} initial={where} locations={locations} onDone={() => setEditing(null)} />}
-          {editing !== "where" && p.where && <Suggestion ctx={ctx} section="where" label={placesText(p.where.value as WhereValue) || "Not decided"} source={p.where.source} why={p.where.why} />}
-          {editing !== "where" && !where && !p.where && <p className="text-sm text-muted">Where do you imagine your story happening?</p>}
+          editing={isOpen("where", !!where)} onEdit={() => setEditing("where")} canEdit={canEdit} prompt={!where ? "Where do you imagine your story happening?" : undefined}>
+          {isOpen("where", !!where) && <WhereEditor ctx={ctx} initial={where} locations={locations} onDone={close} onCancel={cancelFor(!!where)} />}
+          {!isOpen("where", !!where) && p.where && <Suggestion ctx={ctx} section="where" label={placesText(p.where.value as WhereValue) || "Not decided"} source={p.where.source} why={p.where.why} />}
         </Card>
         <Card title="When" big={whenBig} small={whenSmall} source={c.when ? SOURCE_LABEL[c.when.source] : undefined}
-          editing={editing === "when"} onEdit={() => setEditing("when")} canEdit={canEdit}>
-          {editing === "when" && <WhenEditor ctx={ctx} initial={when} onDone={() => setEditing(null)} />}
-          {editing !== "when" && p.when && <Suggestion ctx={ctx} section="when" label={periodsText(p.when.value as WhenValue) || "Not decided"} source={p.when.source} why={p.when.why} />}
-          {editing !== "when" && !when && !p.when && <p className="text-sm text-muted">When does it happen? A year, an era, &ldquo;a long time from now&rdquo;…</p>}
+          editing={isOpen("when", !!when)} onEdit={() => setEditing("when")} canEdit={canEdit} prompt={!when ? "When does it happen? A year, an era, \u201ca long time from now\u201d…" : undefined}>
+          {isOpen("when", !!when) && <WhenEditor ctx={ctx} initial={when} onDone={close} onCancel={cancelFor(!!when)} />}
+          {!isOpen("when", !!when) && p.when && <Suggestion ctx={ctx} section="when" label={periodsText(p.when.value as WhenValue) || "Not decided"} source={p.when.source} why={p.when.why} />}
         </Card>
         <Card title="Time span" big={spanBig} small={spanSmall} source={c.span ? SOURCE_LABEL[c.span.source] : undefined} flag={conflict}
-          editing={editing === "span"} onEdit={() => setEditing("span")} canEdit={canEdit}>
-          {editing === "span" && <SpanEditor ctx={ctx} initial={span} calcText={calc?.text ?? null} onDone={() => setEditing(null)} />}
-          {editing !== "span" && p.span && <Suggestion ctx={ctx} section="span" label={(p.span.value as SpanValue).text || "Not decided"} source={p.span.source} why={p.span.why} />}
-          {editing !== "span" && (
+          editing={isOpen("span", !!span || !!calc)} onEdit={() => setEditing("span")} canEdit={canEdit} prompt={!span && !calc ? "How much time passes, from the first event to the last?" : undefined}>
+          {isOpen("span", !!span || !!calc) && <SpanEditor ctx={ctx} initial={span} calcText={calc?.text ?? null} onDone={close} onCancel={cancelFor(!!span || !!calc)} />}
+          {!isOpen("span", !!span || !!calc) && p.span && <Suggestion ctx={ctx} section="span" label={(p.span.value as SpanValue).text || "Not decided"} source={p.span.source} why={p.span.why} />}
+          {!isOpen("span", !!span || !!calc) && (
             <>
               {p.coverage && <Suggestion ctx={ctx} section="coverage" label={COVERAGE_LABEL[p.coverage.value as Coverage]} source={p.coverage.source} why={p.coverage.why} />}
               {(when && !when.undecided && when.periods.length > 1) || c.coverage || span ? <CoverageChoice ctx={ctx} value={c.coverage?.value} /> : null}

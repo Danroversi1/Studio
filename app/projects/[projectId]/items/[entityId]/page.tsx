@@ -387,8 +387,8 @@ export default async function ItemWorkspace({
                 {storyHidden("idea")}
                 <label className="label" htmlFor="idea">Synopsis</label>
                 <p className="text-sm">{INTAKE_QUESTIONS[0].label} {INTAKE_QUESTIONS[0].help}</p>
-                <textarea id="idea" name="idea" defaultValue={answers.idea || (shell.project.description ?? "")} rows={12} required
-                  placeholder={INTAKE_QUESTIONS[0].placeholder} className="field font-serif text-lg leading-relaxed" />
+                <textarea id="idea" name="idea" defaultValue={answers.idea || (shell.project.description ?? "")} rows={fitRows(answers.idea || (shell.project.description ?? ""))} required
+                  placeholder={INTAKE_QUESTIONS[0].placeholder} className="field font-serif text-lg leading-relaxed [field-sizing:content] min-h-24 max-h-[70vh]" />
                 <div className="flex flex-wrap items-center gap-3">
                   <SubmitButton variant="primary" pendingText="Saving…">Save</SubmitButton>
                   <p className="text-xs text-muted">Saving makes a new version; earlier ones stay under Revisions.</p>
@@ -495,4 +495,11 @@ export default async function ItemWorkspace({
       </div>
     </div>
   );
+}
+
+/** Box height that fits the text: a short synopsis gets a short box, a long one a tall box.
+ *  (Browsers that support it also grow the box as she types.) */
+function fitRows(text: string, perLine = 80) {
+  const lines = text.split("\n").reduce((n, l) => n + Math.max(1, Math.ceil(l.length / perLine)), 0);
+  return Math.min(18, Math.max(3, lines + 1));
 }

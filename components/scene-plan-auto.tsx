@@ -3,7 +3,6 @@
 // automatically, then show them. If she's in the middle of typing, wait for her.
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { planScenesNow } from "@/app/projects/[projectId]/actions";
 
 export function ScenePlanAuto({ projectId, pending }: { projectId: string; pending: number }) {
   const router = useRouter();
@@ -12,7 +11,7 @@ export function ScenePlanAuto({ projectId, pending }: { projectId: string; pendi
   useEffect(() => {
     if (!pending || started.current) return;
     started.current = true;
-    planScenesNow({ projectId }).then(({ added }) => {
+    fetch(`/api/projects/${projectId}/plan-scenes`, { method: "POST" }).then((r) => r.json() as Promise<{ added: number }>).then(({ added }) => {
       if (!added) { setState("done"); return; }
       const typing = document.querySelector('textarea[data-dirty="1"]');
       if (typing) setState("ready"); else { setState("done"); router.refresh(); }

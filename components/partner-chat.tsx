@@ -4,7 +4,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useRef, useState, useTransition } from "react";
-import { sendPartnerMessage } from "@/app/projects/[projectId]/actions";
 
 export interface ChatMessage { id: string; role: "user" | "assistant"; content: string }
 
@@ -64,9 +63,13 @@ export function PartnerChat({ projectId, agent, partnerName, opening, threadId, 
     const localId = `local-${Date.now()}`;
     setMessages((m) => [...m, { id: localId, role: "user", content }]);
     start(async () => {
-      let res: Awaited<ReturnType<typeof sendPartnerMessage>>;
+      let res: { threadId?: string; error?: string; unsent?: boolean };
       try {
-        res = await sendPartnerMessage({ projectId, agent, threadId, content });
+        const r = await fetch("/api/partners/message", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId, agent, threadId, content }),
+        });
+        res = await r.json();
       } catch {
         res = { error: "That didn't go through. Check your connection and try again.", unsent: true };
       }

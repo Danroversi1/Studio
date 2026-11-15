@@ -3,7 +3,6 @@
 // already wrote down, and show them as suggestions to review.
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { readStoryForWorld } from "@/app/projects/[projectId]/world-actions";
 
 export function WorldReadAuto({ projectId }: { projectId: string }) {
   const router = useRouter();
@@ -12,7 +11,7 @@ export function WorldReadAuto({ projectId }: { projectId: string }) {
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    readStoryForWorld({ projectId })
+    fetch(`/api/projects/${projectId}/world-read`, { method: "POST" }).then((r) => r.json() as Promise<{ suggested: boolean }>)
       .then((r) => { setState("done"); if (r.suggested) router.refresh(); })
       .catch(() => setState("done"));
   }, [projectId, router]);
