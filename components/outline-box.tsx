@@ -17,15 +17,15 @@ const PARTS = [
   },
   {
     kind: "middle", title: "Middle",
-    ask: "What develops through actions, obstacles or discoveries?",
-    short: "What they try, and what gets in the way. One or two beats is plenty.",
+    ask: "What are the events that set up the climax?",
+    short: "The events that set up the climax: what they try, and what gets in the way.",
     examples: ["She tries the key in every lock; one door won't open.", "A friend offers to help, but wants something in return.", "The plan works, until the storm cuts the power."],
   },
   {
     kind: "ending", title: "Ending",
-    ask: "What is decided, revealed or changed?",
-    short: "The turn or final image we're left with.",
-    examples: ["She opens the door, and chooses to close it again.", "He walks home and finally calls his brother.", "The robot dances; she stops reaching for the switch."],
+    ask: "The climax unveils: all the events collide, setting up the resolution. What happens?",
+    short: "The climax unveils: all the events collide, setting up the resolution.",
+    examples: ["The storm hits as she reaches the door; she has to choose who to save.", "Everyone he lied to is in the same room, and the truth comes out.", "The robot's battery is dying; it uses the last charge to dance."],
   },
 ] as const;
 

@@ -7,10 +7,12 @@ import { SubmitButton } from "./ui";
 
 export interface CastMemberRow { id: string; name: string; summary: string; notes: string; latestId: string | null; approved: boolean }
 
-export function CastBox({ projectId, back, cast, canEdit, children }: {
+export function CastBox({ projectId, back, cast, canEdit, children, originals }: {
   projectId: string; back: string; cast: CastMemberRow[]; canEdit: boolean;
   /** Optional editor shown above the list (the Story desk's written cast answer). */
   children?: React.ReactNode;
+  /** Her own words for each character (from her cast answer), keyed by lowercase name. */
+  originals?: Record<string, string>;
 }) {
   return (
     <section id="cast" className="panel flex scroll-mt-6 flex-col gap-3 p-4" aria-labelledby="cast-h">
@@ -28,7 +30,10 @@ export function CastBox({ projectId, back, cast, canEdit, children }: {
                 <span className="flex items-center gap-2 font-semibold">
                   {c.name}{!c.approved && <span className="size-1.5 bg-brand" title="Not approved yet" />}
                 </span>
-                <span className="mt-0.5 line-clamp-3 block text-sm text-muted">{c.summary || "No description yet."}</span>
+                <span className="mt-0.5 block text-sm whitespace-pre-wrap">{c.summary || "No description yet."}</span>
+                {originals?.[c.name.toLowerCase()] && originals[c.name.toLowerCase()] !== c.summary.trim() && (
+                  <span className="mt-0.5 block text-xs text-muted">Your original: {originals[c.name.toLowerCase()]}</span>
+                )}
                 {canEdit && <span className="mt-1 block text-xs text-accent">Edit</span>}
               </summary>
               {canEdit && (

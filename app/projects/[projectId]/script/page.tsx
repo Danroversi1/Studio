@@ -4,7 +4,13 @@ import { notFound } from "next/navigation";
 import { Empty, Flash } from "@/components/flash";
 import { ScriptDesk } from "@/components/script-desk";
 import { SubmitButton } from "@/components/ui";
-import { getCast, getProjectShell, getScreenplay } from "@/lib/data";
+import { getCast, getCastOriginals, getNotebook, getProjectShell, getScreenplay } from "@/lib/data";
+import { BreakdownPanel } from "@/components/breakdown-panel";
+import { ScenePlanAuto } from "@/components/scene-plan-auto";
+import { aiConfigured } from "@/lib/agents/run-story-breakdown";
+import { PARTS, uncoveredBeats, type Part } from "@/lib/scene-plan";
+
+export const maxDuration = 300;
 import { CastBox } from "@/components/cast-box";
 import { runtimeInfo, targetPages } from "@/lib/runtime";
 import { approveScreenplay, saveScreenplay } from "../actions";
@@ -18,7 +24,9 @@ export default async function ScriptPage({
 }) {
   const { projectId } = await params;
   const { v, error, notice } = await searchParams;
-  const [shell, sp, cast] = await Promise.all([getProjectShell(projectId), getScreenplay(projectId), getCast(projectId)]);
+  const [shell, sp, cast, originals, notebook] = await Promise.all([
+    getProjectShell(projectId), getScreenplay(projectId), getCast(projectId), getCastOriginals(projectId), getNotebook(projectId),
+  ]);
   if (!shell || !shell.caps.member) notFound();
   const { caps } = shell;
   const runtime = (shell.project as { runtime?: string | null }).runtime ?? null;
@@ -28,6 +36,10 @@ export default async function ScriptPage({
   if (!caps.can_edit && !selected) {
     return <Empty title="No approved script yet">When the Director approves a script revision, you can read it here.</Empty>;
   }
+  const latestBody = String(versions[0]?.content.body ?? "");
+  const beats = notebook.filter((n) => (PARTS as string[]).includes(n.kind) && n.status !== "archived")
+    .map((n) => ({ id: n.id, part: n.kind as Part, text: n.body }));
+  const pendingBeats = caps.can_edit && aiConfigured() && (!v || v === versions[0]?.id) ? uncoveredBeats(latestBody, beats).length : 0;
   const canApprove = !!(caps.can_approve_canonical && selected && selected.id !== canonical?.id && selected.status !== "working");
 
   return (
@@ -46,6 +58,24 @@ export default async function ScriptPage({
       </header>
       <Flash error={error} notice={notice} />
 
+      <ScenePlanAuto projectId={projectId} pending={pendingBeats} />
+
+      <details className="panel p-4" open>
+        <summary className="cursor-pointer list-none font-semibold">Cast ({cast.length}) <span className="text-xs font-normal text-muted">: who they are, while you write</span></summary>
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {cast.map((c) => (
+            <div key={c.id} className="border border-line p-3 text-sm">
+              <p className="font-semibold uppercase">{c.name}</p>
+              <p className="mt-1 whitespace-pre-wrap">{c.summary || "No description yet."}</p>
+              {originals[c.name.toLowerCase()] && originals[c.name.toLowerCase()] !== c.summary.trim() && (
+                <p className="mt-1 text-xs text-muted">Your original: {originals[c.name.toLowerCase()]}</p>
+              )}
+            </div>
+          ))}
+          {!cast.length && <p className="text-sm text-muted">No characters yet. Add them in your Story&apos;s Cast.</p>}
+        </div>
+      </details>
+
       {selected && selected.id !== versions[0]?.id && (
         <p className="panel px-4 py-3 text-sm">You&apos;re looking at revision {selected.version_number}. Saving creates a new revision starting from it.</p>
       )}
@@ -55,8 +85,9 @@ export default async function ScriptPage({
         baseVersionId={sp?.entity.current_version_id ?? ""} canEdit={!!caps.can_edit} saveAction={saveScreenplay}
         target={targetPages(runtime)} lengthLabel={runtimeInfo(runtime)?.label ?? null} />
 
-      <div className="max-w-xl">
-        <CastBox projectId={projectId} back={`/projects/${projectId}/script`} cast={cast} canEdit={!!caps.can_edit} />
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[1fr_24rem]">
+        <BreakdownPanel body={selected?.content.body ?? ""} />
+        <CastBox projectId={projectId} back={`/projects/${projectId}/script`} cast={cast} canEdit={!!caps.can_edit} originals={originals} />
       </div>
 
       {versions.length > 0 && (

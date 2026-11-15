@@ -249,3 +249,14 @@ export async function getCast(projectId: string) {
     };
   });
 }
+
+/** Her own words for each character, from the cast answer in her story (lowercase name → text). */
+export async function getCastOriginals(projectId: string): Promise<Record<string, string>> {
+  const sb = await supabaseServer();
+  const { data: story } = await sb.from("entities").select("id").eq("project_id", projectId).eq("kind", "story").order("created_at").limit(1).maybeSingle();
+  if (!story) return {};
+  const { data: v } = await sb.from("versions").select("content").eq("entity_id", story.id).order("version_number", { ascending: false }).limit(1).maybeSingle();
+  const { parseIntake } = await import("./intake");
+  const { parseCast } = await import("./cast");
+  return Object.fromEntries(parseCast(parseIntake(String(v?.content?.body ?? "")).who).map((c) => [c.name.toLowerCase(), c.description]));
+}

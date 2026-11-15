@@ -9,6 +9,8 @@ import { runPartnerTurn } from "@/lib/agents/run-partner-turn";
 import { aiConfigured, runStoryBreakdown } from "@/lib/agents/run-story-breakdown";
 import { friendlyError, withMessage } from "@/lib/errors";
 import { parseCast } from "@/lib/cast";
+import { runScenePlan } from "@/lib/agents/run-scene-plan";
+import { PARTS, insertScenes, parseBreakdown, sceneBlock, titleCase, uncoveredBeats, type Beat, type Part } from "@/lib/scene-plan";
 import { TREATMENT_ATTRIBUTION, TREATMENT_NOTES, composeIntake } from "@/lib/intake";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -335,8 +337,10 @@ export async function saveScreenplay(fd: FormData) {
     p_status: "submitted",
   });
   if (error) redirect(withMessage(scriptPath(projectId), "error", friendlyError(error).message));
-  revalidatePath(scriptPath(projectId));
-  redirect(withMessage(`${scriptPath(projectId)}?v=${data}`, "notice", "Saved as a new revision. Earlier revisions are unchanged."));
+  const newPlaces = await syncLocationsFromScript(sb, projectId, s(fd, "body"));
+  revalidatePath(`/projects/${projectId}`, "layout");
+  redirect(withMessage(`${scriptPath(projectId)}?v=${data}`, "notice",
+    newPlaces.length ? `Saved. Added ${joinNames(newPlaces)} to Locations.` : "Saved as a new revision. Earlier revisions are unchanged."));
 }
 
 export async function approveScreenplay(fd: FormData) {
@@ -373,6 +377,7 @@ export async function addNote(fd: FormData) {
   const sb = await supabaseServer();
   const { error } = await sb.rpc("add_notebook_item", { p_project: projectId, p_kind: s(fd, "kind"), p_body: s(fd, "body") });
   if (error) redirect(withMessage(back, "error", friendlyError(error).message));
+  if ((PARTS as string[]).includes(s(fd, "kind"))) after(() => planScenes(projectId).catch(() => undefined));
   revalidatePath(back);
   redirect(back);
 }
@@ -475,4 +480,92 @@ export async function saveCharacter(fd: FormData) {
   if (error) redirect(withMessage(back, "error", friendlyError(error).message));
   revalidatePath(`/projects/${projectId}`, "layout");
   redirect(withMessage(back, "notice", "Saved. Every desk shows the new description."));
+}
+
+/** New places in the script's scene headings become Locations (interior/exterior noted). */
+async function syncLocationsFromScript(sb: Sb, projectId: string, body: string): Promise<string[]> {
+  const scenes = parseBreakdown(body);
+  if (!scenes.length) return [];
+  const { data: existing } = await sb.from("entities").select("name").eq("project_id", projectId).eq("kind", "location").neq("status", "archived");
+  const have = new Set((existing ?? []).map((e) => String(e.name).trim().toLowerCase()));
+  const added: string[] = [];
+  const seen = new Map<string, { name: string; kinds: Set<string>; first: number }>();
+  for (const sc of scenes) {
+    const name = titleCase(sc.location).slice(0, 120);
+    if (!name || name.length < 2) continue;
+    const k = name.toLowerCase();
+    if (!seen.has(k)) seen.set(k, { name, kinds: new Set(), first: sc.number });
+    if (sc.intExt !== "—") seen.get(k)!.kinds.add(sc.intExt);
+  }
+  for (const [k, v] of seen) {
+    if (have.has(k) || added.length >= 20) continue;
+    const { data: id, error } = await sb.rpc("create_entity", { p_project: projectId, p_kind: "location", p_name: v.name });
+    if (error || !id) continue;
+    const kind = v.kinds.size > 1 ? "Interior & exterior" : [...v.kinds][0] ?? "";
+    await sb.rpc("create_revision", {
+      p_entity: id, p_content: { summary: `${kind ? `${kind}. ` : ""}First appears in scene ${v.first} of the script.`, notes: "" },
+      p_change_summary: "From your script", p_parent_version: null, p_base_version: null, p_asset_ids: [], p_status: "submitted",
+    });
+    have.add(k);
+    added.push(v.name);
+  }
+  return added;
+}
+
+/** Lays out a scene in the script for each outline beat that doesn't have one yet. */
+async function planScenes(projectId: string): Promise<number> {
+  if (!aiConfigured()) return 0;
+  const sb = await supabaseServer();
+  const [{ data: notes }, { data: sp }, { data: ents }] = await Promise.all([
+    sb.from("story_notebook").select("id, kind, body, status, created_at").eq("project_id", projectId)
+      .in("kind", PARTS).neq("status", "archived").order("created_at"),
+    sb.from("entities").select("id, current_version_id").eq("project_id", projectId).eq("kind", "screenplay").order("created_at").limit(1).maybeSingle(),
+    sb.from("entities").select("id, kind, name").eq("project_id", projectId).in("kind", ["character", "location", "story"]).neq("status", "archived"),
+  ]);
+  const beats: Beat[] = (notes ?? []).map((n) => ({ id: String(n.id), part: n.kind as Part, text: String(n.body ?? "") }));
+  const latestOf = async (id: string) => (await sb.from("versions").select("id, content").eq("entity_id", id)
+    .order("version_number", { ascending: false }).limit(1).maybeSingle()).data;
+  const script = sp ? await latestOf(sp.id) : null;
+  const body = String(script?.content?.body ?? "");
+  const todo = uncoveredBeats(body, beats).slice(0, 40);
+  if (!todo.length) return 0;
+
+  const { data: runId, error } = await sb.rpc("request_scene_plan", { p_project: projectId, p_beats: todo });
+  if (error || !runId) return 0;
+  const chars = (ents ?? []).filter((e) => e.kind === "character");
+  const cast = await Promise.all(chars.map(async (c) => ({ name: String(c.name), summary: String((await latestOf(c.id))?.content?.summary ?? "") })));
+  const storyEnt = (ents ?? []).find((e) => e.kind === "story");
+  const story = storyEnt ? String((await latestOf(storyEnt.id))?.content?.body ?? "") : "";
+  const scenes = await runScenePlan(String(runId), {
+    beats: todo, cast, story, locations: (ents ?? []).filter((e) => e.kind === "location").map((e) => String(e.name)),
+  });
+  if (!scenes?.length) return 0;
+
+  // Re-read the script: she may have saved while the plan was running.
+  let entityId = sp?.id as string | undefined;
+  if (!entityId) {
+    const { data } = await sb.rpc("open_screenplay", { p_project: projectId });
+    entityId = String(data);
+  }
+  const fresh = await latestOf(entityId);
+  const current = String(fresh?.content?.body ?? "");
+  const stillTodo = uncoveredBeats(current, todo);
+  const byId = new Map(stillTodo.map((b) => [b.id, b]));
+  const blocks = scenes.filter((x) => byId.has(x.beat_id)).map((x) => ({ part: byId.get(x.beat_id)!.part, text: sceneBlock(x, byId.get(x.beat_id)!.text) }));
+  if (!blocks.length) return 0;
+  const next = insertScenes(current, blocks);
+  const { data: cur } = await sb.from("entities").select("current_version_id").eq("id", entityId).single();
+  const { error: e2 } = await sb.rpc("create_revision", {
+    p_entity: entityId, p_content: { body: next }, p_change_summary: `Scenes from your outline (${blocks.length})`,
+    p_parent_version: fresh?.id ?? null, p_base_version: cur?.current_version_id ?? null, p_asset_ids: [], p_status: "submitted",
+  });
+  if (e2) return 0;
+  await syncLocationsFromScript(sb, projectId, next);
+  revalidatePath(`/projects/${projectId}`, "layout");
+  return blocks.length;
+}
+
+/** Called by the Script desk when it sees outline beats without scenes. */
+export async function planScenesNow(input: { projectId: string }): Promise<{ added: number }> {
+  return { added: await planScenes(input.projectId) };
 }

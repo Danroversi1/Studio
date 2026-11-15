@@ -11,6 +11,7 @@ import { parseGoogleLink, slidesEmbedUrl } from "@/lib/google/links";
 import { INTAKE_QUESTIONS, TREATMENT_ATTRIBUTION, parseIntake, isTreatmentRef } from "@/lib/intake";
 import { currentUser, getAiBudget, getCast, getNotebook, getEntityWorkspace, getProjectShell, type VersionRow } from "@/lib/data";
 import { CastBox } from "@/components/cast-box";
+import { parseCast } from "@/lib/cast";
 import { addReference, approveRevision, linkEntities, renameEntity, requestBreakdown, saveRevision, saveSynopsis, setThumbnail, unlinkEntities } from "../../actions";
 
 export const maxDuration = 300;
@@ -248,7 +249,8 @@ export default async function ItemWorkspace({
         const answered = !!answers[q.key].trim();
         if (q.key === "who" && (answered || cast.length > 0)) {
           return (
-            <CastBox key={q.key} projectId={projectId} back={`${base}/items/${entityId}`} cast={cast} canEdit={!!caps.can_edit}>
+            <CastBox key={q.key} projectId={projectId} back={`${base}/items/${entityId}`} cast={cast} canEdit={!!caps.can_edit}
+              originals={Object.fromEntries(parseCast(answers.who).map((c) => [c.name.toLowerCase(), c.description]))}>
               {caps.can_edit && answered && (
                 <details>
                   <summary className="cursor-pointer list-none text-xs text-accent">Edit your cast answer</summary>

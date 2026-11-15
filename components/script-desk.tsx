@@ -76,7 +76,7 @@ export function ScriptDesk({ projectId, entityId, initial, parentVersionId, base
             </div>
           )}
           <label className="sr-only" htmlFor="script-body">Screenplay</label>
-          <textarea id="script-body" ref={area} name="body" value={text} readOnly={!canEdit} maxLength={400000}
+          <textarea id="script-body" data-dirty={dirty ? "1" : "0"} ref={area} name="body" value={text} readOnly={!canEdit} maxLength={400000}
             onChange={(e) => setText(e.target.value)} spellCheck
             className="field min-h-[60vh] resize-y font-mono text-[13px] leading-6"
             placeholder={"# ACT ONE\n\nEXT. OCEAN CLIFF - NIGHT\n\nWaves hit the rocks. A light turns.\n\nMIRA\n(whispering)\nIs anyone up there?"} />
