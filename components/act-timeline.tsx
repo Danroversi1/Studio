@@ -44,8 +44,8 @@ export function ActTimeline({ script }: { script: ParsedScript }) {
               style={{ left: pct(s.startPage), width: `max(3px, calc(${pct(s.endPage)} - ${pct(s.startPage)}))` }} />
           ))}
         </div>
-        {/* guide beats */}
-        {!own && (
+        {/* guide beats (always shown, always labelled as a guide) */}
+        {(
           <div className="relative mt-1 h-10">
             {BEAT_GUIDE.map((b) => (
               <div key={b.page} className="absolute top-0 flex -translate-x-1/2 flex-col items-center" style={{ left: pct(b.page) }}>
@@ -67,7 +67,7 @@ export function ActTimeline({ script }: { script: ParsedScript }) {
 
       <p className="help">
         {own
-          ? "Act bands come from your own act markers (lines starting with #)."
+          ? "Act bands come from your own act markers (lines starting with #). Dashed beats are a common 90-minute guide, not rules."
           : "Shaded acts and dashed beats are a common guide for a 90-minute film, not rules. Add your own act breaks with a line like “# ACT TWO”."}
         {" "}One page is roughly one minute of screen time; the page count is an estimate.
       </p>
