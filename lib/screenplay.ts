@@ -157,17 +157,18 @@ export function pages(elements: ScriptElement[]): ScriptElement[][] {
   return out.map((p) => p ?? []);
 }
 
-/** Common three-act guide for a 90-minute film (rule of thumb, not a requirement). */
+/** Common beginning / middle / ending guide, as fractions of the film (a rule of thumb). */
 export const ACT_GUIDE = [
-  { label: "Act I", from: 0, to: 25 },
-  { label: "Act II", from: 25, to: 70 },
-  { label: "Act III", from: 70, to: 90 },
+  { label: "Beginning", from: 0, to: 0.25 },
+  { label: "Middle", from: 0.25, to: 0.75 },
+  { label: "Ending", from: 0.75, to: 1 },
 ] as const;
 
+/** Common turning points for longer films only (10+ minutes); fractions of the film. */
 export const BEAT_GUIDE = [
-  { page: 10, label: "Disruption" },
-  { page: 25, label: "Commitment / Act I ends" },
-  { page: 45, label: "Midpoint" },
-  { page: 70, label: "Crisis / Act II ends" },
-  { page: 85, label: "Climax" },
+  { at: 0.11, label: "Disruption" },
+  { at: 0.25, label: "Commitment" },
+  { at: 0.5, label: "Midpoint" },
+  { at: 0.75, label: "Crisis" },
+  { at: 0.92, label: "Climax" },
 ] as const;

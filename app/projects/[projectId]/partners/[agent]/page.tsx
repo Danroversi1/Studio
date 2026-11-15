@@ -2,12 +2,13 @@
 // instructions are the parent's specs in docs/agents; see lib/agents/partners.ts.
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Empty } from "@/components/flash";
+import { Empty, Flash } from "@/components/flash";
+import { StoryNotebook } from "@/components/story-notebook";
 import { IconPlus } from "@/components/icons";
 import { PartnerChat } from "@/components/partner-chat";
 import { PARTNERS, isPartnerId } from "@/lib/agents/partners";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
-import { getAiBudget, getPartnerThreads, getProjectShell, getThreadMessages } from "@/lib/data";
+import { getAiBudget, getNotebook, getPartnerThreads, getProjectShell, getThreadMessages } from "@/lib/data";
 
 export const maxDuration = 300;
 
@@ -16,10 +17,10 @@ export default async function PartnerPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string; agent: string }>;
-  searchParams: Promise<{ thread?: string; new?: string }>;
+  searchParams: Promise<{ thread?: string; new?: string; error?: string; notice?: string }>;
 }) {
   const { projectId, agent } = await params;
-  const { thread, new: fresh } = await searchParams;
+  const { thread, new: fresh, error, notice } = await searchParams;
   if (!isPartnerId(agent)) notFound();
   const shell = await getProjectShell(projectId);
   if (!shell || !shell.caps.member) notFound();
@@ -27,7 +28,11 @@ export default async function PartnerPage({
     return <Empty title="The creative partners work with the creative team">You can read the approved versions of this film.</Empty>;
   }
   const partner = PARTNERS[agent];
-  const [threads, budget] = await Promise.all([getPartnerThreads(projectId, agent), getAiBudget(projectId)]);
+  const [threads, budget, notebook] = await Promise.all([
+    getPartnerThreads(projectId, agent), getAiBudget(projectId),
+    agent === "story" ? getNotebook(projectId) : Promise.resolve([]),
+  ]);
+  const story = shell.entities.find((e) => e.kind === "story");
   const current = fresh ? null : (threads.find((t) => t.id === thread) ?? threads[0] ?? null);
   const messages = current ? await getThreadMessages(projectId, current.id) : [];
   const base = `/projects/${projectId}/partners/${agent}`;
@@ -36,7 +41,7 @@ export default async function PartnerPage({
     : !budget.available ? "This month's AI budget is used up. Ask your Executive Producer." : null;
 
   return (
-    <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-[1fr_15rem]">
+    <div className={`mx-auto grid max-w-7xl grid-cols-1 gap-6 ${agent === "story" ? "lg:grid-cols-[minmax(0,1fr)_22rem]" : "lg:grid-cols-[minmax(0,1fr)_15rem]"}`}>
       <div className="flex min-w-0 flex-col gap-5">
         <header className="flex flex-col gap-2">
           <p className="eyebrow">Your creative partners</p>
@@ -49,13 +54,22 @@ export default async function PartnerPage({
             ))}
           </nav>
         </header>
+        <Flash error={error} notice={notice} />
         <PartnerChat key={current?.id ?? "new"} projectId={projectId} agent={agent} partnerName={partner.name}
           opening={partner.opening} threadId={current?.id ?? null}
           initial={messages.map((m) => ({ id: m.id, role: m.role, content: m.content }))}
           canTalk={!!shell.caps.can_edit} unavailable={shell.caps.can_edit ? unavailable : null} />
       </div>
 
-      <aside className="flex flex-col gap-2 lg:sticky lg:top-6 lg:self-start" aria-label="Conversations">
+      <aside className="flex flex-col gap-2 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:self-start lg:overflow-y-auto" aria-label="Notebook and conversations">
+        {agent === "story" && (
+          <div className="mb-4">
+            <StoryNotebook projectId={projectId} runtime={(shell.project as { runtime?: string | null }).runtime ?? null}
+              items={notebook} canEdit={!!shell.caps.can_edit}
+              back={current ? `${base}?thread=${current.id}` : base}
+              storyHref={story ? `/projects/${projectId}/items/${story.id}` : `/projects/${projectId}/add`} />
+          </div>
+        )}
         <p className="eyebrow">Conversations</p>
         {shell.caps.can_edit && (
           <Link href={`${base}?new=1`} className="btn self-start"><IconPlus className="size-4" /> New conversation</Link>

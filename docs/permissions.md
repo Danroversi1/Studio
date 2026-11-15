@@ -61,3 +61,10 @@ The project creator is granted, explicitly and visibly in `create_project()` and
 - Each turn the partner sees a fresh snapshot: synopsis, the last treatment text the Story Lead read, characters/locations with latest descriptions and approval state, reference titles/credits/notes, pending suggestions. It sees no images.
 - Its only tool, `suggest_item`, adds a pending suggestion (same inbox and rules as the Story Lead). Nothing a partner does approves or edits the film.
 - Messages are append-only.
+
+## Story development desk (film length + story notebook)
+
+- Film length lives in `projects.settings.runtime` (`1`, `3-5`, `10-15`, `longer`; unset = not decided). Edit access sets it (`set_film_runtime`). The Story partner can record it only when the words it cites are in her message that turn (`apply_partner_notes`, service role, checked in the database).
+- The story notebook (`story_notebook`) sits beside the Story partner conversation, separate from her draft. Review access and above can read it; Edit access adds, keeps, edits, moves to For later or removes items (removed = archived, never deleted).
+- The Story partner adds notes through `update_notebook`. A "decision" is recorded as hers only when the words it cites appear in her message that turn; otherwise it is stored as a proposed idea. Its own suggestions and beats stay proposed until she keeps them. It cannot edit her synopsis, script or other modules.
+- The Story partner's instructions are its spec plus sections 1–11 of `docs/agents/story-development-process.txt`, verbatim (`node scripts/gen-agent-specs.mjs` regenerates the embedded copies).

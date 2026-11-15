@@ -58,7 +58,7 @@ export async function listProjects() {
 export async function getProjectShell(projectId: string) {
   const sb = await supabaseServer();
   const [{ data: project }, { data: caps }, { data: entities }] = await Promise.all([
-    sb.from("projects").select("id, name, description").eq("id", projectId).maybeSingle(),
+    sb.from("projects").select("id, name, description, runtime:settings->>runtime").eq("id", projectId).maybeSingle(),
     sb.rpc("my_project_capabilities", { p_project: projectId }),
     sb.from("entities").select("id, kind, name, status, current_version_id, created_at")
       .eq("project_id", projectId).in("kind", ["story", "character", "location"]).order("created_at"),
@@ -194,4 +194,16 @@ export async function getScreenplay(projectId: string) {
     .select("id, version_number, status, content, change_summary, created_at, base_version_id")
     .eq("entity_id", entity.id).order("version_number", { ascending: false });
   return { entity, versions: (versions ?? []) as { id: string; version_number: number; status: string; content: { body?: string }; change_summary: string | null; created_at: string; base_version_id: string | null }[] };
+}
+
+export interface NotebookItem {
+  id: string; kind: string; body: string; status: string; source: string; her_words: string | null; created_at: string;
+}
+
+/** The story notebook (everything except removed items), oldest first. */
+export async function getNotebook(projectId: string) {
+  const sb = await supabaseServer();
+  const { data } = await sb.from("story_notebook").select("id, kind, body, status, source, her_words, created_at")
+    .eq("project_id", projectId).neq("status", "archived").order("created_at", { ascending: true }).limit(300);
+  return (data ?? []) as NotebookItem[];
 }

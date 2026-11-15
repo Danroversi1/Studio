@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { runtimeInfo } from "@/lib/runtime";
 import { notFound } from "next/navigation";
 import { IconArrowLeft, IconFilm, Wordmark } from "@/components/icons";
 import { SidebarNav } from "@/components/sidebar-nav";
@@ -41,7 +42,7 @@ export default async function ProjectLayout({
           <span className="flex size-12 shrink-0 items-center justify-center bg-text text-brand"><IconFilm /></span>
           <span className="min-w-0">
             <span className="display block truncate text-lg">{project.name}</span>
-            <span className="block truncate text-sm text-muted">Short film · {roleLabel(caps)}</span>
+            <span className="block truncate text-sm text-muted">{runtimeInfo((project as { runtime?: string | null }).runtime)?.short ?? "Film"} · {roleLabel(caps)}</span>
           </span>
         </Link>
 

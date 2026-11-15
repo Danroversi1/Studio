@@ -336,3 +336,42 @@ export async function approveScreenplay(fd: FormData) {
   revalidatePath(`/projects/${projectId}`, "layout");
   redirect(withMessage(back, "notice", "Approved. This is now the script everyone sees."));
 }
+
+/** Where to return after a small form; only paths inside this film are accepted. */
+function backTo(fd: FormData, projectId: string, fallback: string) {
+  const b = s(fd, "back");
+  return b.startsWith(`/projects/${projectId}/`) || b === `/projects/${projectId}` ? b : fallback;
+}
+
+export async function setRuntime(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const back = backTo(fd, projectId, addPath(projectId));
+  const value = s(fd, "runtime");
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("set_film_runtime", { p_project: projectId, p_runtime: value || null });
+  if (error) redirect(withMessage(back, "error", friendlyError(error).message));
+  revalidatePath(`/projects/${projectId}`, "layout");
+  redirect(back);
+}
+
+export async function addNote(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const back = backTo(fd, projectId, `/projects/${projectId}/partners/story`);
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("add_notebook_item", { p_project: projectId, p_kind: s(fd, "kind"), p_body: s(fd, "body") });
+  if (error) redirect(withMessage(back, "error", friendlyError(error).message));
+  revalidatePath(back);
+  redirect(back);
+}
+
+export async function updateNote(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const back = backTo(fd, projectId, `/projects/${projectId}/partners/story`);
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("update_notebook_item", {
+    p_item: s(fd, "itemId"), p_status: opt(fd, "status"), p_kind: opt(fd, "kind"), p_body: opt(fd, "body"),
+  });
+  if (error) redirect(withMessage(back, "error", friendlyError(error).message));
+  revalidatePath(back);
+  redirect(back);
+}

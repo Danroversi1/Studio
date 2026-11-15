@@ -5,6 +5,7 @@ import { Empty, Flash } from "@/components/flash";
 import { ScriptDesk } from "@/components/script-desk";
 import { SubmitButton } from "@/components/ui";
 import { getProjectShell, getScreenplay } from "@/lib/data";
+import { runtimeInfo, targetPages } from "@/lib/runtime";
 import { approveScreenplay, saveScreenplay } from "../actions";
 
 export default async function ScriptPage({
@@ -19,6 +20,7 @@ export default async function ScriptPage({
   const [shell, sp] = await Promise.all([getProjectShell(projectId), getScreenplay(projectId)]);
   if (!shell || !shell.caps.member) notFound();
   const { caps } = shell;
+  const runtime = (shell.project as { runtime?: string | null }).runtime ?? null;
   const versions = sp?.versions ?? [];
   const canonical = versions.find((x) => x.id === sp?.entity.current_version_id) ?? null;
   const selected = versions.find((x) => x.id === v) ?? versions[0] ?? null;
@@ -34,7 +36,7 @@ export default async function ScriptPage({
           <p className="eyebrow">Script writing desk</p>
           <h1 className="display text-4xl leading-none sm:text-5xl">Screenplay</h1>
           <p className="max-w-2xl text-muted">
-            Write in plain text; STUDIO formats it as screenplay pages. A full feature runs about 90 pages, one page per minute.
+            Write in plain text; STUDIO formats it as screenplay pages. One page is about one minute of screen time.
           </p>
         </div>
         <p className="text-xs tracking-[0.08em] text-muted uppercase">
@@ -49,7 +51,8 @@ export default async function ScriptPage({
 
       <ScriptDesk key={selected?.id ?? "new"} projectId={projectId} entityId={sp?.entity.id ?? ""}
         initial={selected?.content.body ?? ""} parentVersionId={selected?.id ?? ""}
-        baseVersionId={sp?.entity.current_version_id ?? ""} canEdit={!!caps.can_edit} saveAction={saveScreenplay} />
+        baseVersionId={sp?.entity.current_version_id ?? ""} canEdit={!!caps.can_edit} saveAction={saveScreenplay}
+        target={targetPages(runtime)} lengthLabel={runtimeInfo(runtime)?.label ?? null} />
 
       {versions.length > 0 && (
         <section className="panel flex flex-col gap-3 p-4" aria-labelledby="hist-h">

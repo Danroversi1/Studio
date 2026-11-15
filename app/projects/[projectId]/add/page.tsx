@@ -9,8 +9,9 @@ import { SubmitButton } from "@/components/ui";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
 import { getAiBudget, getEntityWorkspace, getProjectShell } from "@/lib/data";
 import { parseGoogleLink } from "@/lib/google/links";
+import { RUNTIMES, runtimeInfo } from "@/lib/runtime";
 import { INTAKE_QUESTIONS, TREATMENT_ATTRIBUTION, parseIntake } from "@/lib/intake";
-import { addTreatmentLink, createEntity, requestBreakdown, saveSynopsis } from "../actions";
+import { addTreatmentLink, createEntity, requestBreakdown, saveSynopsis, setRuntime } from "../actions";
 
 export const maxDuration = 300;
 
@@ -43,6 +44,7 @@ export default async function AddToProject({
   const shell = await getProjectShell(projectId);
   if (!shell || !shell.caps.member) notFound();
   const { caps, entities } = shell;
+  const runtime = (shell.project as { runtime?: string | null }).runtime ?? null;
   if (!caps.can_edit) {
     return <Empty title="Adding is for the creative team">You can read the approved versions of this film.</Empty>;
   }
@@ -71,7 +73,25 @@ export default async function AddToProject({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="lg:col-span-2">
         <Section id="story" icon={<IconStory />} title="Your story"
-          help="Three questions to get your film started. Short answers are fine, and you can come back and change them any time.">
+          help="A few questions to get your film started. Short answers are fine, and you can come back and change them any time.">
+          <form action={setRuntime} className="flex flex-col gap-2 border-b border-line pb-5">
+            <input type="hidden" name="projectId" value={projectId} />
+            <input type="hidden" name="back" value={`/projects/${projectId}/add`} />
+            <p className="font-semibold">How long are you imagining your film?</p>
+            <p className="text-sm">Length is a creative choice, not a measure of how good a film is. A complete one-minute film is a real achievement.</p>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Film length">
+              {RUNTIMES.map((r) => (
+                <button key={r.value} type="submit" name="runtime" value={r.value} aria-pressed={runtime === r.value}
+                  className={`btn ${runtime === r.value ? "btn-primary" : ""}`}>{r.label}</button>
+              ))}
+              {canAsk || aiConfigured() ? (
+                <Link href={`/projects/${projectId}/partners/story`} className="btn">Help me choose</Link>
+              ) : null}
+            </div>
+            <p className="text-xs text-muted">
+              {runtimeInfo(runtime)?.focus ?? "Not sure yet? Your Story partner can help you choose based on your idea."}
+            </p>
+          </form>
           <form action={saveSynopsis} className="flex flex-col gap-5">
             <input type="hidden" name="projectId" value={projectId} />
             <input type="hidden" name="entityId" value={story.id} />

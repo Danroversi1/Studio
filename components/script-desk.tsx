@@ -26,9 +26,9 @@ const INSERTS: { label: string; text: string; hint: string }[] = [
   { label: "Act break", text: "\n\n# ACT TWO\n\n", hint: "Marks an act on the timeline (not printed)" },
 ];
 
-export function ScriptDesk({ projectId, entityId, initial, parentVersionId, baseVersionId, canEdit, saveAction }: {
+export function ScriptDesk({ projectId, entityId, initial, parentVersionId, baseVersionId, canEdit, saveAction, target, lengthLabel }: {
   projectId: string; entityId: string; initial: string; parentVersionId: string; baseVersionId: string;
-  canEdit: boolean; saveAction: (fd: FormData) => void;
+  canEdit: boolean; saveAction: (fd: FormData) => void; target: number; lengthLabel: string | null;
 }) {
   const [text, setText] = useState(initial);
   const area = useRef<HTMLTextAreaElement>(null);
@@ -54,7 +54,7 @@ export function ScriptDesk({ projectId, entityId, initial, parentVersionId, base
 
   return (
     <div className="flex flex-col gap-5">
-      <ActTimeline script={parsed} />
+      <ActTimeline script={parsed} target={target} lengthLabel={lengthLabel} />
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <form action={saveAction} className="panel flex flex-col gap-3 p-4">

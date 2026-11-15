@@ -4,9 +4,10 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { costUsd, type Usage } from "../ai/pricing";
 import { supabaseService } from "../supabase/server";
+import { isRuntime } from "../runtime";
 import {
-  type PartnerProposal, type ProjectSnapshot, type StoredMessage, SUGGEST_ITEM_TOOL, isPartnerId,
-  proposalFromTool, renderSnapshot, systemPrompt, toApiMessages,
+  type NoteOp, type PartnerProposal, type ProjectSnapshot, RECORD_RUNTIME_TOOL, type StoredMessage, SUGGEST_ITEM_TOOL,
+  UPDATE_NOTEBOOK_TOOL, isPartnerId, notesFromTool, proposalFromTool, renderSnapshot, systemPrompt, toApiMessages,
 } from "./partners";
 import { STORY_BREAKDOWN_MODEL } from "./story-breakdown";
 
@@ -17,14 +18,16 @@ const MAX_SUGGESTIONS_PER_TURN = 10;
 type Db = ReturnType<typeof supabaseService>;
 
 async function loadSnapshot(db: Db, projectId: string): Promise<{ snapshot: ProjectSnapshot; existing: { id: string; kind: string; name: string }[] }> {
-  const [{ data: project }, { data: entities }, { data: treatmentRun }, { data: pending }] = await Promise.all([
-    db.from("projects").select("name").eq("id", projectId).single(),
+  const [{ data: project }, { data: entities }, { data: treatmentRun }, { data: pending }, { data: notebook }] = await Promise.all([
+    db.from("projects").select("name, runtime:settings->>runtime").eq("id", projectId).single(),
     db.from("entities").select("id, kind, name, current_version_id, created_at")
       .eq("project_id", projectId).in("kind", ["story", "character", "location", "screenplay"]).order("created_at"),
     db.from("agent_runs").select("title:input_payload->>title, text:input_payload->>text")
       .eq("project_id", projectId).eq("task_type", "story_breakdown").eq("input_payload->>source", "treatment")
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
     db.from("agent_proposals").select("name").eq("project_id", projectId).eq("status", "pending").limit(50),
+    db.from("story_notebook").select("id, kind, body, status").eq("project_id", projectId).neq("status", "archived")
+      .order("created_at", { ascending: true }).limit(120),
   ]);
   const ents = entities ?? [];
   const ids = ents.map((e) => e.id);
@@ -48,6 +51,8 @@ async function loadSnapshot(db: Db, projectId: string): Promise<{ snapshot: Proj
   const story = ents.find((e) => e.kind === "story");
   const snapshot: ProjectSnapshot = {
     filmTitle: project?.name ?? "Untitled film",
+    runtime: (project as { runtime?: string | null } | null)?.runtime ?? null,
+    notebook: notebook ?? [],
     synopsis: story ? String(latest.get(story.id)?.body ?? "") : "",
     synopsisApproved: !!story?.current_version_id,
     treatment: treatmentRun?.text ? { title: String(treatmentRun.title ?? "Treatment"), text: String(treatmentRun.text) } : null,
@@ -97,6 +102,10 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
       { type: "text", text: renderSnapshot(snapshot), cache_control: { type: "ephemeral" } },
     ];
 
+    const tools = partner === "story" ? [SUGGEST_ITEM_TOOL, RECORD_RUNTIME_TOOL, UPDATE_NOTEBOOK_TOOL] : [SUGGEST_ITEM_TOOL];
+    const herMessage = [...(history ?? [])].reverse().find((m) => m.role === "user")?.content ?? "";
+    const noteOps: NoteOp[] = [];
+    let runtime: { value: string; words: string } | null = null;
     const proposals: PartnerProposal[] = [];
     const replyParts: string[] = [];
     let res: Anthropic.Message | null = null;
@@ -105,7 +114,7 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
         model: MODEL,
         max_tokens: 3000,
         system,
-        tools: [SUGGEST_ITEM_TOOL],
+        tools,
         messages,
       });
       usage = addUsage(usage, res.usage as Usage);
@@ -115,6 +124,22 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
       const results: Anthropic.ToolResultBlockParam[] = [];
       for (const b of res.content) {
         if (b.type !== "tool_use") continue;
+        if (partner === "story" && b.name === "update_notebook") {
+          const { ops, report } = notesFromTool(b.input, herMessage);
+          const room = 8 - noteOps.length;
+          noteOps.push(...ops.slice(0, Math.max(0, room)));
+          results.push({ type: "tool_result", tool_use_id: b.id, content: (room > 0 ? report : ["Notebook limit for this turn reached."]).join("\n") });
+          continue;
+        }
+        if (partner === "story" && b.name === "record_runtime") {
+          const inp = b.input as { runtime?: string; her_words?: string };
+          const words = (inp.her_words ?? "").trim();
+          const ok = isRuntime(inp.runtime) && !!words && herMessage.toLowerCase().includes(words.toLowerCase());
+          if (ok) runtime = { value: inp.runtime as string, words };
+          results.push({ type: "tool_result", tool_use_id: b.id, is_error: !ok,
+            content: ok ? `Film length recorded: ${inp.runtime}.` : "Not recorded: use it only when her latest message states the length, with her exact words." });
+          continue;
+        }
         const p = b.name === "suggest_item" && proposals.length < MAX_SUGGESTIONS_PER_TURN ? proposalFromTool(b.input, existing) : null;
         if (p) proposals.push(p);
         results.push({
@@ -133,6 +158,13 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
     if (res?.stop_reason === "max_tokens") reply += "\n\n(I ran out of room there. Ask me to continue.)";
     if (!reply) reply = proposals.length ? "I've put that in your Suggestions." : "Sorry, I lost my train of thought. Could you say that again?";
 
+    if (partner === "story" && (noteOps.length || runtime)) {
+      const rt = runtime as { value: string; words: string } | null;
+      const { error: notesErr } = await db.rpc("apply_partner_notes", {
+        p_run: runId, p_ops: noteOps, p_runtime: rt?.value ?? null, p_runtime_words: rt?.words ?? null,
+      });
+      if (notesErr) throw new Error(notesErr.message);
+    }
     const { error } = await db.rpc("complete_agent_turn", {
       p_run: runId, p_reply: reply, p_proposals: proposals, p_usage: usage, p_cost_usd: cost, p_model: res?.model ?? MODEL,
     });
