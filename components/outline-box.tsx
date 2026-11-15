@@ -42,8 +42,8 @@ const BANDS = [
   { kind: "ending", label: "Ending", from: 0.75, to: 1 },
 ] as const;
 
-function fmt(minutes: number) {
-  if (minutes < 2) {
+function fmt(minutes: number, total: number) {
+  if (total <= 15) {
     const sec = Math.round(minutes * 60);
     return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
   }
@@ -76,7 +76,7 @@ function OutlineGraph({ beats, runtime }: { beats: NotebookItem[]; runtime: stri
       <div className="relative h-4 text-[10px] text-muted">
         {[0, 0.25, 0.75, 1].map((t) => (
           <span key={t} className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: `${t * 100}%` }}>
-            {total ? fmt(t * total) : t === 0 ? "start" : t === 1 ? "end" : ""}
+            {total ? fmt(t * total, total) : t === 0 ? "start" : t === 1 ? "end" : ""}
           </span>
         ))}
       </div>
