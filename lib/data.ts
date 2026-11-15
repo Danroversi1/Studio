@@ -260,3 +260,11 @@ export async function getCastOriginals(projectId: string): Promise<Record<string
   const { parseCast } = await import("./cast");
   return Object.fromEntries(parseCast(parseIntake(String(v?.content?.body ?? "")).who).map((c) => [c.name.toLowerCase(), c.description]));
 }
+
+/** World & Time for a film (empty world if nothing yet). */
+export async function getWorld(projectId: string) {
+  const sb = await supabaseServer();
+  const { data } = await sb.from("story_world").select("data, version").eq("project_id", projectId).maybeSingle();
+  const { toWorld } = await import("./world");
+  return toWorld(data);
+}

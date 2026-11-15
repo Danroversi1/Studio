@@ -113,7 +113,12 @@ export async function addReference(fd: FormData) {
     p_url: s(fd, "url"),
     p_title: opt(fd, "title"),
     p_attribution: s(fd, "attribution"),
-    p_notes: opt(fd, "notes"),
+    p_notes: (() => {
+      // World & Time references carry their tag (and "imagined" when it isn't a real place).
+      const tag = opt(fd, "tag") === "world" ? `World & Time${fd.get("imagined") === "1" ? " · imagined image, not a real place" : ""}` : null;
+      const n = opt(fd, "notes");
+      return tag ? (n ? `${tag} — ${n}` : tag) : n;
+    })(),
     p_rights_status: s(fd, "rights") || "unknown",
   });
   if (error) redirect(withMessage(back, "error", friendlyError(error).message));
@@ -296,18 +301,18 @@ export async function deleteProject(fd: FormData) {
  */
 export async function sendPartnerMessage(input: {
   projectId: string; agent: string; threadId: string | null; content: string;
-}): Promise<{ threadId?: string; error?: string }> {
-  if (!aiConfigured()) return { error: "The AI team isn't set up yet. Ask your Executive Producer." };
-  if (!isPartnerId(input?.agent)) return { error: "Unknown partner." };
+}): Promise<{ threadId?: string; error?: string; unsent?: boolean }> {
+  if (!aiConfigured()) return { error: "The AI team isn't set up yet. Ask your Executive Producer.", unsent: true };
+  if (!isPartnerId(input?.agent)) return { error: "Unknown partner.", unsent: true };
   const sb = await supabaseServer();
   let threadId = input.threadId;
   if (!threadId) {
     const { data, error } = await sb.rpc("start_agent_thread", { p_project: input.projectId, p_agent: input.agent });
-    if (error) return { error: friendlyError(error).message };
+    if (error) return { error: friendlyError(error).message, unsent: true };
     threadId = data as string;
   }
   const { data: runId, error } = await sb.rpc("post_agent_message", { p_thread: threadId, p_content: input.content });
-  if (error) return { threadId, error: friendlyError(error).message };
+  if (error) return { threadId, error: friendlyError(error).message, unsent: true };
   const failure = await runPartnerTurn(runId as string);
   revalidatePath(`/projects/${input.projectId}`, "layout");
   return failure

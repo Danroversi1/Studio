@@ -76,3 +76,6 @@ export function Wordmark({ size = "md" }: { size?: "md" | "lg" }) {
     </span>
   );
 }
+export const IconGlobe = ({ className }: P) => (
+  <svg {...base(className)}><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.5 2.3 3.5 5.3 3.5 8.5s-1 6.2-3.5 8.5c-2.5-2.3-3.5-5.3-3.5-8.5s1-6.2 3.5-8.5z" /></svg>
+);

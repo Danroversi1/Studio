@@ -8,7 +8,8 @@ import { Flash } from "@/components/flash";
 import { IconArrowUpRight, IconCharacter, IconLink, IconLocation, IconPlus, IconSparkle, IconStory } from "@/components/icons";
 import { SubmitButton } from "@/components/ui";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
-import { getAiBudget, getLatestVersions, getProjectShell, getStoryReferences, type VersionStatus } from "@/lib/data";
+import { getAiBudget, getLatestVersions, getProjectShell, getStoryReferences, getWorld, type VersionStatus } from "@/lib/data";
+import { WorldLine } from "@/components/world-line";
 import { TREATMENT_ATTRIBUTION } from "@/lib/intake";
 import { requestBreakdown } from "./actions";
 
@@ -79,10 +80,11 @@ export default async function ProjectOverview({
   const story = entities.find((e) => e.kind === "story");
   const characters = entities.filter((e) => e.kind === "character");
   const locations = entities.filter((e) => e.kind === "location");
-  const [latest, budget, refs] = await Promise.all([
+  const [latest, budget, refs, world] = await Promise.all([
     getLatestVersions(projectId),
     getAiBudget(projectId),
     story ? getStoryReferences(projectId, story.id) : Promise.resolve([]),
+    getWorld(projectId),
   ]);
   const treatments = refs.filter((r) => isTreatmentRef(r));
   const storyLatest = story ? latest.get(story.id) : undefined;
@@ -113,6 +115,7 @@ export default async function ProjectOverview({
       </header>
 
       <Flash error={error} notice={notice} />
+      <WorldLine projectId={projectId} world={world} />
 
       {caps.can_edit && story && (
         <section className="flex flex-wrap items-center gap-5 border border-text bg-text px-6 py-6 text-panel-2">

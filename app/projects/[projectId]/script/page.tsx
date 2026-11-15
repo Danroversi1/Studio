@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { Empty, Flash } from "@/components/flash";
 import { ScriptDesk } from "@/components/script-desk";
 import { SubmitButton } from "@/components/ui";
-import { getCast, getCastOriginals, getNotebook, getProjectShell, getScreenplay } from "@/lib/data";
+import { getCast, getCastOriginals, getNotebook, getProjectShell, getScreenplay, getWorld } from "@/lib/data";
+import { WorldLine } from "@/components/world-line";
 import { BreakdownPanel } from "@/components/breakdown-panel";
 import { ScenePlanAuto } from "@/components/scene-plan-auto";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
@@ -27,6 +28,7 @@ export default async function ScriptPage({
   const [shell, sp, cast, originals, notebook] = await Promise.all([
     getProjectShell(projectId), getScreenplay(projectId), getCast(projectId), getCastOriginals(projectId), getNotebook(projectId),
   ]);
+  const world = await getWorld(projectId);
   if (!shell || !shell.caps.member) notFound();
   const { caps } = shell;
   const runtime = (shell.project as { runtime?: string | null }).runtime ?? null;
@@ -51,6 +53,7 @@ export default async function ScriptPage({
           <p className="max-w-2xl text-muted">
             Write in plain text; STUDIO formats it as screenplay pages. One page is about one minute of screen time.
           </p>
+          <WorldLine projectId={projectId} world={world} />
         </div>
         <p className="text-xs tracking-[0.08em] text-muted uppercase">
           {canonical ? `Approved: revision ${canonical.version_number}` : "No approved version yet"}

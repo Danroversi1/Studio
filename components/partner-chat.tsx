@@ -33,9 +33,18 @@ function Formatted({ text }: { text: string }) {
   );
 }
 
-export function PartnerChat({ projectId, agent, partnerName, opening, threadId, initial, canTalk, unavailable, prompt }: {
+/** Optional answer chips at the end of a reply: a line like [[choices: A | B | C]]. */
+export function splitChoices(text: string): { body: string; choices: string[] } {
+  const m = /\n*\[\[choices:\s*([^\]]*)\]\]\s*$/i.exec(text);
+  if (!m) return { body: text, choices: [] };
+  return { body: text.slice(0, m.index).trimEnd(), choices: m[1].split("|").map((c) => c.trim()).filter(Boolean).slice(0, 4) };
+}
+
+export function PartnerChat({ projectId, agent, partnerName, opening, threadId, initial, canTalk, unavailable, prompt, basePath }: {
   projectId: string; agent: string; partnerName: string; opening: string; threadId: string | null;
   initial: ChatMessage[]; canTalk: boolean; unavailable: string | null; prompt?: string;
+  /** Where this conversation lives (defaults to the partner's own page). */
+  basePath?: string;
 }) {
   const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>(initial);
@@ -47,21 +56,36 @@ export function PartnerChat({ projectId, agent, partnerName, opening, threadId, 
   useEffect(() => setMessages(initial), [initial]);
   useEffect(() => end.current?.scrollIntoView({ block: "end" }), [messages.length, pending]);
 
-  function send() {
-    const content = draft.trim();
+  function send(text?: string) {
+    const content = (text ?? draft).trim();
     if (!content || pending) return;
     setError(null);
-    setDraft("");
-    setMessages((m) => [...m, { id: `local-${Date.now()}`, role: "user", content }]);
+    if (text === undefined) setDraft("");
+    const localId = `local-${Date.now()}`;
+    setMessages((m) => [...m, { id: localId, role: "user", content }]);
     start(async () => {
-      const res = await sendPartnerMessage({ projectId, agent, threadId, content });
-      if (res.error) setError(res.error);
+      let res: Awaited<ReturnType<typeof sendPartnerMessage>>;
+      try {
+        res = await sendPartnerMessage({ projectId, agent, threadId, content });
+      } catch {
+        res = { error: "That didn't go through. Check your connection and try again.", unsent: true };
+      }
+      if (res.error) {
+        setError(res.error);
+        // Not saved: give her words back so nothing is lost.
+        if (res.unsent) {
+          setMessages((m) => m.filter((x) => x.id !== localId));
+          if (text === undefined) setDraft(content);
+        }
+      }
       if (res.threadId && res.threadId !== threadId) {
-        router.replace(`/projects/${projectId}/partners/${agent}?thread=${res.threadId}`);
+        router.replace(`${basePath ?? `/projects/${projectId}/partners/${agent}`}?thread=${res.threadId}`, { scroll: false });
       }
       router.refresh();
     });
   }
+  const last = messages[messages.length - 1];
+  const chips = !pending && canTalk && !unavailable && last?.role === "assistant" ? splitChoices(last.content).choices : [];
 
   return (
     <div className="flex flex-col gap-4">
@@ -75,7 +99,7 @@ export function PartnerChat({ projectId, agent, partnerName, opening, threadId, 
             ? "ml-auto max-w-[40rem] bg-text px-4 py-3 text-sm leading-relaxed text-panel-2"
             : "max-w-[46rem] border border-line bg-panel-2 px-4 py-3 text-sm leading-relaxed"}>
             <p className={`eyebrow mb-1.5 ${m.role === "user" ? "text-brand" : ""}`}>{m.role === "user" ? "You" : partnerName}</p>
-            {m.role === "user" ? <p className="whitespace-pre-wrap">{m.content}</p> : <Formatted text={m.content} />}
+            {m.role === "user" ? <p className="whitespace-pre-wrap">{m.content}</p> : <Formatted text={splitChoices(m.content).body} />}
           </li>
         ))}
         {pending && (
@@ -86,11 +110,18 @@ export function PartnerChat({ projectId, agent, partnerName, opening, threadId, 
       </ol>
       <div ref={end} />
 
+      {chips.length > 0 && (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Quick answers (or write your own)">
+          {[...chips, "Not sure yet"].map((c) => (
+            <button key={c} type="button" className="btn min-h-9 text-xs" onClick={() => send(c)}>{c}</button>
+          ))}
+        </div>
+      )}
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       {unavailable ? (
         <p className="help">{unavailable}</p>
       ) : canTalk ? (
-        <form className="panel flex flex-col gap-2 p-3" onSubmit={(e) => { e.preventDefault(); send(); }}>
+        <form className="panel flex flex-col gap-2 p-3" onSubmit={(e) => { e.preventDefault(); send(); }} aria-busy={pending}>
           <label className="sr-only" htmlFor="msg">Message to {partnerName}</label>
           <textarea id="msg" rows={3} maxLength={6000} value={draft} disabled={pending}
             onChange={(e) => setDraft(e.target.value)}
@@ -106,9 +137,9 @@ export function PartnerChat({ projectId, agent, partnerName, opening, threadId, 
       ) : (
         <p className="help">You can read this conversation. Only people with Edit access can talk to the partners.</p>
       )}
-      <p className="text-xs text-muted">
+      {agent !== "world" && <p className="text-xs text-muted">
         Characters and locations your partner suggests wait in <Link href={`/projects/${projectId}/suggestions`} className="link-accent">Suggestions</Link> for your decision.
-      </p>
+      </p>}
     </div>
   );
 }

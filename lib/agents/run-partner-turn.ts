@@ -6,8 +6,10 @@ import { anthropicClient } from "../ai/client";
 import { costUsd, type Usage } from "../ai/pricing";
 import { supabaseService } from "../supabase/server";
 import { isRuntime } from "../runtime";
+import { composeSentence, toWorld, worldOpsFromTool, type WorldOp } from "../world";
 import {
-  type NoteOp, type PartnerProposal, type ProjectSnapshot, RECORD_RUNTIME_TOOL, type StoredMessage, SUGGEST_ITEM_TOOL,
+  type NoteOp, OFFER_CHOICES_TOOL, type PartnerProposal, type ProjectSnapshot, RECORD_RUNTIME_TOOL, type StoredMessage, SUGGEST_ITEM_TOOL,
+  UPDATE_WORLD_TOOL,
   UPDATE_NOTEBOOK_TOOL, isPartnerId, notesFromTool, openingFor, proposalFromTool, renderSnapshot, systemPrompt, toApiMessages,
 } from "./partners";
 import { STORY_BREAKDOWN_MODEL } from "./story-breakdown";
@@ -19,7 +21,7 @@ const MAX_SUGGESTIONS_PER_TURN = 10;
 type Db = ReturnType<typeof supabaseService>;
 
 async function loadSnapshot(db: Db, projectId: string): Promise<{ snapshot: ProjectSnapshot; existing: { id: string; kind: string; name: string }[] }> {
-  const [{ data: project }, { data: entities }, { data: treatmentRun }, { data: pending }, { data: notebook }] = await Promise.all([
+  const [{ data: project }, { data: entities }, { data: treatmentRun }, { data: pending }, { data: notebook }, { data: worldRow }] = await Promise.all([
     db.from("projects").select("name, runtime:settings->>runtime").eq("id", projectId).single(),
     db.from("entities").select("id, kind, name, current_version_id, created_at")
       .eq("project_id", projectId).in("kind", ["story", "character", "location", "screenplay"]).neq("status", "archived").order("created_at"),
@@ -29,6 +31,7 @@ async function loadSnapshot(db: Db, projectId: string): Promise<{ snapshot: Proj
     db.from("agent_proposals").select("name").eq("project_id", projectId).eq("status", "pending").limit(50),
     db.from("story_notebook").select("id, kind, body, status").eq("project_id", projectId).neq("status", "archived")
       .order("created_at", { ascending: true }).limit(120),
+    db.from("story_world").select("data, version").eq("project_id", projectId).maybeSingle(),
   ]);
   const ents = entities ?? [];
   const ids = ents.map((e) => e.id);
@@ -67,6 +70,7 @@ async function loadSnapshot(db: Db, projectId: string): Promise<{ snapshot: Proj
       title: r.title ?? "", credit: r.attribution ?? "unknown", notes: r.observations ?? "", domain: r.source_domain ?? "",
     })),
     pendingSuggestions: (pending ?? []).map((p) => p.name),
+    world: worldRow ? toWorld(worldRow) : null,
   };
   return { snapshot, existing: ents.filter((e) => e.kind === "character" || e.kind === "location") };
 }
@@ -99,7 +103,10 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
     const messages: Anthropic.MessageParam[] = toApiMessages((history ?? []) as StoredMessage[]);
     if (!messages.length) throw new Error("No message to answer.");
     // She saw an opening line before her first message; tell the model what it said.
-    const opening = openingFor(partner, { hasStory: !!snapshot.synopsis.trim(), runtime: snapshot.runtime ?? null, filmTitle: snapshot.filmTitle });
+    const opening = openingFor(partner, {
+      hasStory: !!snapshot.synopsis.trim(), runtime: snapshot.runtime ?? null, filmTitle: snapshot.filmTitle,
+      worldSentence: snapshot.world ? (snapshot.world.confirmed.summary?.value.text ?? composeSentence(snapshot.world.confirmed)) : null,
+    });
     if (typeof messages[0].content === "string") {
       messages[0] = { role: "user", content: `[STUDIO showed her this opening line from you before her first message: "${opening}"]\n\n${messages[0].content}` };
     }
@@ -108,7 +115,12 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
       { type: "text", text: renderSnapshot(snapshot), cache_control: { type: "ephemeral" } },
     ];
 
-    const tools = partner === "story" ? [SUGGEST_ITEM_TOOL, RECORD_RUNTIME_TOOL, UPDATE_NOTEBOOK_TOOL] : [SUGGEST_ITEM_TOOL];
+    const tools = partner === "story" ? [SUGGEST_ITEM_TOOL, RECORD_RUNTIME_TOOL, UPDATE_NOTEBOOK_TOOL]
+      : partner === "world" ? [UPDATE_WORLD_TOOL, OFFER_CHOICES_TOOL, RECORD_RUNTIME_TOOL, UPDATE_NOTEBOOK_TOOL]
+      : [SUGGEST_ITEM_TOOL];
+    const notesPartner = partner === "story" || partner === "world";
+    const worldOps: WorldOp[] = [];
+    let choices: string[] = [];
     const herMessage = [...(history ?? [])].reverse().find((m) => m.role === "user")?.content ?? "";
     const noteOps: NoteOp[] = [];
     let runtime: { value: string; words: string } | null = null;
@@ -130,14 +142,27 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
       const results: Anthropic.ToolResultBlockParam[] = [];
       for (const b of res.content) {
         if (b.type !== "tool_use") continue;
-        if (partner === "story" && b.name === "update_notebook") {
+        if (partner === "world" && b.name === "update_world") {
+          const { ops, report } = worldOpsFromTool(b.input, herMessage, snapshot.world ?? null);
+          const room = 6 - worldOps.length;
+          worldOps.push(...ops.slice(0, Math.max(0, room)));
+          results.push({ type: "tool_result", tool_use_id: b.id, content: (room > 0 ? report : ["Limit for this turn reached."]).join("\n") || "Nothing changed." });
+          continue;
+        }
+        if (partner === "world" && b.name === "offer_choices") {
+          const raw = (b.input as { choices?: unknown[] })?.choices ?? [];
+          choices = raw.filter((c): c is string => typeof c === "string").map((c) => c.replace(/[|\[\]\n]/g, " ").trim().slice(0, 60)).filter(Boolean).slice(0, 3);
+          results.push({ type: "tool_result", tool_use_id: b.id, content: choices.length ? "Shown under your reply." : "No choices shown." });
+          continue;
+        }
+        if (notesPartner && b.name === "update_notebook") {
           const { ops, report } = notesFromTool(b.input, herMessage);
           const room = 8 - noteOps.length;
           noteOps.push(...ops.slice(0, Math.max(0, room)));
           results.push({ type: "tool_result", tool_use_id: b.id, content: (room > 0 ? report : ["Notebook limit for this turn reached."]).join("\n") });
           continue;
         }
-        if (partner === "story" && b.name === "record_runtime") {
+        if (notesPartner && b.name === "record_runtime") {
           const inp = b.input as { runtime?: string; her_words?: string };
           const words = (inp.her_words ?? "").trim();
           const ok = isRuntime(inp.runtime) && !!words && herMessage.toLowerCase().includes(words.toLowerCase());
@@ -162,9 +187,14 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
 
     let reply = replyParts.join("\n\n");
     if (res?.stop_reason === "max_tokens") reply += "\n\n(I ran out of room there. Ask me to continue.)";
-    if (!reply) reply = proposals.length ? "I've put that in your Suggestions." : "Sorry, I lost my train of thought. Could you say that again?";
+    if (!reply) reply = proposals.length ? "I've put that in your Suggestions." : worldOps.length ? "I've updated World & Time." : "Sorry, I lost my train of thought. Could you say that again?";
+    if (choices.length >= 2) reply += `\n\n[[choices: ${choices.join(" | ")}]]`;
 
-    if (partner === "story" && (noteOps.length || runtime)) {
+    if (worldOps.length) {
+      const { error: worldErr } = await db.rpc("apply_world_notes", { p_run: runId, p_ops: worldOps });
+      if (worldErr) throw new Error(worldErr.message);
+    }
+    if (notesPartner && (noteOps.length || runtime)) {
       const rt = runtime as { value: string; words: string } | null;
       const { error: notesErr } = await db.rpc("apply_partner_notes", {
         p_run: runId, p_ops: noteOps, p_runtime: rt?.value ?? null, p_runtime_words: rt?.words ?? null,

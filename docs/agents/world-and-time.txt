@@ -1,0 +1,336 @@
+Add a new **World & Time** section to our existing Studio filmmaking platform, including a conversational **World Builder** agent.
+
+Use the specification below and the supplied screen mockup as the design reference. Implement this within the existing application, preserving its design system, project content, agent architecture, and working features.
+
+## 1. Inspect before implementing
+
+Review the current codebase to identify:
+- Navigation and routing.
+- Project data and persistence.
+- Story development and agent interfaces.
+- Shared characters, locations, and references.
+- Existing model integrations and environment configuration.
+
+Reuse established components and patterns. Extend existing project records rather than creating duplicate location or story data.
+
+If implementation access or a required integration is unavailable, identify the limitation clearly. Do not claim that mock responses, local state, or unconnected controls are live capabilities.
+
+## 2. Purpose of the section
+
+World & Time establishes the narrative’s overall setting:
+
+**Where does this story happen, when does it happen, and how much time does it span?**
+
+Example:
+“The story follows a character in Los Angeles in 2046 and again in 2056, spanning ten years of their life.”
+
+The primary experience defines the world at this level. Detailed scene geography, travel times, and event chronology belong in an optional deeper subsection.
+
+Keep these concepts separate:
+
+| Concept | Meaning |
+|---|---|
+| Film runtime | How long the audience watches |
+| Geographical setting | Where the narrative happens |
+| Era or periods | When the narrative happens |
+| Narrative span | Time between the earliest and latest story events |
+| Temporal coverage | Whether we follow that span continuously or visit selected moments |
+| Presentation order | The order in which the audience discovers events |
+
+A five-minute film can span ten years. Two periods ten years apart do not imply that every intervening year appears.
+
+## 3. Navigation and visual design
+
+Add **World & Time** to the existing project navigation and follow the application’s routing conventions.
+
+Match Studio’s established:
+- Bright orange accents.
+- Charcoal typography.
+- Light-gray backgrounds.
+- Thin visible borders and angular controls.
+- Existing display and monospaced fonts.
+- Minimal, modern, approachable language.
+
+Use the supplied mockup for hierarchy and layout. Adapt it responsively using existing application patterns.
+
+Page heading:
+**WORLD & TIME**
+
+Supporting copy:
+“Where your story lives. When it unfolds.”
+
+Agent:
+**WORLD BUILDER**
+
+Supporting copy:
+“Let’s give your story a home.”
+
+Do not hard-code the mockup’s example story as a user’s project.
+
+## 4. Main overview
+
+Make three editable summary cards the core of the page:
+
+### WHERE
+
+Capture the narrative’s geographical setting.
+
+Support:
+- One or multiple places.
+- Real, invented, and mixed settings.
+- Different scales, from a room to several planets.
+- Nested places when useful.
+- Unknown or undecided settings.
+
+Example:
+**Los Angeles**
+“One city, two moments.”
+
+Reuse existing location IDs where appropriate. Distinguish fictional settings from actual filming locations.
+
+### WHEN
+
+Capture one or more narrative periods.
+
+Support:
+- Calendar years or dates.
+- Approximate eras.
+- Relative descriptions.
+- Invented calendars.
+- Multiple distinct periods.
+- “Not decided.”
+
+Example:
+**2046 & 2056**
+“Two story periods.”
+
+Retain the filmmaker’s original description alongside any normalized values.
+
+### TIME SPAN
+
+Show the elapsed narrative duration.
+
+Examples:
+- One afternoon.
+- Ten years.
+- Several generations.
+- Not decided.
+
+Calculate a suggested span only when the available information supports it. Label calculations appropriately; do not imply exact precision from approximate dates.
+
+Allow correction. If a manually entered duration conflicts with dates, flag it for clarification rather than silently overwriting either value.
+
+Do not force unusual time systems into one misleading number. Different characters or worlds may experience different elapsed durations.
+
+### Narrative summary
+
+Below the cards, show:
+
+**YOUR WORLD, IN A SENTENCE**
+
+Generate a concise, editable synthesis from confirmed information.
+
+Example:
+“A character’s life in Los Angeles, seen in 2046 and again in 2056.”
+
+Do not invent missing facts. Preserve the director’s edits. Mark unaccepted interpretations as suggestions.
+
+### Optional visual reference
+
+Allow a reference image, drawing, or mood board through the platform’s existing upload/reference system.
+
+Keep this optional and secondary to the setting definition.
+
+Label generated or speculative imagery clearly. A future-city image is an imagined reference, not a factual prediction.
+
+Do not claim to inspect images available only as inaccessible links.
+
+## 5. Empty and partially populated states
+
+Read the project’s available synopsis, treatment, script, and confirmed settings before asking questions.
+
+If the setting is explicitly established by the filmmaker, reuse it.
+
+If it is inferred or uncertain, show it as a suggestion to review. Do not convert an AI inference into a confirmed fact.
+
+For a new project, begin with a simple invitation:
+“Where do you imagine your story happening?”
+
+Show only relevant unresolved areas. Avoid a dashboard of empty mandatory fields, completeness scores, or error states for creative uncertainty.
+
+Provide direct editing as well as conversational development. Users must be able to define their setting without using an agent.
+
+## 6. World Builder conversation
+
+Integrate with the existing agent system and model provider. Reuse conversation, streaming, and error-handling components where available.
+
+The agent helps a 13-year-old develop her own ideas. It should:
+- Speak clearly and respectfully.
+- Ask one focused question at a time.
+- Build on her latest answer.
+- Reuse information already provided.
+- Offer possibilities without deciding for her.
+- Accept “I don’t know.”
+- Suggest a small drawing or writing experiment when useful.
+- Keep ordinary responses brief.
+- Preserve her authorship.
+
+Use this conversational pattern:
+
+**Listen → reflect → explore a consequence or alternative → let her choose → update.**
+
+Draw from questions such as:
+- What makes this place important to your character?
+- Why does the story happen in that period?
+- Do we follow those years as they happen, or visit a few important moments?
+- Does the place change, or does your character experience it differently?
+- What stays familiar across both periods?
+- What does this setting make possible—or difficult?
+
+Treat these as a private question bank, not a checklist.
+
+Do not require a changing city, elaborate history, futuristic technology, or world rules merely because those topics are available.
+
+If real-world research is needed, use available research tools and distinguish verified information from speculation. Without access, identify uncertainty.
+
+## 7. Runtime-aware development
+
+Read the film runtime established elsewhere in the project.
+
+If it is unknown, ask briefly before extensive world development and save the answer through the shared project mechanism. Do not create a second conflicting runtime field.
+
+For short films:
+- Concentrate on the few setting details the audience needs.
+- Help communicate a large span economically.
+- Avoid unnecessary worldbuilding.
+- Offer small exercises tied to the story.
+
+Examples:
+- Show ten years passing through one object.
+- Draw the same place in two periods.
+- Choose one thing that changes and one that remains.
+
+Keep expansion ideas in the existing “For later” area, or an equivalent lightweight space.
+
+Do not discourage ambitious ideas simply because the filmmaker is young. Help her find an achievable expression of them.
+
+## 8. Example interaction
+
+Existing confirmed information:
+Los Angeles; 2046 and 2056; ten-year span.
+
+Agent:
+“What makes Los Angeles in 2056 feel different from 2046?”
+
+Optional response suggestions:
+- The city has changed.
+- My character sees it differently.
+- A bit of both.
+
+Always allow free text and “Not sure yet.”
+
+If she selects a changed perspective, explore her character’s relationship to the city. Do not automatically invent architectural, political, or technological changes.
+
+An explicit decision can be recorded immediately. Do not ask for redundant confirmation after every answer. Agent suggestions remain provisional until adopted.
+
+## 9. Explore deeper
+
+Provide a collapsed **Explore deeper** entry beneath the overview.
+
+Supporting copy:
+“Places, chronology & world rules.”
+
+Reuse existing detailed tools where possible. Keep this area secondary and optional.
+
+It may contain:
+- Specific places and their relationships.
+- Detailed chronology.
+- Scene timing.
+- Travel and communication.
+- World rules.
+- Unusual time behavior.
+- Presentation order.
+
+If these tools do not yet exist, implement a modest editable detail area consistent with the application. Do not expose buttons that imply unavailable functionality.
+
+The overview must remain useful without completing this subsection.
+
+## 10. Shared state and persistence
+
+Extend the existing project model to represent:
+- Setting places and shared location references.
+- Narrative periods and their precision.
+- Narrative start and end when known.
+- Elapsed span and whether it is calculated, approximate, or creator-defined.
+- Continuous, selected-period, mixed, or undecided coverage.
+- The editable world summary.
+- Reference attachments.
+- Confirmed choices, proposals, and open questions.
+- Provenance and relevant revision information.
+
+Use existing decision-state conventions where available.
+
+Keep creator-entered information, AI suggestions, and calculated values distinguishable.
+
+Use the application’s established persistence layer. Preserve existing projects with backward-compatible defaults and migrations where required.
+
+Agent-generated updates must pass through validated application operations rather than directly overwriting arbitrary project fields.
+
+If a standalone prompt cannot perform a database write, do not claim it has saved one.
+
+## 11. Connections to other modules
+
+Share confirmed setting information with:
+- Story Builder.
+- Characters.
+- Production Design.
+- Script development.
+
+Reuse shared entity IDs.
+
+When an approved setting changes, identify potentially affected material and create review suggestions through existing mechanisms.
+
+Examples:
+- Changing 2046 to 1946 may affect technology assumptions.
+- Expanding the span may affect character ages.
+- Moving the setting may affect locations and design references.
+
+Do not silently age characters, rewrite scenes, alter approved designs, or invent events between periods.
+
+Clearly separate:
+- What the director changed.
+- What may need review.
+- What remains an open suggestion.
+
+## 12. Interaction quality
+
+Support keyboard navigation, visible focus, labeled controls, readable contrast, and responsive layouts.
+
+Provide:
+- Editable cards with clear save/cancel behavior.
+- Loading and recoverable error states.
+- Reliable handling of failed model requests.
+- Protection against duplicate submissions.
+- Clear persistence feedback consistent with the rest of Studio.
+
+Preserve entered work if a request fails. Do not expose internal instructions or technical error details in the young filmmaker’s flow.
+
+## 13. Validation
+
+Test meaningful user flows:
+
+1. A new project with no setting information.
+2. An existing synopsis containing explicit places and years.
+3. Los Angeles in 2046 and 2056, with a ten-year span and selected-period coverage.
+4. A five-minute runtime alongside a ten-year narrative span.
+5. A single-location story unfolding over one afternoon.
+6. Multiple worlds with approximate or unusual time relationships.
+7. Direct edits, conversational decisions, and rejected suggestions.
+8. Save and reload without losing content.
+9. Setting revisions without destructive changes to other modules.
+10. Model or network failure without losing the filmmaker’s input.
+11. Responsive and keyboard-accessible operation.
+
+Verify that the overview does not become a scene-planning dashboard.
+
+Implement the section and agent integration, run the appropriate checks, and summarize what changed, how it was verified, and any remaining limitations.

@@ -49,7 +49,7 @@ export default async function PartnerPage({
           <h1 className="display text-4xl leading-none sm:text-5xl">{partner.name}</h1>
           <p className="max-w-2xl text-muted">{partner.blurb} You&apos;re the director: your partner offers possibilities, and you decide.</p>
           <nav aria-label="Partners" className="mt-1 flex flex-wrap gap-2">
-            {(["story", "design"] as const).map((p) => (
+            {(["story", "world", "design"] as const).map((p) => (
               <Link key={p} href={`/projects/${projectId}/partners/${p}`} aria-current={p === agent ? "page" : undefined}
                 className={`btn ${p === agent ? "btn-primary" : ""}`}>{PARTNERS[p].name}</Link>
             ))}
