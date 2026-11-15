@@ -10,7 +10,7 @@ import { aiConfigured } from "@/lib/agents/run-story-breakdown";
 import { getAiBudget, getEntityWorkspace, getProjectShell } from "@/lib/data";
 import { parseGoogleLink } from "@/lib/google/links";
 import { RUNTIMES, runtimeInfo } from "@/lib/runtime";
-import { INTAKE_QUESTIONS, TREATMENT_ATTRIBUTION, parseIntake } from "@/lib/intake";
+import { INTAKE_QUESTIONS, TREATMENT_ATTRIBUTION, parseIntake, isTreatmentRef } from "@/lib/intake";
 import { addTreatmentLink, createEntity, requestBreakdown, saveSynopsis, setRuntime } from "../actions";
 
 export const maxDuration = 300;
@@ -55,7 +55,7 @@ export default async function AddToProject({
 
   const latest = ws.versions[0];
   const answers = parseIntake(latest?.content.body ?? "");
-  const treatments = ws.references.filter((r) => r.attribution === TREATMENT_ATTRIBUTION);
+  const treatments = ws.references.filter((r) => isTreatmentRef(r));
   const canAsk = aiConfigured() && budget.available && (latest?.content.body?.trim().length ?? 0) >= 50;
 
   return (

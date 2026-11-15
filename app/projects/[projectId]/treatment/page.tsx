@@ -9,7 +9,7 @@ import { TreatmentReader } from "@/components/treatment-reader";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
 import { getAiBudget, getProjectShell, getStoryReferences } from "@/lib/data";
 import { parseGoogleLink, slidesEmbedUrl } from "@/lib/google/links";
-import { TREATMENT_ATTRIBUTION } from "@/lib/intake";
+import { TREATMENT_ATTRIBUTION, isTreatmentRef } from "@/lib/intake";
 
 export default async function TreatmentPage({
   params,
@@ -24,7 +24,7 @@ export default async function TreatmentPage({
   if (!shell || !shell.caps.member) notFound();
   const story = shell.entities.find((e) => e.kind === "story");
   const treatments = story
-    ? (await getStoryReferences(projectId, story.id)).filter((r) => r.attribution === TREATMENT_ATTRIBUTION)
+    ? (await getStoryReferences(projectId, story.id)).filter((r) => isTreatmentRef(r))
     : [];
   const current = treatments.find((t) => t.id === ref) ?? treatments[0];
   const base = `/projects/${projectId}`;

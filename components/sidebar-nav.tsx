@@ -58,7 +58,7 @@ export function SidebarNav({ projectId, storyId, characters, locations, pendingS
         <Item href={`${base}/script`} active={path === `${base}/script`} icon={<IconScript />}>Script desk</Item>
         <Item href={`${base}/treatment`} active={path === `${base}/treatment`} icon={<IconBook />}>Read treatment</Item>
         {showImport && (
-          <Item href={`${base}/import`} active={path === `${base}/import`} icon={<IconImage />}>Images from Drive</Item>
+          <Item href={`${base}/references`} active={path === `${base}/references` || path === `${base}/import`} icon={<IconImage />}>References</Item>
         )}
         {showAgents && (
           <Item href={`${base}/suggestions`} active={path === `${base}/suggestions`} icon={<IconSparkle />} badge={pendingSuggestions}>

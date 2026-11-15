@@ -2,6 +2,11 @@
 export const TREATMENT_ATTRIBUTION = "Director (own work)";
 export const TREATMENT_NOTES = "Director treatment";
 
+/** A treatment link (not an image she imported, which is also her own work). */
+export function isTreatmentRef(r: { attribution: string | null; observations?: string | null; preview_asset_id?: string | null }) {
+  return r.attribution === TREATMENT_ATTRIBUTION && !r.preview_asset_id && (r.observations ?? TREATMENT_NOTES) === TREATMENT_NOTES;
+}
+
 // ---------------------------------------------------------------------------
 // Story intake: three guided questions. Answers are saved together as the story's
 // text (one revision), under headings, so the Story Lead, the partners and the

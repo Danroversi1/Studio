@@ -18,6 +18,7 @@ export async function POST(request: Request) {
   const attribution = typeof body?.attribution === "string" ? body.attribution : "";
   const fileId = typeof body?.fileId === "string" && body.fileId ? body.fileId : null;
   const fromTreatment = body?.fromTreatment === true;
+  const department = typeof body?.department === "string" && body.department ? body.department : null;
 
   const sb = await supabaseServer();
   const { data: auth } = await sb.auth.getUser();
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
     p_attribution: attribution,
     p_provider_file_id: fileId,
     p_from_treatment: fromTreatment,
+    p_department: department,
   });
   if (error || !data?.[0]) {
     const f = friendlyError(error);

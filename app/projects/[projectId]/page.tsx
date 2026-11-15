@@ -1,7 +1,7 @@
 // Project overview: every piece of the film as a card. Content comes from the shared
 // project graph; nothing here is a placeholder for an unbuilt feature.
 import Link from "next/link";
-import { parseIntake } from "@/lib/intake";
+import { parseIntake, isTreatmentRef } from "@/lib/intake";
 import { notFound } from "next/navigation";
 import { Flash } from "@/components/flash";
 import { IconArrowUpRight, IconCharacter, IconLink, IconLocation, IconPlus, IconSparkle, IconStory } from "@/components/icons";
@@ -83,7 +83,7 @@ export default async function ProjectOverview({
     getAiBudget(projectId),
     story ? getStoryReferences(projectId, story.id) : Promise.resolve([]),
   ]);
-  const treatments = refs.filter((r) => r.attribution === TREATMENT_ATTRIBUTION);
+  const treatments = refs.filter((r) => isTreatmentRef(r));
   const storyLatest = story ? latest.get(story.id) : undefined;
   const synopsis = storyLatest?.content.body?.trim() ?? "";
   const intake = parseIntake(synopsis);

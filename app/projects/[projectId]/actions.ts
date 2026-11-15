@@ -104,7 +104,8 @@ export async function addReference(fd: FormData) {
   const projectId = s(fd, "projectId");
   const entityId = s(fd, "entityId");
   const sb = await supabaseServer();
-  const { error } = await sb.rpc("add_reference", {
+  const back = backTo(fd, projectId, itemPath(projectId, entityId));
+  const { data: refId, error } = await sb.rpc("add_reference", {
     p_entity: entityId,
     p_url: s(fd, "url"),
     p_title: opt(fd, "title"),
@@ -112,9 +113,14 @@ export async function addReference(fd: FormData) {
     p_notes: opt(fd, "notes"),
     p_rights_status: s(fd, "rights") || "unknown",
   });
-  if (error) redirect(withMessage(itemPath(projectId, entityId), "error", friendlyError(error).message));
-  revalidatePath(itemPath(projectId, entityId));
-  redirect(withMessage(itemPath(projectId, entityId), "notice", "Reference added."));
+  if (error) redirect(withMessage(back, "error", friendlyError(error).message));
+  const dept = opt(fd, "department");
+  if (dept) {
+    const { error: e2 } = await sb.rpc("set_reference_department", { p_reference: refId, p_department: dept });
+    if (e2) redirect(withMessage(back, "error", friendlyError(e2).message));
+  }
+  revalidatePath(`/projects/${projectId}`, "layout");
+  redirect(withMessage(back, "notice", "Reference added."));
 }
 
 // ---------------------------------------------------------------- Story Lead suggestions
@@ -234,19 +240,20 @@ export async function saveSynopsis(fd: FormData) {
   const body = fd.has("idea")
     ? composeIntake({ idea: s(fd, "idea"), who: s(fd, "who"), difficulty: s(fd, "difficulty") })
     : s(fd, "body");
-  if (!body.trim()) redirect(withMessage(addPath(projectId), "error", "Start with your story idea: even one sentence is enough."));
-  const { error } = await sb.rpc("create_revision", {
+  const back = backTo(fd, projectId, addPath(projectId));
+  if (!body.trim()) redirect(withMessage(back, "error", "Start with your story idea: even one sentence is enough."));
+  const { data: newVersion, error } = await sb.rpc("create_revision", {
     p_entity: entityId,
     p_content: { body },
-    p_change_summary: fd.has("idea") ? "Story intake" : "Synopsis",
+    p_change_summary: fd.has("idea") ? "Story" : "Synopsis",
     p_parent_version: opt(fd, "parentVersionId"),
     p_base_version: opt(fd, "baseVersionId"),
     p_asset_ids: [],
     p_status: "submitted",
   });
-  if (error) redirect(withMessage(addPath(projectId), "error", friendlyError(error).message));
+  if (error) redirect(withMessage(back, "error", friendlyError(error).message));
   revalidatePath(`/projects/${projectId}`, "layout");
-  redirect(withMessage(addPath(projectId), "notice", "Saved as a new story revision. Earlier versions are kept in the story's history."));
+  redirect(withMessage(back.includes("/items/") ? `${back}?v=${newVersion}` : back, "notice", "Saved. Earlier versions are kept under Revisions."));
 }
 
 export async function addTreatmentLink(fd: FormData) {
@@ -371,6 +378,16 @@ export async function updateNote(fd: FormData) {
   const { error } = await sb.rpc("update_notebook_item", {
     p_item: s(fd, "itemId"), p_status: opt(fd, "status"), p_kind: opt(fd, "kind"), p_body: opt(fd, "body"),
   });
+  if (error) redirect(withMessage(back, "error", friendlyError(error).message));
+  revalidatePath(back);
+  redirect(back);
+}
+
+export async function fileReference(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const back = backTo(fd, projectId, `/projects/${projectId}/references`);
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("set_reference_department", { p_reference: s(fd, "referenceId"), p_department: opt(fd, "department") });
   if (error) redirect(withMessage(back, "error", friendlyError(error).message));
   revalidatePath(back);
   redirect(back);

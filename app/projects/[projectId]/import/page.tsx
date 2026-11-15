@@ -6,18 +6,19 @@ import { type ImportTarget, DriveImport } from "@/components/drive-import";
 import { Empty } from "@/components/flash";
 import { IconArrowLeft } from "@/components/icons";
 import { getProjectShell, getStoryReferences } from "@/lib/data";
+import { isDepartment } from "@/lib/departments";
 import { parseGoogleLink } from "@/lib/google/links";
-import { TREATMENT_ATTRIBUTION } from "@/lib/intake";
+import { TREATMENT_ATTRIBUTION, isTreatmentRef } from "@/lib/intake";
 
 export default async function ImportPage({
   params,
   searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ from?: string; ref?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; ref?: string; to?: string; dept?: string }>;
 }) {
   const { projectId } = await params;
-  const { from, ref, to } = await searchParams;
+  const { from, ref, to, dept } = await searchParams;
   const shell = await getProjectShell(projectId);
   if (!shell || !shell.caps.member) notFound();
   if (!shell.caps.can_edit) {
@@ -30,7 +31,7 @@ export default async function ImportPage({
   const story = shell.entities.find((e) => e.kind === "story");
   if (!story) notFound();
 
-  const treatments = (await getStoryReferences(projectId, story.id)).filter((r) => r.attribution === TREATMENT_ATTRIBUTION);
+  const treatments = (await getStoryReferences(projectId, story.id)).filter((r) => isTreatmentRef(r));
   const chosen = treatments.find((t) => t.id === ref) ??
     treatments.find((t) => parseGoogleLink(t.source_url)?.kind === "doc");
   const link = chosen ? parseGoogleLink(chosen.source_url) : null;
@@ -39,15 +40,15 @@ export default async function ImportPage({
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <header className="flex flex-col gap-3">
-        <Link href={`/projects/${projectId}`} className="inline-flex min-h-11 w-fit items-center gap-1.5 text-xs tracking-[0.12em] text-muted uppercase hover:text-text">
-          <IconArrowLeft /> Overview
+        <Link href={`/projects/${projectId}/references`} className="inline-flex min-h-11 w-fit items-center gap-1.5 text-xs tracking-[0.12em] text-muted uppercase hover:text-text">
+          <IconArrowLeft /> References
         </Link>
-        <p className="eyebrow">Images from Drive</p>
+        <p className="eyebrow">Additional references</p>
         <h1 className="display text-4xl leading-none sm:text-5xl">Bring in your pictures</h1>
         <p className="max-w-2xl text-muted">Take the pictures from your treatment, or pick images in Google Drive. You choose which to keep and where they go.</p>
       </header>
       <DriveImport targets={targets} defaultTargetId={targets.some((t) => t.id === to) ? to! : story.id}
-        treatment={treatment} startWithTreatment={from === "treatment"} />
+        treatment={treatment} startWithTreatment={from === "treatment"} defaultDepartment={isDepartment(dept) ? dept : ""} />
     </div>
   );
 }

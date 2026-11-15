@@ -11,6 +11,7 @@ import {
   pickFromDrive, preloadGoogle,
 } from "@/lib/google/client";
 import { docUrl, driveFileUrl, splitDocExport } from "@/lib/google/links";
+import { DEPARTMENTS } from "@/lib/departments";
 import { TREATMENT_ATTRIBUTION } from "@/lib/intake";
 
 export interface ImportTarget { id: string; name: string; kind: "story" | "character" | "location" }
@@ -40,11 +41,12 @@ async function readError(res: Response) {
   }
 }
 
-export function DriveImport({ targets, defaultTargetId, treatment, startWithTreatment }: {
+export function DriveImport({ targets, defaultTargetId, treatment, startWithTreatment, defaultDepartment }: {
   targets: ImportTarget[];
   defaultTargetId: string;
   treatment: { docId: string; title: string } | null;
   startWithTreatment: boolean;
+  defaultDepartment: string;
 }) {
   const router = useRouter();
   const cfg = googleConfig();
@@ -53,6 +55,7 @@ export function DriveImport({ targets, defaultTargetId, treatment, startWithTrea
   const [notes, setNotes] = useState<string[]>([]);
   const [target, setTarget] = useState(defaultTargetId);
   const [attribution, setAttribution] = useState(TREATMENT_ATTRIBUTION);
+  const [department, setDepartment] = useState(defaultDepartment);
   const [added, setAdded] = useState(0);
   const previews = useRef<string[]>([]);
 
@@ -135,6 +138,7 @@ export function DriveImport({ targets, defaultTargetId, treatment, startWithTrea
           body: JSON.stringify({
             entityId: target, fileName: `${c.name}.${c.mime === "image/png" ? "png" : "jpg"}`, mimeType: c.mime,
             byteSize: c.blob.size, sourceUrl: c.sourceUrl, attribution, fileId: c.fileId, fromTreatment: c.fromTreatment,
+            department: department || null,
           }),
         });
         if (!reserve.ok) throw new Error(await readError(reserve));
@@ -226,7 +230,14 @@ export function DriveImport({ targets, defaultTargetId, treatment, startWithTrea
               </li>
             ))}
           </ul>
-          <div className="grid grid-cols-1 gap-3 border-t border-line pt-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 border-t border-line pt-4 sm:grid-cols-3">
+            <div>
+              <label className="label" htmlFor="import-dept">Department</label>
+              <select id="import-dept" className="field" value={department} onChange={(e) => setDepartment(e.target.value)}>
+                <option value="">General</option>
+                {DEPARTMENTS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+              </select>
+            </div>
             <div>
               <label className="label" htmlFor="import-target">Add them to</label>
               <select id="import-target" className="field" value={target} onChange={(e) => setTarget(e.target.value)}>

@@ -1,3 +1,4 @@
+import { isTreatmentRef } from "./intake";
 import { supabaseServer } from "./supabase/server";
 
 export type Kind = "story" | "character" | "location";
@@ -84,7 +85,7 @@ export async function getStoryReferences(projectId: string, storyId: string) {
   const ids = (boards ?? []).map((b) => b.id);
   if (!ids.length) return [];
   const { data } = await sb.from("research_references")
-    .select("id, title, source_url, source_domain, attribution, created_at")
+    .select("id, title, source_url, source_domain, attribution, observations, preview_asset_id, created_at")
     .in("board_id", ids).order("created_at", { ascending: false });
   return data ?? [];
 }
@@ -206,4 +207,24 @@ export async function getNotebook(projectId: string) {
   const { data } = await sb.from("story_notebook").select("id, kind, body, status, source, her_words, created_at")
     .eq("project_id", projectId).neq("status", "archived").order("created_at", { ascending: true }).limit(300);
   return (data ?? []) as NotebookItem[];
+}
+
+export interface ReferenceRow {
+  id: string; title: string | null; source_url: string; source_domain: string; attribution: string;
+  rights_status: string; observations: string | null; preview_asset_id: string | null; department: string | null;
+  created_at: string; entity_id: string;
+}
+
+/** Every reference in the film with the item it belongs to (treatment links excluded). */
+export async function getAllReferences(projectId: string) {
+  const sb = await supabaseServer();
+  const { data: boards } = await sb.from("research_boards").select("id, entity_id").eq("project_id", projectId);
+  const entityOf = new Map((boards ?? []).map((b) => [b.id, b.entity_id as string]));
+  if (!entityOf.size) return [] as ReferenceRow[];
+  const { data } = await sb.from("research_references")
+    .select("id, board_id, title, source_url, source_domain, attribution, rights_status, observations, preview_asset_id, department, created_at")
+    .in("board_id", [...entityOf.keys()]).order("created_at", { ascending: false }).limit(500);
+  return (data ?? [])
+    .filter((r) => !isTreatmentRef(r))
+    .map((r) => ({ ...r, entity_id: entityOf.get(r.board_id) ?? "" })) as ReferenceRow[];
 }
