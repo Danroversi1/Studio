@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { Empty, Flash } from "@/components/flash";
 import { ScriptDesk } from "@/components/script-desk";
 import { SubmitButton } from "@/components/ui";
-import { getProjectShell, getScreenplay } from "@/lib/data";
+import { getCast, getProjectShell, getScreenplay } from "@/lib/data";
+import { CastBox } from "@/components/cast-box";
 import { runtimeInfo, targetPages } from "@/lib/runtime";
 import { approveScreenplay, saveScreenplay } from "../actions";
 
@@ -17,7 +18,7 @@ export default async function ScriptPage({
 }) {
   const { projectId } = await params;
   const { v, error, notice } = await searchParams;
-  const [shell, sp] = await Promise.all([getProjectShell(projectId), getScreenplay(projectId)]);
+  const [shell, sp, cast] = await Promise.all([getProjectShell(projectId), getScreenplay(projectId), getCast(projectId)]);
   if (!shell || !shell.caps.member) notFound();
   const { caps } = shell;
   const runtime = (shell.project as { runtime?: string | null }).runtime ?? null;
@@ -53,6 +54,10 @@ export default async function ScriptPage({
         initial={selected?.content.body ?? ""} parentVersionId={selected?.id ?? ""}
         baseVersionId={sp?.entity.current_version_id ?? ""} canEdit={!!caps.can_edit} saveAction={saveScreenplay}
         target={targetPages(runtime)} lengthLabel={runtimeInfo(runtime)?.label ?? null} />
+
+      <div className="max-w-xl">
+        <CastBox projectId={projectId} back={`/projects/${projectId}/script`} cast={cast} canEdit={!!caps.can_edit} />
+      </div>
 
       {versions.length > 0 && (
         <section className="panel flex flex-col gap-3 p-4" aria-labelledby="hist-h">

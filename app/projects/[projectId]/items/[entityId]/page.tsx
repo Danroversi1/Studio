@@ -9,7 +9,9 @@ import { UploadArtwork } from "@/components/upload-artwork";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
 import { parseGoogleLink, slidesEmbedUrl } from "@/lib/google/links";
 import { INTAKE_QUESTIONS, TREATMENT_ATTRIBUTION, parseIntake, isTreatmentRef } from "@/lib/intake";
-import { currentUser, getAiBudget, getNotebook, getEntityWorkspace, getProjectShell, type VersionRow } from "@/lib/data";
+import { currentUser, getAiBudget, getCast, getNotebook, getEntityWorkspace, getProjectShell, type VersionRow } from "@/lib/data";
+import { CastBox } from "@/components/cast-box";
+import { parseCast } from "@/lib/cast";
 import { addReference, approveRevision, linkEntities, renameEntity, requestBreakdown, saveRevision, saveSynopsis, setThumbnail, unlinkEntities } from "../../actions";
 
 export const maxDuration = 300;
@@ -46,9 +48,9 @@ export default async function ItemWorkspace({
 }) {
   const { projectId, entityId } = await params;
   const { v, error, notice } = await searchParams;
-  const [shell, ws, user, budget, notebook] = await Promise.all([
+  const [shell, ws, user, budget, notebook, cast] = await Promise.all([
     getProjectShell(projectId), getEntityWorkspace(projectId, entityId), currentUser(), getAiBudget(projectId),
-    getNotebook(projectId),
+    getNotebook(projectId), getCast(projectId),
   ]);
   if (!shell || !ws) notFound();
   const { caps, entities } = shell;
@@ -240,11 +242,19 @@ export default async function ItemWorkspace({
     </>
   );
   const followUps = INTAKE_QUESTIONS.filter((q) => q.key !== "idea");
-  const allAnswered = followUps.every((q) => answers[q.key].trim());
+  const allAnswered = followUps.every((q) => answers[q.key].trim() || (q.key === "who" && cast.length > 0));
+  const castNames = new Set(cast.map((c) => c.name.toLowerCase()));
+  const pendingFromText = parseCast(answers.who).map((c) => c.name).filter((n) => !castNames.has(n.toLowerCase()));
   const storyLead = isStory && (
     <div className="flex flex-col gap-4" aria-label="Story questions">
       {followUps.map((q) => {
         const answered = !!answers[q.key].trim();
+        if (q.key === "who" && (answered || cast.length > 0)) {
+          return (
+            <CastBox key={q.key} projectId={projectId} back={`${base}/items/${entityId}`} cast={cast} canEdit={!!caps.can_edit}
+              castText={answers.who} pendingFromText={pendingFromText} />
+          );
+        }
         return (
           <section key={q.key} className="panel flex flex-col gap-2 p-4">
             {answered ? (

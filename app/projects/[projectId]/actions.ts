@@ -254,28 +254,10 @@ export async function saveSynopsis(fd: FormData) {
   });
   if (error) redirect(withMessage(back, "error", friendlyError(error).message));
   revalidatePath(`/projects/${projectId}`, "layout");
-  // Her cast answer ("Name: who they are") adds the characters she named that aren't in the film yet.
-  let added: string[] = [];
-  if (fd.get("syncCast") === "1") {
-    const { data: existing } = await sb.from("entities").select("name").eq("project_id", projectId).eq("kind", "character");
-    const have = new Set((existing ?? []).map((e) => String(e.name).trim().toLowerCase()));
-    for (const c of parseCast(s(fd, "who"))) {
-      if (have.has(c.name.toLowerCase())) continue;
-      const { data: id, error: e1 } = await sb.rpc("create_entity", { p_project: projectId, p_kind: "character", p_name: c.name });
-      if (e1 || !id) continue;
-      if (c.description) {
-        await sb.rpc("create_revision", {
-          p_entity: id, p_content: { summary: c.description }, p_change_summary: "From your cast answer",
-          p_parent_version: null, p_base_version: null, p_asset_ids: [], p_status: "submitted",
-        });
-      }
-      have.add(c.name.toLowerCase());
-      added.push(c.name);
-    }
-  }
+  const added = fd.get("syncCast") === "1" ? await addCastFromText(sb, projectId, s(fd, "who")) : [];
   revalidatePath(`/projects/${projectId}`, "layout");
   const note = added.length
-    ? `Saved. Added ${added.length === 1 ? added[0] : `${added.slice(0, -1).join(", ")} and ${added[added.length - 1]}`} to Characters.`
+    ? `Saved. Added ${joinNames(added)} to Characters.`
     : "Saved. Earlier versions are kept under Revisions.";
   redirect(withMessage(back.includes("/items/") ? `${back}?v=${newVersion}` : back, "notice", note));
 }
@@ -425,4 +407,70 @@ export async function setThumbnail(fd: FormData) {
   if (error) redirect(withMessage(itemPath(projectId, entityId), "error", friendlyError(error).message));
   revalidatePath(`/projects/${projectId}`, "layout");
   redirect(`${withMessage(itemPath(projectId, entityId), "notice", "Thumbnail updated.")}#thumbnail`);
+}
+
+type Sb = Awaited<ReturnType<typeof supabaseServer>>;
+
+/** Adds the "Name: who they are" lines she wrote that aren't characters yet. */
+async function addCastFromText(sb: Sb, projectId: string, text: string): Promise<string[]> {
+  const added: string[] = [];
+  const { data: existing } = await sb.from("entities").select("name").eq("project_id", projectId).eq("kind", "character").neq("status", "deleted");
+  const have = new Set((existing ?? []).map((e) => String(e.name).trim().toLowerCase()));
+  for (const c of parseCast(text)) {
+    if (have.has(c.name.toLowerCase())) continue;
+    const { data: id, error } = await sb.rpc("create_entity", { p_project: projectId, p_kind: "character", p_name: c.name });
+    if (error || !id) continue;
+    if (c.description) {
+      await sb.rpc("create_revision", {
+        p_entity: id, p_content: { summary: c.description, notes: "" }, p_change_summary: "From your cast answer",
+        p_parent_version: null, p_base_version: null, p_asset_ids: [], p_status: "submitted",
+      });
+    }
+    have.add(c.name.toLowerCase());
+    added.push(c.name);
+  }
+  return added;
+}
+
+const joinNames = (n: string[]) => (n.length === 1 ? n[0] : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]}`);
+
+export async function importCast(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const back = backTo(fd, projectId, `/projects/${projectId}`);
+  const sb = await supabaseServer();
+  const added = await addCastFromText(sb, projectId, s(fd, "who"));
+  revalidatePath(`/projects/${projectId}`, "layout");
+  redirect(withMessage(back, "notice", added.length ? `Added ${joinNames(added)} to Characters.` : "Everyone is already in Characters."));
+}
+
+export async function addCharacter(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const back = backTo(fd, projectId, `/projects/${projectId}`);
+  const sb = await supabaseServer();
+  const { data: id, error } = await sb.rpc("create_entity", { p_project: projectId, p_kind: "character", p_name: s(fd, "name") });
+  if (error || !id) redirect(withMessage(back, "error", friendlyError(error!).message));
+  const summary = s(fd, "summary").trim();
+  if (summary) {
+    const { error: e2 } = await sb.rpc("create_revision", {
+      p_entity: id, p_content: { summary, notes: "" }, p_change_summary: null,
+      p_parent_version: null, p_base_version: null, p_asset_ids: [], p_status: "submitted",
+    });
+    if (e2) redirect(withMessage(back, "error", friendlyError(e2).message));
+  }
+  revalidatePath(`/projects/${projectId}`, "layout");
+  redirect(withMessage(back, "notice", `Added ${s(fd, "name").trim()} to Characters.`));
+}
+
+/** Edit a character's description from any desk: a new revision of that same character. */
+export async function saveCharacter(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const back = backTo(fd, projectId, `/projects/${projectId}`);
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("create_revision", {
+    p_entity: s(fd, "entityId"), p_content: { summary: s(fd, "summary"), notes: s(fd, "notes") }, p_change_summary: null,
+    p_parent_version: opt(fd, "parentVersionId"), p_base_version: null, p_asset_ids: [], p_status: "submitted",
+  });
+  if (error) redirect(withMessage(back, "error", friendlyError(error).message));
+  revalidatePath(`/projects/${projectId}`, "layout");
+  redirect(withMessage(back, "notice", "Saved. Every desk shows the new description."));
 }

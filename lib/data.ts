@@ -229,3 +229,23 @@ export async function getAllReferences(projectId: string) {
     .filter((r) => !isTreatmentRef(r))
     .map((r) => ({ ...r, entity_id: entityOf.get(r.board_id) ?? "" })) as ReferenceRow[];
 }
+
+/** The film's characters with their latest description: the one cast every desk shows. */
+export async function getCast(projectId: string) {
+  const sb = await supabaseServer();
+  const [{ data: ents }, { data: vers }] = await Promise.all([
+    sb.from("entities").select("id, name, current_version_id, created_at")
+      .eq("project_id", projectId).eq("kind", "character").neq("status", "deleted").order("created_at"),
+    sb.from("versions").select("id, entity_id, version_number, content")
+      .eq("project_id", projectId).order("version_number", { ascending: false }),
+  ]);
+  const latest = new Map<string, { id: string; content: Record<string, string> }>();
+  for (const v of vers ?? []) if (!latest.has(v.entity_id)) latest.set(v.entity_id, v as never);
+  return (ents ?? []).map((e) => {
+    const l = latest.get(e.id);
+    return {
+      id: e.id as string, name: e.name as string, approved: !!e.current_version_id, latestId: l?.id ?? null,
+      summary: String(l?.content?.summary ?? ""), notes: String(l?.content?.notes ?? ""),
+    };
+  });
+}
