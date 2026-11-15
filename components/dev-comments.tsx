@@ -210,6 +210,7 @@ export function DevComments() {
           </div>
         )}
         <div className="flex gap-2">
+          <a href="/changes" className="btn min-h-10 bg-panel-2 shadow">What changed</a>
           <button type="button" onClick={() => { setPlacing((v) => !v); setDraft(null); }}
             className={`btn min-h-10 shadow ${placing ? "btn-primary" : "bg-panel-2"}`}>{placing ? "Cancel" : "+ Comment"}</button>
           <button type="button" onClick={() => setPanel((v) => !v)} className="btn min-h-10 bg-text text-panel-2 shadow">
