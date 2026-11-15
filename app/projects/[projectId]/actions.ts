@@ -8,6 +8,7 @@ import { isPartnerId } from "@/lib/agents/partners";
 import { runPartnerTurn } from "@/lib/agents/run-partner-turn";
 import { aiConfigured, runStoryBreakdown } from "@/lib/agents/run-story-breakdown";
 import { friendlyError, withMessage } from "@/lib/errors";
+import { parseCast } from "@/lib/cast";
 import { TREATMENT_ATTRIBUTION, TREATMENT_NOTES, composeIntake } from "@/lib/intake";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -238,7 +239,7 @@ export async function saveSynopsis(fd: FormData) {
   const sb = await supabaseServer();
   // The intake form sends three answers; they're saved together as one story revision.
   const body = fd.has("idea")
-    ? composeIntake({ idea: s(fd, "idea"), who: s(fd, "who"), difficulty: s(fd, "difficulty") })
+    ? composeIntake({ idea: s(fd, "idea"), who: s(fd, "who"), difficulty: s(fd, "difficulty"), climax: s(fd, "climax") })
     : s(fd, "body");
   const back = backTo(fd, projectId, addPath(projectId));
   if (!body.trim()) redirect(withMessage(back, "error", "Start with your story idea: even one sentence is enough."));
@@ -253,7 +254,30 @@ export async function saveSynopsis(fd: FormData) {
   });
   if (error) redirect(withMessage(back, "error", friendlyError(error).message));
   revalidatePath(`/projects/${projectId}`, "layout");
-  redirect(withMessage(back.includes("/items/") ? `${back}?v=${newVersion}` : back, "notice", "Saved. Earlier versions are kept under Revisions."));
+  // Her cast answer ("Name: who they are") adds the characters she named that aren't in the film yet.
+  let added: string[] = [];
+  if (fd.get("syncCast") === "1") {
+    const { data: existing } = await sb.from("entities").select("name").eq("project_id", projectId).eq("kind", "character");
+    const have = new Set((existing ?? []).map((e) => String(e.name).trim().toLowerCase()));
+    for (const c of parseCast(s(fd, "who"))) {
+      if (have.has(c.name.toLowerCase())) continue;
+      const { data: id, error: e1 } = await sb.rpc("create_entity", { p_project: projectId, p_kind: "character", p_name: c.name });
+      if (e1 || !id) continue;
+      if (c.description) {
+        await sb.rpc("create_revision", {
+          p_entity: id, p_content: { summary: c.description }, p_change_summary: "From your cast answer",
+          p_parent_version: null, p_base_version: null, p_asset_ids: [], p_status: "submitted",
+        });
+      }
+      have.add(c.name.toLowerCase());
+      added.push(c.name);
+    }
+  }
+  revalidatePath(`/projects/${projectId}`, "layout");
+  const note = added.length
+    ? `Saved. Added ${added.length === 1 ? added[0] : `${added.slice(0, -1).join(", ")} and ${added[added.length - 1]}`} to Characters.`
+    : "Saved. Earlier versions are kept under Revisions.";
+  redirect(withMessage(back.includes("/items/") ? `${back}?v=${newVersion}` : back, "notice", note));
 }
 
 export async function addTreatmentLink(fd: FormData) {

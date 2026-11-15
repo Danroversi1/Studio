@@ -52,7 +52,7 @@ export async function listProjects() {
     .from("projects")
     .select("id, name, description, created_at, updated_at")
     .neq("status", "deleted")
-    .order("updated_at", { ascending: false });
+    .order("created_at", { ascending: true });
   if (error) throw error;
   return data;
 }

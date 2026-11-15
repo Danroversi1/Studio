@@ -24,8 +24,9 @@ export const INTAKE_QUESTIONS = [
   {
     key: "who",
     heading: "Whose story is it?", // saved heading (kept stable so earlier answers still load)
-    label: "Tell me about your hero/s.",
-    help: "Tell us about the main character, or group. What do they want?",
+    label: "Tell me about your cast.",
+    answeredTitle: "Cast",
+    help: "Tell us about the main character, or group. What do they want? Write each as “Name: who they are” and they're added to Characters.",
     why: "A point of view, and a want that can drive the action.",
     placeholder: "Mira, 13, the keeper's granddaughter. She wants to prove she can run the lighthouse alone…",
   },
@@ -36,6 +37,14 @@ export const INTAKE_QUESTIONS = [
     help: "What stands in their way? What could happen if things go wrong?",
     why: "Conflict, and what's at stake.",
     placeholder: "A storm is coming, and nobody believes her about what's out there. If the light goes out…",
+  },
+  {
+    key: "climax",
+    heading: "What's the climax?",
+    label: "What's the climax?",
+    help: "The event where everything collides. What happens, and what does it set in motion for the ending?",
+    why: "The turning point the ending grows from.",
+    placeholder: "The storm hits, the light fails, and Mira climbs the tower alone while…",
   },
 ] as const;
 
@@ -52,7 +61,7 @@ export function composeIntake(a: Partial<IntakeAnswers>): string {
 
 /** Split saved story text back into the three answers. Text written elsewhere goes to the idea. */
 export function parseIntake(body: string): IntakeAnswers {
-  const out: IntakeAnswers = { idea: "", who: "", difficulty: "" };
+  const out: IntakeAnswers = { idea: "", who: "", difficulty: "", climax: "" };
   const text = (body ?? "").replace(/\r\n?/g, "\n");
   const marks = INTAKE_QUESTIONS
     .map((q) => ({ key: q.key, at: text.indexOf(`## ${q.heading}\n`), len: `## ${q.heading}\n`.length }))

@@ -88,7 +88,7 @@ export default async function ProjectOverview({
   const storyLatest = story ? latest.get(story.id) : undefined;
   const synopsis = storyLatest?.content.body?.trim() ?? "";
   const intake = parseIntake(synopsis);
-  const preview = (intake.idea || intake.who || intake.difficulty || synopsis).trim();
+  const preview = (intake.idea || project.description || "").trim();
   const canAsk = !!story && caps.can_edit && aiConfigured() && budget.available && synopsis.length >= 50;
   const pieces = (story ? 2 : 0) + characters.length + locations.length;
   const addHref = `/projects/${projectId}/add`;
@@ -103,7 +103,7 @@ export default async function ProjectOverview({
     <div className="mx-auto flex max-w-6xl flex-col gap-10">
       <header className="panel corner-marks grid-lines flex flex-wrap items-end justify-between gap-6 px-6 pt-12 pb-8 sm:px-10">
         <div className="max-w-3xl">
-          <p className="eyebrow">Your creative workspace</p>
+          <p className="eyebrow">STUDIO is your creative workspace</p>
           <h1 className="display mt-4 text-4xl leading-[0.95] sm:text-6xl">Your story, taking shape.</h1>
           <p className="mt-5 max-w-xl text-base leading-relaxed text-muted">A spark of an idea. A world of possibilities. Bring it all together here.</p>
         </div>
@@ -149,7 +149,13 @@ export default async function ProjectOverview({
                   style={{ width: "400%", height: "400%", transform: "scale(0.25)" }} />
               ) : <><p className="mb-2 font-semibold tracking-[0.06em] text-text uppercase">{project.name}</p>{treatments.length ? (
                 <ul className="flex flex-col gap-1">{treatments.slice(0, 4).map((t) => <li key={t.id} className="truncate">↗ {t.title || t.source_domain}</li>)}</ul>
-              ) : <p>Your bigger picture lives here. Link your director&apos;s treatment to keep it with your story.</p>}</>}
+              ) : <>
+                <p>Your bigger picture lives here. Link your director&apos;s treatment to keep it with your story.</p>
+                {caps.can_edit && (
+                  <Link href={`/projects/${projectId}/partners/story?prompt=${encodeURIComponent("Can you help me create a treatment for my film?")}`}
+                    className="link-accent mt-1 min-h-0 font-sans text-xs">Or let your Storybuilder help you create one →</Link>
+                )}
+              </>}</>}
               heading="The bigger picture, scene by scene" sub="An emerging arc. Room to discover more."
               href={`/projects/${projectId}/treatment`} openLabel={treatments.length ? "Read" : "Link it"}
             />

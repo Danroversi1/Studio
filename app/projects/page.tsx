@@ -26,22 +26,6 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
         <Flash error={error} notice={notice} />
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {projects.map((p) => (
-            <Link key={p.id} href={`/projects/${p.id}`} className="panel group flex flex-col hover:border-text">
-              <div className="flex items-center gap-3 border-b border-line px-5 py-4">
-                <span className="flex size-10 shrink-0 items-center justify-center bg-text text-brand"><IconFilm /></span>
-                <span className="display flex-1 truncate text-lg">{p.name}</span>
-              </div>
-              <p className="min-h-20 flex-1 px-5 py-4 text-sm leading-relaxed text-muted">{p.description || "A film in development."}</p>
-              <span className="flex items-center justify-between border-t border-line px-5">
-                <span className="text-xs tracking-[0.12em] text-muted uppercase">
-                  Updated {new Date(p.updated_at).toLocaleDateString("en-US", { dateStyle: "medium" })}
-                </span>
-                <span className="link-accent">Open <IconArrowUpRight /></span>
-              </span>
-            </Link>
-          ))}
-
           <form action={createProject} className="panel flex flex-col">
             <div className="flex items-center gap-3 border-b border-line px-5 py-4">
               <span className="size-3 bg-brand" aria-hidden />
@@ -60,6 +44,25 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
               <SubmitButton variant="primary" pendingText="Creating…">Create private film</SubmitButton>
             </div>
           </form>
+          {projects.map((p) => (
+            <Link key={p.id} href={`/projects/${p.id}`} className="panel group flex flex-col hover:border-text">
+              <div className="flex items-center gap-3 border-b border-line px-5 py-4">
+                <span className="flex size-10 shrink-0 items-center justify-center bg-text text-brand"><IconFilm /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs tracking-[0.12em] text-muted uppercase">In development</span>
+                  <span className="display block truncate text-lg">{p.name}</span>
+                </span>
+              </div>
+              <p className="min-h-20 flex-1 px-5 py-4 text-sm leading-relaxed text-muted">{p.description || "A film in development."}</p>
+              <span className="flex items-center justify-between border-t border-line px-5">
+                <span className="text-xs tracking-[0.12em] text-muted uppercase">
+                  Updated {new Date(p.updated_at).toLocaleDateString("en-US", { dateStyle: "medium" })}
+                </span>
+                <span className="link-accent">Open <IconArrowUpRight /></span>
+              </span>
+            </Link>
+          ))}
+
         </div>
       </main>
     </div>

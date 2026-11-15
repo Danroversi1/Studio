@@ -17,10 +17,10 @@ export default async function PartnerPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string; agent: string }>;
-  searchParams: Promise<{ thread?: string; new?: string; error?: string; notice?: string }>;
+  searchParams: Promise<{ thread?: string; new?: string; error?: string; notice?: string; prompt?: string }>;
 }) {
   const { projectId, agent } = await params;
-  const { thread, new: fresh, error, notice } = await searchParams;
+  const { thread, new: fresh, error, notice, prompt } = await searchParams;
   if (!isPartnerId(agent)) notFound();
   const shell = await getProjectShell(projectId);
   if (!shell || !shell.caps.member) notFound();
@@ -57,6 +57,7 @@ export default async function PartnerPage({
         </header>
         <Flash error={error} notice={notice} />
         <PartnerChat key={current?.id ?? "new"} projectId={projectId} agent={agent} partnerName={partner.name}
+          prompt={prompt?.slice(0, 500)}
           opening={openingFor(agent, {
             hasStory: !!(story && latestStory.get(story.id)?.content?.body?.trim()),
             runtime: (shell.project as { runtime?: string | null }).runtime ?? null, filmTitle: shell.project.name,

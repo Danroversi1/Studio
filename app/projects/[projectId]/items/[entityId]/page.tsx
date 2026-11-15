@@ -250,13 +250,14 @@ export default async function ItemWorkspace({
             {answered ? (
               <details>
                 <summary className="cursor-pointer list-none">
-                  <span className="block font-semibold">{q.label}</span>
+                  <span className="block font-semibold">{"answeredTitle" in q ? q.answeredTitle : q.label}</span>
                   <span className="mt-1 line-clamp-4 block text-sm whitespace-pre-wrap text-muted">{answers[q.key]}</span>
                   {caps.can_edit && <span className="mt-1 block text-xs text-accent">Edit</span>}
                 </summary>
                 {caps.can_edit && (
                   <form action={saveSynopsis} className="mt-2 flex flex-col gap-2">
                     {storyHidden(q.key)}
+                    {q.key === "who" && <input type="hidden" name="syncCast" value="1" />}
                     <textarea name={q.key} defaultValue={answers[q.key]} rows={5} className="field font-serif" aria-label={q.label} />
                     <span><SubmitButton pendingText="Saving…">Save</SubmitButton></span>
                   </form>
@@ -265,6 +266,7 @@ export default async function ItemWorkspace({
             ) : caps.can_edit ? (
               <form action={saveSynopsis} className="flex flex-col gap-2">
                 {storyHidden(q.key)}
+                {q.key === "who" && <input type="hidden" name="syncCast" value="1" />}
                 <label htmlFor={`lead-${q.key}`} className="font-semibold">{q.label}</label>
                 <p className="text-sm">{q.help}</p>
                 <textarea id={`lead-${q.key}`} name={q.key} rows={4} required placeholder={q.placeholder} className="field font-serif" />
@@ -331,7 +333,9 @@ export default async function ItemWorkspace({
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
           <p className="text-xs font-semibold tracking-wide text-muted uppercase">{isStory ? "Story" : kind}</p>
-          {caps.can_edit ? (
+          {isStory ? (
+            <h2 className="display text-4xl leading-none">{shell.project.name}</h2>
+          ) : caps.can_edit ? (
             <form action={renameEntity} className="flex items-center gap-2">
               <input type="hidden" name="projectId" value={projectId} />
               <input type="hidden" name="entityId" value={entityId} />
@@ -362,7 +366,7 @@ export default async function ItemWorkspace({
                 {storyHidden("idea")}
                 <label className="label" htmlFor="idea">Synopsis</label>
                 <p className="text-sm">{INTAKE_QUESTIONS[0].label} {INTAKE_QUESTIONS[0].help}</p>
-                <textarea id="idea" name="idea" defaultValue={answers.idea} rows={12} required
+                <textarea id="idea" name="idea" defaultValue={answers.idea || (shell.project.description ?? "")} rows={12} required
                   placeholder={INTAKE_QUESTIONS[0].placeholder} className="field font-serif text-lg leading-relaxed" />
                 <div className="flex flex-wrap items-center gap-3">
                   <SubmitButton variant="primary" pendingText="Saving…">Save</SubmitButton>

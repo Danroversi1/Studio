@@ -33,13 +33,13 @@ function Formatted({ text }: { text: string }) {
   );
 }
 
-export function PartnerChat({ projectId, agent, partnerName, opening, threadId, initial, canTalk, unavailable }: {
+export function PartnerChat({ projectId, agent, partnerName, opening, threadId, initial, canTalk, unavailable, prompt }: {
   projectId: string; agent: string; partnerName: string; opening: string; threadId: string | null;
-  initial: ChatMessage[]; canTalk: boolean; unavailable: string | null;
+  initial: ChatMessage[]; canTalk: boolean; unavailable: string | null; prompt?: string;
 }) {
   const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>(initial);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(prompt ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const end = useRef<HTMLDivElement>(null);

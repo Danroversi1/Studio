@@ -32,7 +32,7 @@ export function LengthPicker({ projectId, back, runtime, canEdit, helpHref }: {
       <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Film length">
         {RUNTIMES.map((r) => (
           <button key={r.value} type="button" role="radio" aria-checked={choice === r.value} onClick={() => setChoice(r.value)}
-            className={`btn ${choice === r.value ? "btn-primary" : ""}`}>{r.label}</button>
+            className={choice === r.value ? "btn-primary ring-2 ring-text ring-offset-2 ring-offset-panel" : "btn"}>{choice === r.value ? "✓ " : ""}{r.label}</button>
         ))}
         <Link href={helpHref} className="btn">Help me choose</Link>
       </div>

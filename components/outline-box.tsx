@@ -13,16 +13,19 @@ const PARTS = [
     kind: "beginning", title: "Beginning",
     ask: "What situation are we entering, and what sets something in motion?",
     short: "One moment that shows who we're with and what's about to change.",
+    examples: ["A girl finds a strange key sewn into her grandmother's coat.", "The last bus leaves without him, and the town goes dark.", "A robot wakes up alone in an empty classroom."],
   },
   {
     kind: "middle", title: "Middle",
     ask: "What develops through actions, obstacles or discoveries?",
     short: "What they try, and what gets in the way. One or two beats is plenty.",
+    examples: ["She tries the key in every lock; one door won't open.", "A friend offers to help, but wants something in return.", "The plan works, until the storm cuts the power."],
   },
   {
     kind: "ending", title: "Ending",
     ask: "What is decided, revealed or changed?",
     short: "The turn or final image we're left with.",
+    examples: ["She opens the door, and chooses to close it again.", "He walks home and finally calls his brother.", "The robot dances; she stops reaching for the switch."],
   },
 ] as const;
 
@@ -127,6 +130,12 @@ export function OutlineBox({ projectId, items, runtime, canEdit, back }: {
                 <span className="font-semibold">{p.title}</span>
               </p>
               {(isFocus || list.length === 0) && <p className="text-sm">{short ? p.short : p.ask}</p>}
+              {isFocus && (
+                <div className="text-xs text-muted">
+                  <p className="tracking-[0.08em] uppercase">For example</p>
+                  <ul className="mt-1 list-disc pl-5">{p.examples.map((x) => <li key={x}>{x}</li>)}</ul>
+                </div>
+              )}
               {list.length > 0 && (
                 <ul className="flex flex-col gap-1.5">
                   {list.map((b) => (
