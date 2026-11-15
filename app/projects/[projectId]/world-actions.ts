@@ -57,6 +57,15 @@ export async function readStoryForWorld(input: { projectId: string }): Promise<{
   const { data: ents } = await sb.from("entities").select("id, kind").eq("project_id", input.projectId).in("kind", ["story", "screenplay"]).neq("status", "archived");
   const latest = async (id: string) => (await sb.from("versions").select("content").eq("entity_id", id)
     .order("version_number", { ascending: false }).limit(1).maybeSingle()).data?.content as Record<string, string> | undefined;
+  // Read once per change: skip if her story and script haven't changed since the last read.
+  const ids = (ents ?? []).map((e) => e.id);
+  const [{ data: lastRead }, { data: lastEdit }] = await Promise.all([
+    sb.from("agent_runs").select("created_at").eq("project_id", input.projectId).eq("task_type", "world_read").eq("status", "succeeded")
+      .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    ids.length ? sb.from("versions").select("created_at").in("entity_id", ids).order("created_at", { ascending: false }).limit(1).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  if (lastRead && (!lastEdit || lastEdit.created_at < lastRead.created_at)) return { suggested: false };
   const sources: { label: string; text: string }[] = [];
   for (const e of ents ?? []) {
     const body = String((await latest(e.id))?.body ?? "");

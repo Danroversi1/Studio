@@ -68,7 +68,7 @@ function Card({ title, big, small, source, children, editing, onEdit, canEdit, f
   prompt?: string;
 }) {
   return (
-    <section className="panel relative flex min-h-56 flex-col gap-3 p-5" aria-label={title}>
+    <section className="panel @container relative flex min-h-56 flex-col gap-3 p-5" aria-label={title}>
       <span className="absolute top-0 left-0 size-2 bg-brand" aria-hidden />
       <div className="flex items-start justify-between gap-2">
         <h2 className="eyebrow text-text">{title}</h2>
@@ -118,7 +118,7 @@ function WhereEditor({ ctx, initial, locations, onDone, onCancel }: { ctx: Ctx; 
             <label className="label" htmlFor={`${id}-n${i}`}>Place {places.length > 1 ? i + 1 : ""}</label>
             <input id={`${id}-n${i}`} className="field" value={p.name} maxLength={120} placeholder="Los Angeles, a lighthouse, the planet Zarn…"
               onChange={(e) => set(i, { name: e.target.value })} />
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2 @sm:grid-cols-2">
               <label className="text-xs text-muted">Kind
                 <select className="field mt-1" value={p.kind} onChange={(e) => set(i, { kind: e.target.value as Place["kind"] })}>
                   {PLACE_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
