@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { classify } from "../../lib/screenplay";
-import { blocksFor, excerptsFor, insertScenes, parseBreakdown, parseHeading, sceneBlock, uncoveredBeats, type PlannedScene } from "../../lib/scene-plan";
+import { titleCase, blocksFor, excerptsFor, insertScenes, parseBreakdown, parseHeading, sceneBlock, uncoveredBeats, type PlannedScene } from "../../lib/scene-plan";
 
 const scene: PlannedScene = {
   beat_id: "b1", int_ext: "EXT", location: "the lighthouse", time: "night", characters: ["Mira", "Old Tom"],
@@ -54,4 +54,11 @@ test("extra lines stay with the scene of the people they name", () => {
   const r = excerptsFor("- Johnny picks up Marie.\n- Jacques is also there.\n- Armand reports to the president.\n- Johnny gets a message.",
     [sc("OFFICE", ["Johnny", "Marie", "Jacques"]), sc("WHITE HOUSE", ["Armand"]), sc("STREET", ["Johnny"])]);
   assert.deepEqual(r, ["- Johnny picks up Marie.\n- Jacques is also there.", "- Armand reports to the president.", "- Johnny gets a message."]);
+});
+
+test("place names read naturally", () => {
+  assert.equal(titleCase("MARIE'S APARTMENT"), "Marie's Apartment");
+  assert.equal(titleCase("CIA OFFICE"), "CIA Office");
+  assert.equal(titleCase("MR. X'S HIDEOUT"), "Mr. X's Hideout");
+  assert.equal(titleCase("OLD TOM"), "Old Tom");
 });

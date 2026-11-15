@@ -137,7 +137,12 @@ export function parseHeading(h: string): { intExt: BreakdownScene["intExt"]; loc
   return { intExt, location, time };
 }
 
-export const titleCase = (s: string) => s.toLowerCase().replace(/(^|[\s'’-])(\p{L})/gu, (_m, a: string, b: string) => a + b.toUpperCase());
+const ACRONYMS = new Set(["CIA", "FBI", "NASA", "NYC", "USA", "UK", "TV", "DJ", "ER", "ICU", "HQ", "UN"]);
+export const titleCase = (s: string) =>
+  s.split(/(\s+|-)/).map((w) => {
+    if (ACRONYMS.has(w.toUpperCase().replace(/[^A-Z]/g, "")) && /^[A-Za-z.]+$/.test(w)) return w.toUpperCase();
+    return w.toLowerCase().replace(/^(\p{L})/u, (c) => c.toUpperCase());
+  }).join("");
 
 /** Scenes, places, cast and art-department notes, read straight from the script text. */
 export function parseBreakdown(src: string): BreakdownScene[] {
