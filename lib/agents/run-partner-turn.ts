@@ -7,7 +7,7 @@ import { supabaseService } from "../supabase/server";
 import { isRuntime } from "../runtime";
 import {
   type NoteOp, type PartnerProposal, type ProjectSnapshot, RECORD_RUNTIME_TOOL, type StoredMessage, SUGGEST_ITEM_TOOL,
-  UPDATE_NOTEBOOK_TOOL, isPartnerId, notesFromTool, proposalFromTool, renderSnapshot, systemPrompt, toApiMessages,
+  UPDATE_NOTEBOOK_TOOL, isPartnerId, notesFromTool, openingFor, proposalFromTool, renderSnapshot, systemPrompt, toApiMessages,
 } from "./partners";
 import { STORY_BREAKDOWN_MODEL } from "./story-breakdown";
 
@@ -97,6 +97,11 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const messages: Anthropic.MessageParam[] = toApiMessages((history ?? []) as StoredMessage[]);
     if (!messages.length) throw new Error("No message to answer.");
+    // She saw an opening line before her first message; tell the model what it said.
+    const opening = openingFor(partner, { hasStory: !!snapshot.synopsis.trim(), runtime: snapshot.runtime ?? null, filmTitle: snapshot.filmTitle });
+    if (typeof messages[0].content === "string") {
+      messages[0] = { role: "user", content: `[STUDIO showed her this opening line from you before her first message: "${opening}"]\n\n${messages[0].content}` };
+    }
     const system: Anthropic.TextBlockParam[] = [
       { type: "text", text: systemPrompt(partner), cache_control: { type: "ephemeral" } },
       { type: "text", text: renderSnapshot(snapshot), cache_control: { type: "ephemeral" } },

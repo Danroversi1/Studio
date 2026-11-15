@@ -32,6 +32,16 @@ export const PARTNERS: Record<PartnerId, {
   },
 };
 
+/** The first line she sees. The Story partner builds on what's already in STUDIO
+ * (her intake answers, film length) instead of asking her to repeat it. */
+export function openingFor(p: PartnerId, ctx: { hasStory: boolean; runtime: string | null; filmTitle: string }): string {
+  if (p !== "story" || !ctx.hasStory) return PARTNERS[p].opening;
+  const rt = runtimeInfo(ctx.runtime);
+  return rt
+    ? `I've read your story so far for “${ctx.filmTitle}”, and you're making a film of ${rt.label.toLowerCase()}. What would you like to work on today?`
+    : `I've read your story so far for “${ctx.filmTitle}”. Before we go deeper: how long are you imagining your film? About 1 minute, about 3–5 minutes, about 10–15 minutes, something longer, or would you like help choosing?`;
+}
+
 export function isPartnerId(x: unknown): x is PartnerId {
   return x === "story" || x === "design";
 }

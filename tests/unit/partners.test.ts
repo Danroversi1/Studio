@@ -104,3 +104,11 @@ test("snapshot shows film length and notebook with question ids", () => {
   assert.match(s, /\[her decision\] It wants to dance\./);
   assert.doesNotMatch(s, /Removed/);
 });
+
+import { openingFor } from "../../lib/agents/partners";
+test("Story partner opening builds on what she already wrote", () => {
+  assert.match(openingFor("story", { hasStory: false, runtime: null, filmTitle: "X" }), /Tell me a story idea/);
+  assert.match(openingFor("story", { hasStory: true, runtime: null, filmTitle: "Observer" }), /how long are you imagining your film\?/);
+  assert.match(openingFor("story", { hasStory: true, runtime: "1", filmTitle: "Observer" }), /about 1 minute/);
+  assert.match(openingFor("design", { hasStory: true, runtime: "1", filmTitle: "Observer" }), /Which place in the story/);
+});

@@ -6,9 +6,9 @@ import { Empty, Flash } from "@/components/flash";
 import { StoryNotebook } from "@/components/story-notebook";
 import { IconPlus } from "@/components/icons";
 import { PartnerChat } from "@/components/partner-chat";
-import { PARTNERS, isPartnerId } from "@/lib/agents/partners";
+import { PARTNERS, isPartnerId, openingFor } from "@/lib/agents/partners";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
-import { getAiBudget, getNotebook, getPartnerThreads, getProjectShell, getThreadMessages } from "@/lib/data";
+import { getAiBudget, getLatestVersions, getNotebook, getPartnerThreads, getProjectShell, getThreadMessages } from "@/lib/data";
 
 export const maxDuration = 300;
 
@@ -33,6 +33,7 @@ export default async function PartnerPage({
     agent === "story" ? getNotebook(projectId) : Promise.resolve([]),
   ]);
   const story = shell.entities.find((e) => e.kind === "story");
+  const latestStory = await getLatestVersions(projectId);
   const current = fresh ? null : (threads.find((t) => t.id === thread) ?? threads[0] ?? null);
   const messages = current ? await getThreadMessages(projectId, current.id) : [];
   const base = `/projects/${projectId}/partners/${agent}`;
@@ -56,7 +57,10 @@ export default async function PartnerPage({
         </header>
         <Flash error={error} notice={notice} />
         <PartnerChat key={current?.id ?? "new"} projectId={projectId} agent={agent} partnerName={partner.name}
-          opening={partner.opening} threadId={current?.id ?? null}
+          opening={openingFor(agent, {
+            hasStory: !!(story && latestStory.get(story.id)?.content?.body?.trim()),
+            runtime: (shell.project as { runtime?: string | null }).runtime ?? null, filmTitle: shell.project.name,
+          })} threadId={current?.id ?? null}
           initial={messages.map((m) => ({ id: m.id, role: m.role, content: m.content }))}
           canTalk={!!shell.caps.can_edit} unavailable={shell.caps.can_edit ? unavailable : null} />
       </div>
