@@ -3,13 +3,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Empty } from "@/components/flash";
+import { LookAndFeel } from "@/components/look/look-feel";
 import { IconArrowLeft } from "@/components/icons";
 import { TreatmentBreakdown } from "@/components/treatment-breakdown";
 import { TreatmentReader } from "@/components/treatment-reader";
 import { SubmitButton } from "@/components/ui";
 import { addReference, addTreatmentLink } from "../actions";
-import { aiConfigured } from "@/lib/agents/run-story-breakdown";
-import { getAiBudget, getProjectShell, getStoryReferences } from "@/lib/data";
+import { aiConfigured } from "@/lib/ai/configured";
+import { getAiBudget, getProjectShell, getScreenplay, getStoryReferences } from "@/lib/data";
+import { getFilmEntities, getFilmPictures, getLook } from "@/lib/look/data";
+import type { SlideInfo } from "@/lib/slide-match";
+import { scriptScenes } from "@/lib/storyboard/review";
 import { parseGoogleLink, slidesEmbedUrl } from "@/lib/google/links";
 import { TREATMENT_ATTRIBUTION, isTreatmentRef } from "@/lib/intake";
 
@@ -31,6 +35,12 @@ export default async function TreatmentPage({
   const current = treatments.find((t) => t.id === ref) ?? treatments[0];
   const base = `/projects/${projectId}`;
   const link = current ? parseGoogleLink(current.source_url) : null;
+  const canSeeLook = !!shell.caps.can_review;
+  const deckRef = treatments.map((r) => ({ link: parseGoogleLink(r.source_url), meta: r.metadata as Record<string, unknown> | null })).find((x) => x.link?.kind === "slides");
+  const [look, lookEntities, pictures, sp] = canSeeLook
+    ? await Promise.all([getLook(projectId), getFilmEntities(projectId), shell.caps.can_edit ? getFilmPictures(projectId) : Promise.resolve([]), getScreenplay(projectId)])
+    : [null, [], [], null];
+  const lookScenes = scriptScenes(String((sp as { versions?: { content: { body?: string } }[] } | null)?.versions?.[0]?.content?.body ?? "")).map((x) => ({ number: x.number, heading: x.heading }));
   const canBreakDown = !!(story && current && shell.caps.can_edit && aiConfigured() &&
     (link?.kind === "doc" || link?.kind === "slides") && (await getAiBudget(projectId)).available);
 
@@ -98,6 +108,13 @@ export default async function TreatmentPage({
             </div>
           )}
         </>
+      )}
+
+      {look && (
+        <LookAndFeel projectId={projectId} canEdit={!!shell.caps.can_edit} refs={look.refs} directions={look.directions}
+          entities={lookEntities} pictures={pictures} scenes={lookScenes}
+          deck={deckRef?.link ? { fileId: deckRef.link.id, slides: Array.isArray(deckRef.meta?.slides) ? (deckRef.meta!.slides as SlideInfo[]) : null } : null}
+          designPartnerHref={shell.caps.can_edit && aiConfigured() ? `${base}/partners/design` : null} />
       )}
 
       {story && shell.caps.can_edit && (

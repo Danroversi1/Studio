@@ -8,6 +8,17 @@ export interface ChangeRound { at: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeRound[] = [
   {
+    at: "2026-11-16T17:00:00Z",
+    title: "Look & Feel (Treatment desk)",
+    items: [
+      { text: "Treatment desk → LOOK & FEEL: collect the images that shape your film. Upload pictures or drawings, reuse a picture already in the film (no copy), choose part of a treatment slide, or add a link (it stays a link). Each reference asks “What do you like about this?” and keeps your words.", href: `${J}/treatment` },
+      { text: "Optional per reference: Use this for, Leave out, Applies to (whole film or chosen scenes, characters, places), approval, credit. Reorder with the arrows; remove from the collection without deleting the picture elsewhere." },
+      { text: "Visual directions: named groups with an intention, ordered references, palette and scope. One approved direction can be the film's default; overlaps are never mixed. Every save keeps a version; approved storyboard frames that use a changed direction get a review note (nothing is redrawn)." },
+      { text: "Palettes: add colors by hand, pick colors from a picture, or get suggested colors from its pixels (plain arithmetic, no AI). Suggestions are labeled as suggestions." },
+      { text: "Storyboards → Refs tab: Cast → Location → Look & Feel for each frame. Follow the storyboard or film default, choose another direction, or pick references; see their Use for / Leave out notes; trace over a reference (not exported) or place it as a layer only when you choose.", href: `${J}/storyboards` },
+    ],
+  },
+  {
     at: "2026-11-16T13:00:00Z",
     title: "Lens shelf (with Lens Addiction)",
     items: [

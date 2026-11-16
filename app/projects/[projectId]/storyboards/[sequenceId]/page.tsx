@@ -4,6 +4,8 @@
 import { notFound } from "next/navigation";
 import { Empty, Flash } from "@/components/flash";
 import { StoryboardStudio } from "@/components/storyboard/studio";
+import { getFilmEntities, getLook } from "@/lib/look/data";
+import { cleanFrameLook } from "@/lib/look/types";
 import { lensFromRow, type FilmItem, type FrameRow, type JobRow, type LibItem, type StockRef } from "@/components/storyboard/types";
 import { openingFor } from "@/lib/agents/partners";
 import { aiConfigured } from "@/lib/ai/configured";
@@ -24,11 +26,12 @@ export default async function StoryboardPage({ params, searchParams }: {
   if (!shell || !shell.caps.member) notFound();
   if (!shell.caps.can_review) return <Empty title="Storyboards are for the creative team">You can read the approved versions of this film.</Empty>;
   const sb = await supabaseServer();
-  const { data: seq } = await sb.from("storyboard_sequences").select("id, entity_id, title, settings, archived_at").eq("id", sequenceId).eq("project_id", projectId).maybeSingle();
+  const { data: seq } = await sb.from("storyboard_sequences").select("id, entity_id, title, settings, archived_at, look_direction_id").eq("id", sequenceId).eq("project_id", projectId).maybeSingle();
   if (!seq || seq.archived_at) notFound();
   const canEdit = !!shell.caps.can_edit;
   const aspect = Number((seq.settings as { aspect?: number } | null)?.aspect) || 16 / 9;
 
+  const [look, lookEntities] = await Promise.all([getLook(projectId), getFilmEntities(projectId)]);
   const [{ data: shotRows }, { data: libRows }, { data: jobRows }, { data: ents }, { data: stocks }, { data: lensRows }, sp, threads, budget] = await Promise.all([
     sb.from("storyboard_shots").select("*").eq("sequence_id", sequenceId).is("archived_at", null).order("position"),
     sb.from("storyboard_library").select("*").eq("project_id", projectId).is("archived_at", null).order("created_at"),
@@ -59,7 +62,7 @@ export default async function StoryboardPage({ params, searchParams }: {
     frames.push({
       id: r.id, position: r.position, state: r.state, locked: r.locked, origin: r.origin, revision: r.revision, approvedRevision: r.approved_revision,
       content, composition: cleanComposition(r.composition, aspect), compositionVersion: r.composition_version, illustrationAssetId: r.illustration_asset_id,
-      review, notes: r.notes ?? "",
+      review, notes: r.notes ?? "", look: cleanFrameLook(r.look),
     });
   }
   const library: LibItem[] = (libRows ?? []).map((i) => ({
@@ -71,13 +74,14 @@ export default async function StoryboardPage({ params, searchParams }: {
   const messages = current ? await getThreadMessages(projectId, current.id) : [];
   const provider = imageProvider();
   const textMissing = !aiConfigured() ? "The AI team isn't set up yet." : !budget.available ? "This month's AI budget is used up." : null;
-  const tab = (["assets", "layers", "frame", "camera", "look"] as const).find((t) => t === panel);
+  const tab = (["assets", "layers", "frame", "camera", "look", "refs"] as const).find((t) => t === panel);
 
   return (
     <div className="mx-auto flex max-w-[110rem] flex-col gap-3">
       <Flash error={error} notice={notice} />
       <StoryboardStudio projectId={projectId} sequenceId={sequenceId} entityId={seq.entity_id} title={seq.title} settings={{ aspect }}
-        frames={frames} library={library} jobs={jobs} film={film} stocks={(stocks ?? []) as StockRef[]} lenses={(lensRows ?? []).map(lensFromRow)} canEdit={canEdit}
+        frames={frames} library={library} jobs={jobs} film={film} stocks={(stocks ?? []) as StockRef[]} lenses={(lensRows ?? []).map(lensFromRow)}
+        lookRefs={look.refs} directions={look.directions} lookEntities={lookEntities} sequenceDirection={(seq.look_direction_id as string | null) ?? null} canEdit={canEdit}
         initialFrame={frameParam} initialTab={tab} scenes={scenes}
         ai={{ imageMissing: provider.missing ? "Needs an OpenAI API key (OPENAI_API_KEY) in Vercel." : null, textAvailable: textMissing,
           builder: { threadId: current?.id ?? null, messages: messages.map((m) => ({ id: m.id, role: m.role, content: m.content })), opening: openingFor("shots", { hasStory: true, runtime: null, filmTitle: shell.project.name }) } }} />

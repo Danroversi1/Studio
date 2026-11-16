@@ -7,16 +7,19 @@ import type { Composition } from "@/lib/storyboard/compose";
 import { exportPng } from "@/lib/storyboard/render";
 import type { ShotContent } from "@/lib/storyboard/shot";
 import { uploadImage } from "@/lib/storyboard/upload";
+import type { LookRef } from "@/lib/look/types";
 import type { FilmItem, FrameRow, JobRow, LibItem } from "./types";
 
 type Msg = (m: { kind: "error" | "notice"; text: string } | null) => void;
 type Suggestion = { action: string; why?: string; size?: string; angle?: string; durationS?: number; source?: ShotContent["source"]; keep: boolean };
 
-export function AiMenu({ projectId, sequenceId, entityId, frame, comp, film, scenes, canEdit, ai, jobs, onDone, onMessage, onAddFrames }: {
+export function AiMenu({ projectId, sequenceId, entityId, frame, comp, film, scenes, canEdit, ai, jobs, onDone, onMessage, onAddFrames, lookRefs = [] }: {
   projectId: string; sequenceId: string; entityId: string; frame: FrameRow | null; comp: Composition; library: LibItem[]; film: FilmItem[];
   scenes: { number: number; heading: string; text: string }[]; canEdit: boolean; jobs: JobRow[];
   ai: { imageMissing: string | null; textAvailable: string | null; builder: { threadId: string | null; messages: ChatMessage[]; opening: string } };
   onDone: () => void; onMessage: Msg; onAddFrames: (items: ShotContent[]) => Promise<void>;
+  /** The Look & Feel references this frame uses (sent only with Illustrate). */
+  lookRefs?: LookRef[];
 }) {
   const [open, setOpen] = useState<null | "suggest" | "asset" | "illustrate" | "builder">(null);
   const imageOk = !ai.imageMissing, textOk = !ai.textAvailable;
@@ -44,7 +47,7 @@ export function AiMenu({ projectId, sequenceId, entityId, frame, comp, film, sce
             </div>
             {open === "suggest" && <Suggest sequenceId={sequenceId} scenes={scenes} onMessage={onMessage} onAdd={async (items) => { await onAddFrames(items); setOpen(null); }} />}
             {open === "asset" && <CreateAsset sequenceId={sequenceId} film={film} onMessage={onMessage} onDone={() => { setOpen(null); onDone(); }} />}
-            {open === "illustrate" && frame && <Illustrate sequenceId={sequenceId} entityId={entityId} frame={frame} comp={comp} jobs={jobs} onMessage={onMessage} onDone={() => { setOpen(null); onDone(); }} />}
+            {open === "illustrate" && frame && <Illustrate sequenceId={sequenceId} entityId={entityId} frame={frame} comp={comp} jobs={jobs} lookRefs={lookRefs} onMessage={onMessage} onDone={() => { setOpen(null); onDone(); }} />}
             {open === "builder" && (
               <div className="flex flex-col gap-2">
                 <p className="help">A conversation about choices (what we notice first, how close we feel). It doesn&apos;t change your frames; use Suggest Shots when you want a list to edit and add.</p>
@@ -164,7 +167,8 @@ function CreateAsset({ sequenceId, film, onMessage, onDone }: { sequenceId: stri
   );
 }
 
-function Illustrate({ sequenceId, entityId, frame, comp, jobs, onMessage, onDone }: { sequenceId: string; entityId: string; frame: FrameRow; comp: Composition; jobs: JobRow[]; onMessage: Msg; onDone: () => void }) {
+function Illustrate({ sequenceId, entityId, frame, comp, jobs, lookRefs, onMessage, onDone }: { sequenceId: string; entityId: string; frame: FrameRow; comp: Composition; jobs: JobRow[]; lookRefs: LookRef[]; onMessage: Msg; onDone: () => void }) {
+  const [useLook, setUseLook] = useState(true);
   const [style, setStyle] = useState("pencil");
   const [busy, setBusy] = useState(false);
   const [key] = useState(() => crypto.randomUUID().replace(/-/g, ""));
@@ -176,7 +180,7 @@ function Illustrate({ sequenceId, entityId, frame, comp, jobs, onMessage, onDone
       if (!png.blob) throw new Error(`The frame couldn't be rendered: ${png.problems.join("; ")}`);
       const baseAssetId = await uploadImage(entityId, png.blob, "frame-composition.png");
       const r = await fetch(`/api/storyboards/${sequenceId}/ai`, { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "illustrate", shotId: frame.id, baseAssetId, idempotencyKey: key, style }) });
+        body: JSON.stringify({ kind: "illustrate", shotId: frame.id, baseAssetId, idempotencyKey: key, style, lookRefIds: useLook ? lookRefs.map((r) => r.id) : [] }) });
       const j = (await r.json()) as { error?: string; status?: string };
       if (!r.ok || j.status === "failed") throw new Error(j.error ?? "The illustration couldn't be made.");
       onMessage({ kind: "notice", text: "Illustration ready (below the canvas). Your editable frame is unchanged." });
@@ -189,6 +193,12 @@ function Illustrate({ sequenceId, entityId, frame, comp, jobs, onMessage, onDone
       <p className="help">Sends a picture of this frame as you composed it (saved to Studio storage first), plus its action and dialogue, to OpenAI&apos;s image model to make a finished-looking drawing. Only this frame. The result is kept as a separate illustration linked to the frame: your layers stay editable. Billed to the OpenAI account; the token usage is recorded.</p>
       <label className="flex items-center gap-2"><span className="label">Style</span>
         <select className="field w-auto" value={style} onChange={(e) => setStyle(e.target.value)}><option value="pencil">Pencil sketch</option><option value="ink">Ink drawing</option><option value="grayscale">Grayscale tonal</option><option value="color">Color illustration</option></select></label>
+      {lookRefs.length > 0 && (
+        <div className="flex flex-col gap-1 border-l-2 border-line pl-2 text-xs">
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={useLook} onChange={(e) => setUseLook(e.target.checked)} /> Also send this frame&apos;s Look &amp; Feel ({lookRefs.length} reference{lookRefs.length > 1 ? "s" : ""})</label>
+          <p className="text-muted">The image model takes pictures but has no separate “style only” input. So: images in your film are attached as pictures, and their role (look only, not who or where) plus your “use for” and “leave out” notes are written into the request. Treatment crops and links are described in words only. The model may still not follow every note.</p>
+        </div>
+      )}
       <button type="button" className="btn-primary self-start" onClick={go} disabled={busy}>{busy ? "Illustrating… (up to a minute)" : "Illustrate this frame"}</button>
       {mine.length > 0 && <p className="text-xs text-muted">Earlier: {mine.map((j) => `${new Date(j.createdAt).toLocaleString()} (${j.status}${j.usage?.total_tokens ? `, ${j.usage.total_tokens} tokens` : ""})`).join(" · ")}</p>}
     </div>

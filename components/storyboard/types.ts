@@ -1,3 +1,4 @@
+import type { FrameLook } from "@/lib/look/types";
 import type { Composition } from "@/lib/storyboard/compose";
 import type { ShotContent } from "@/lib/storyboard/shot";
 
@@ -5,6 +6,8 @@ export interface FrameRow {
   id: string; position: number; state: "proposed" | "approved"; locked: boolean; origin: "director" | "agent";
   revision: number; approvedRevision: number | null; content: ShotContent; composition: Composition; compositionVersion: number;
   illustrationAssetId: string | null; review: { reason: string; was?: string; now?: string } | null; notes: string;
+  /** Look & Feel choice for this frame (null = follow the storyboard / film default). */
+  look?: FrameLook | null;
 }
 export interface LibItem {
   id: string; kind: "character" | "pose" | "wardrobe" | "background" | "prop" | "drawing" | "reference"; name: string;

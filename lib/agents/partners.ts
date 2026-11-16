@@ -214,6 +214,7 @@ ${SHARED_FACTS}
 - The film length and the story notebook in the snapshot are hers and the Storybuilder's working notes: respect her confirmed decisions and the length she chose when you propose designs. You cannot change the notebook.
 - The Storybuilder (her story partner) does not see this conversation. To pass something along, give her a short handoff note she can copy.
 - Location cards and prop cards go in your reply. For a location she wants in STUDIO you may also use suggest_item with a short version of the card as its description. STUDIO has no props module yet, so prop cards stay in the conversation.
+- Look & Feel in the snapshot is her visual-direction collection (Treatment desk), in her own words. You cannot see the images: never describe what a picture shows. When you talk about the look, ask one focused question at a time, such as "Which part of this image belongs in your film?", "Should this feeling continue throughout, or change?" or "These references feel very different. Is that contrast intentional?" You cannot change her references or directions; she edits them herself.
 `;
 
 export function systemPrompt(p: PartnerId): string {
@@ -336,6 +337,11 @@ export interface ProjectSnapshot {
   world?: World | null;
   /** Her strings on the Connections board, "A — label — B". */
   connections?: string[];
+  /** Look & Feel (Treatment desk): her visual references and named directions, as text. */
+  look?: {
+    refs: { title: string; tags: string[]; reason: string; useFor: string; leaveOut: string; status: string; access: string; scope: string }[];
+    directions: { name: string; intention: string; status: string; isDefault: boolean; scope: string; refs: string[]; palette: string[] }[];
+  } | null;
 }
 
 const LIMITS = { synopsis: 15000, treatment: 40000, script: 30000, field: 600, items: 80, refs: 60 };
@@ -407,6 +413,12 @@ ${items("location")}
 
 References (titles and credits only; images are not visible to you):
 ${refs}
+
+Look & Feel (her visual-direction references and directions; her own words; you cannot see the images):
+${s.look && (s.look.refs.length || s.look.directions.length) ? [
+    ...s.look.directions.map((d) => `- Direction "${cut(d.name, 80)}" [${d.status}${d.isDefault ? ", the film's default" : ""}; ${d.scope}]${d.intention ? `: ${cut(d.intention, 300)}` : ""}${d.refs.length ? ` — references: ${d.refs.map((t) => `"${cut(t, 60)}"`).join(", ")}` : ""}${d.palette.length ? ` — palette ${d.palette.join(" ")}` : ""}`),
+    ...s.look.refs.slice(0, 60).map((r) => `- Reference "${cut(r.title, 80)}" [${r.status}; ${r.access}; ${r.scope}]${r.tags.length ? ` she likes: ${r.tags.join(", ")}` : ""}${r.reason ? ` — her words: ${cut(r.reason, 300)}` : ""}${r.useFor ? ` — use for: ${cut(r.useFor, 200)}` : ""}${r.leaveOut ? ` — leave out: ${cut(r.leaveOut, 200)}` : ""}`),
+  ].join("\n") : "(none yet)"}
 
 Suggestions already waiting in her inbox: ${s.pendingSuggestions.length ? s.pendingSuggestions.map((n) => cut(n, 80)).join(", ") : "(none)"}
 </studio_project>`;

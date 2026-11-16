@@ -9,6 +9,8 @@ import {
   FRAME_W, frameH, group, reorder, removeLayers, ungroup, update, withGroup, DEFAULT_LOOK,
   type Composition, type Layer, type Look,
 } from "@/lib/storyboard/compose";
+import { RefVisual } from "@/components/look/parts";
+import type { LookRef } from "@/lib/look/types";
 import { lensFromLink } from "@/lib/storyboard/lens-link";
 import { LOOK_PRESETS } from "@/lib/storyboard/look";
 import { SHAPES, type BuiltinShape } from "@/lib/storyboard/shapes";
@@ -712,13 +714,39 @@ export function LookPanel({ comp, editable, edit, stocks, frames, onApplyAll }: 
 }
 
 // ---- Reference tray ------------------------------------------------------------------------
-export function ReferenceTray({ open, onToggle, library, editable, onPlace }: { open: boolean; onToggle: () => void; library: LibItem[]; editable: boolean; onPlace: (it: LibItem) => void }) {
+export function ReferenceTray({ open, onToggle, library, editable, onPlace, look }: {
+  open: boolean; onToggle: () => void; library: LibItem[]; editable: boolean; onPlace: (it: LibItem) => void;
+  look?: { refs: LookRef[]; label: string; tracing: string | null; onTrace: (r: LookRef | null) => void; onPlace: (r: LookRef) => void; onOpen: () => void };
+}) {
   const refs = library.filter((i) => i.kind === "reference" || i.usage === "reference_only");
   return (
     <section className="panel" aria-label="References">
       <button type="button" className="flex w-full items-center justify-between px-3 py-2 text-sm" onClick={onToggle} aria-expanded={open}>
-        <span className="font-semibold">References ({refs.length})</span><span className="text-muted">{open ? "Hide" : "Show"}</span>
+        <span className="font-semibold">References ({refs.length + (look?.refs.length ?? 0)})</span><span className="text-muted">{open ? "Hide" : "Show"}</span>
       </button>
+      {open && look && (look.refs.length > 0 || look.label) && (
+        <div className="border-t border-line p-2">
+          <p className="mb-1 flex flex-wrap items-baseline justify-between gap-2 text-xs">
+            <span><b>Look &amp; Feel</b>{look.label ? ` · ${look.label}` : ""} <span className="text-muted">(how it should look, not who or where)</span></span>
+            <button type="button" className="underline" onClick={look.onOpen}>Change in Refs</button>
+          </p>
+          <ul className="flex gap-2 overflow-x-auto">
+            {look.refs.map((r) => (
+              <li key={r.id} className="w-40 shrink-0 text-xs">
+                <div className="aspect-[4/3] overflow-hidden"><RefVisual r={r} /></div>
+                <p className="truncate font-medium">{r.title}</p>
+                {r.useFor && <p className="line-clamp-1"><span className="text-muted">Use:</span> {r.useFor}</p>}
+                {r.leaveOut && <p className="line-clamp-1"><span className="text-muted">Leave out:</span> {r.leaveOut}</p>}
+                <span className="mt-1 flex flex-wrap gap-1">
+                  {(r.assetId || r.crop) && <button type="button" aria-pressed={look.tracing === r.id} className={`btn min-h-7 px-2 text-[11px] ${look.tracing === r.id ? "border-brand bg-brand/10" : ""}`}
+                    onClick={() => look.onTrace(look.tracing === r.id ? null : r)}>{look.tracing === r.id ? "Hide guide" : "Trace"}</button>}
+                  {r.assetId && editable && <button type="button" className="btn min-h-7 px-2 text-[11px]" onClick={() => look.onPlace(r)}>Place as a layer</button>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {open && (
         refs.length ? (
           <ul className="flex gap-2 overflow-x-auto border-t border-line p-2">

@@ -14,18 +14,28 @@ import { ThumbView } from "./thumb-view";
 /** A slide's label on one line: "Casting /\nMarie" → "Casting / Marie". */
 const labelOf = (t?: string) => (t ?? "").split("\n").slice(0, 2).join(" ").replace(/\s+/g, " ").trim();
 
-export function TreatmentCropPicker({ projectId, entityId, entityName, entityKind, fileId, initial, slides, onDone }: {
-  projectId: string; entityId: string; entityName: string; entityKind: "character" | "location"; fileId: string;
+/** Slides about the look of the film (labels like "Look", "Mood", "Style", "Color"). */
+function lookSlides(slides: SlideInfo[]): number[] {
+  const out: number[] = [];
+  slides.forEach((s, i) => { if (/\b(look|mood|style|tone|colou?rs?|palette|lighting|visual|aesthetic)\b/i.test(labelOf(s.text))) out.push(i + 1); });
+  return out;
+}
+
+export function TreatmentCropPicker({ projectId, entityId, entityName, entityKind, fileId, initial, slides, onDone, onPick }: {
+  projectId: string; entityId: string; entityName: string; entityKind: "character" | "location" | "look"; fileId: string;
   initial: ThumbCrop | null;
   /** The treatment's slide list as last read (IDs and text), if any. */
   slides: SlideInfo[] | null;
   onDone?: () => void;
+  /** Instead of setting a thumbnail, hand the chosen crop back (e.g. a Look & Feel reference). */
+  onPick?: (crop: ThumbCrop) => Promise<{ ok: true } | { ok: false; error: string }>;
 }) {
+  const match = (list: SlideInfo[]) => (entityKind === "look" ? lookSlides(list) : slidesFor(list, entityName, entityKind));
   const router = useRouter();
   const same = initial?.file_id === fileId;
   const [deck, setDeck] = useState<SlideInfo[] | null>(slides?.length ? slides : null);
   const ids = deck?.map((d) => d.id) ?? null;
-  const [matches, setMatches] = useState<number[]>(() => (slides?.length ? slidesFor(slides, entityName, entityKind) : []));
+  const [matches, setMatches] = useState<number[]>(() => (slides?.length ? match(slides) : []));
   // Start on the crop she chose, else on the slide labeled for this character or location.
   const startAt = same ? null : matches[0] ?? null;
   const [slide, setSlide] = useState(same ? (slides?.findIndex((d) => d.id === initial.slide_id) ?? -1) + 1 || initial.slide : startAt ?? 1);
@@ -42,7 +52,7 @@ export function TreatmentCropPicker({ projectId, entityId, entityName, entityKin
       if (!live || !list) return;
       applyDeck(list);
       if (!touched.current) {
-        const m = slidesFor(list, entityName, entityKind);
+        const m = match(list);
         if (m.length) { setSlide(m[0]); setSlideId(list[m[0] - 1].id); }
       } else if (slideId) {
         const at = list.findIndex((d) => d.id === slideId);
@@ -62,7 +72,7 @@ export function TreatmentCropPicker({ projectId, entityId, entityName, entityKin
   }
   function applyDeck(list: SlideInfo[]) {
     setDeck(list);
-    setMatches(slidesFor(list, entityName, entityKind));
+    setMatches(match(list));
     setFresh(true);
   }
   const [win, setWin] = useState(initial?.file_id === fileId ? { x: initial.x, y: initial.y, w: initial.w, h: initial.h } : windowOf(0.35, 0.2, 0.3));
@@ -117,9 +127,10 @@ export function TreatmentCropPicker({ projectId, entityId, entityName, entityKin
     setMsg(null); setReading(true);
     try {
       const list = await readDeck();
-      const m = slidesFor(list, entityName, entityKind);
+      const m = match(list);
       if (m.length) { setSlide(m[0]); setSlideId(list[m[0] - 1].id); }
-      else setMsg(`Saved the slide list, but no slide is labeled for ${entityName} (e.g. "${entityKind === "character" ? "Casting" : "Location"}/${entityName}"). Use the arrows to choose one.`);
+      else setMsg(entityKind === "look" ? "No slide is labeled Look, Mood, Style or Color. Use the arrows to choose one."
+        : `Saved the slide list, but no slide is labeled for ${entityName} (e.g. "${entityKind === "character" ? "Casting" : "Location"}/${entityName}"). Use the arrows to choose one.`);
     } catch (e) {
       setMsg(e instanceof SlidesApiOffError
         ? "STUDIO can't read slide labels yet: the Google Slides API needs to be switched on for STUDIO. Use the arrows for now."
@@ -147,11 +158,12 @@ export function TreatmentCropPicker({ projectId, entityId, entityName, entityKin
     start(async () => {
       try {
         const p = await pin();
-        const r = await setThumbnailCrop({ projectId, entityId, crop: { file_id: fileId, slide: p.n, slide_id: p.id, ...win } });
+        const crop = { file_id: fileId, slide: p.n, slide_id: p.id, ...win };
+        const r = onPick ? await onPick(crop) : await setThumbnailCrop({ projectId, entityId, crop });
         if (!r.ok) { setMsg(r.error); return; }
         setSlide(p.n); setSlideId(p.id);
         router.refresh();
-        if (p.note) setMsg(p.note); else onDone?.();
+        if (p.note && !onPick) setMsg(p.note); else onDone?.();
       } catch { setMsg("That didn't save. Try again."); }
     });
   }
@@ -167,7 +179,7 @@ export function TreatmentCropPicker({ projectId, entityId, entityName, entityKin
       <div className="flex flex-wrap items-center gap-2 text-xs">
         {matches.length > 0 ? (
           <>
-            <span className="text-muted">{entityName}&apos;s {matches.length === 1 ? "slide" : "slides"}:</span>
+            <span className="text-muted">{entityKind === "look" ? "Look slides" : `${entityName}'s ${matches.length === 1 ? "slide" : "slides"}`}:</span>
             {matches.slice(0, 8).map((n) => (
               <button key={n} type="button" onClick={() => go(n)} aria-pressed={n === slide}
                 className={`btn min-h-8 px-2 text-xs ${n === slide ? "border-brand" : ""}`}
@@ -176,11 +188,11 @@ export function TreatmentCropPicker({ projectId, entityId, entityName, entityKin
               </button>
             ))}
           </>
-        ) : deck ? (
+        ) : deck && entityKind === "look" ? null : deck ? (
           <span className="text-muted">No slide is labeled for {entityName} yet (e.g. &quot;{entityKind === "character" ? "Casting" : "Location"}/{entityName}&quot;).</span>
         ) : null}
         <button type="button" className="text-accent underline disabled:opacity-50" onClick={findMine} disabled={reading || pending}>
-          {reading ? "Reading the treatment…" : deck ? "Re-read slides" : `Find ${entityName}'s slide in the treatment`}
+          {reading ? "Reading the treatment…" : deck ? "Re-read slides" : entityKind === "look" ? "Find look slides in the treatment" : `Find ${entityName}'s slide in the treatment`}
         </button>
       </div>
       <div ref={stage} className="relative w-full overflow-hidden border border-line bg-black select-none touch-none"
@@ -199,10 +211,10 @@ export function TreatmentCropPicker({ projectId, entityId, entityName, entityKin
       <div className="flex flex-wrap items-end gap-4">
         <div className="w-40">
           <p className="mb-1 text-[11px] tracking-[0.1em] text-muted uppercase">Preview</p>
-          <ThumbView source={{ kind: "crop", crop: { file_id: fileId, slide, slide_id: slideId, ...win } }} alt={`${entityName} thumbnail preview`} className="aspect-[4/3] w-full border border-line" />
+          <ThumbView source={{ kind: "crop", crop: { file_id: fileId, slide, slide_id: slideId, ...win } }} alt={`${entityName} preview`} className="aspect-[4/3] w-full border border-line" />
         </div>
         <div className="flex flex-col gap-2">
-          <button type="button" className="btn-primary" onClick={save} disabled={pending}>{pending ? "Saving…" : `Use for ${entityName}`}</button>
+          <button type="button" className="btn-primary" onClick={save} disabled={pending}>{pending ? "Saving…" : entityKind === "look" ? "Add this part" : `Use for ${entityName}`}</button>
           {onDone && <button type="button" className="btn text-xs" onClick={onDone} disabled={pending}>Cancel</button>}
         </div>
       </div>

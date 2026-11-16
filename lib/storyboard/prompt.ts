@@ -20,7 +20,9 @@ export function outputSize(aspect: number): { width: number; height: number } {
 }
 
 /** "Illustrate This Frame": the attached image is her composition; keep it. */
-export function illustratePrompt(shot: ShotContent, style: Style, extraRefs: { name: string; kind: string }[]): string {
+export interface LookNote { title: string; useFor: string; leaveOut: string; reason: string; attached: boolean }
+
+export function illustratePrompt(shot: ShotContent, style: Style, extraRefs: { name: string; kind: string }[], look: LookNote[] = []): string {
   const L = [
     `Redraw the first attached image as a finished storyboard frame: ${STYLE_TEXT[style]}.`,
     "The first image is the director's own rough composition. Keep its framing, the position, size and pose of every figure and object, and the camera angle exactly. Do not add or remove people or objects. Do not draw any text, captions, arrows or panel borders.",
@@ -31,6 +33,13 @@ export function illustratePrompt(shot: ShotContent, style: Style, extraRefs: { n
   if (shot.notice) L.push(`What we should notice: ${shot.notice.slice(0, 300)}`);
   if (shot.dialogue) L.push(`Someone is speaking (don't draw the words): ${shot.dialogue.replace(/\s+/g, " ").slice(0, 300)}`);
   if (extraRefs.length) L.push(`Other attached images, in order, show how these look (match their appearance, not their framing): ${extraRefs.map((r, i) => `[${i + 2}] ${r.name} (${r.kind})`).join("; ")}.`);
+  const attached = look.filter((l) => l.attached), words = look.filter((l) => !l.attached);
+  const note = (l: LookNote) => [l.useFor && `use for: ${l.useFor.slice(0, 200)}`, l.leaveOut && `leave out: ${l.leaveOut.slice(0, 200)}`, !l.useFor && l.reason && `the director likes: ${l.reason.slice(0, 200)}`].filter(Boolean).join("; ");
+  if (attached.length) {
+    const from = 2 + extraRefs.length;
+    L.push(`Look & Feel references (style only: color, light, texture, drawing quality). Do not copy people, faces, places, objects or layout from them; they never change who a character is or where the scene is: ${attached.map((l, i) => `[${from + i}] ${l.title.slice(0, 80)}${note(l) ? ` (${note(l)})` : ""}`).join("; ")}.`);
+  }
+  if (words.length) L.push(`Further look notes (described in words only): ${words.map((l) => `${l.title.slice(0, 80)}${note(l) ? ` (${note(l)})` : ""}`).join("; ")}.`);
   return L.join("\n");
 }
 

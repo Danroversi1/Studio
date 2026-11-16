@@ -19,10 +19,14 @@ import { between, formatSeconds, sequenceTiming } from "@/lib/storyboard/shot";
 import { ComposeCanvas, type Pen, type Tool } from "./compose-canvas";
 import { AiMenu } from "./ai-menu";
 import { AssetsPanel, CameraPanel, FramePanel, LayersPanel, LookPanel, ReferenceTray } from "./panels";
+import { RefsPanel, lookFor, resolvedRefs } from "./look-refs";
+import { RefVisual } from "@/components/look/parts";
+import type { FilmEntity } from "@/lib/look/data";
+import type { LookDirection, LookRef } from "@/lib/look/types";
 import type { FilmItem, FrameRow, JobRow, LensPick, LibItem, StockRef } from "./types";
 import type { ChatMessage } from "@/components/partner-chat";
 
-type Tab = "assets" | "layers" | "frame" | "camera" | "look";
+type Tab = "assets" | "layers" | "frame" | "camera" | "look" | "refs";
 type SaveState = "saved" | "pending" | "saving" | "conflict" | "error";
 
 /** Layers that use a library item draw its current image. */
@@ -34,6 +38,7 @@ export function resolveAssets(c: Composition, lib: LibItem[]): Composition {
 export function StoryboardStudio(props: {
   projectId: string; sequenceId: string; entityId: string; title: string; settings: { aspect?: number };
   frames: FrameRow[]; library: LibItem[]; jobs: JobRow[]; film: FilmItem[]; stocks: StockRef[]; lenses: LensPick[];
+  lookRefs: LookRef[]; directions: LookDirection[]; lookEntities: FilmEntity[]; sequenceDirection: string | null;
   canEdit: boolean; initialFrame?: string; initialTab?: Tab;
   ai: { imageMissing: string | null; textAvailable: string | null; builder: { threadId: string | null; messages: ChatMessage[]; opening: string } };
   scenes: { number: number; heading: string; text: string }[];
@@ -49,6 +54,8 @@ export function StoryboardStudio(props: {
   const [pen, setPen] = useState<Pen>({ color: "#111111", width: 6 });
   const [showLook, setShowLook] = useState(true);
   const [tray, setTray] = useState(true);
+  /** A Look & Feel reference shown over the canvas as a tracing guide (never exported). */
+  const [trace, setTrace] = useState<{ ref: LookRef; opacity: number } | null>(null);
   const [msg, setMsg] = useState<{ kind: "error" | "notice"; text: string } | null>(null);
   const [save, setSave] = useState<Record<string, SaveState>>({});
   const [images, setImages] = useState<Map<string, ImageState>>(new Map());
@@ -75,6 +82,10 @@ export function StoryboardStudio(props: {
   const frame = frames.find((f) => f.id === selId) ?? null;
   const index = frame ? frames.indexOf(frame) : -1;
   const comp = useMemo(() => (frame ? resolveAssets(frame.composition, library) : emptyComposition()), [frame, library]);
+  const frameLook = frame ? lookFor(frame, props.sequenceDirection, props.directions, props.lookRefs, props.lookEntities, library) : null;
+  const frameLookRefs = frameLook ? resolvedRefs(frameLook, props.lookRefs) : [];
+  const frameLookLabel = !frameLook ? "" : frameLook.kind === "direction" ? frameLook.direction.name : frameLook.kind === "references" ? "Chosen for this frame"
+    : frameLook.kind === "conflict" ? "Choose a direction (Refs tab)" : "";
   const history = useMemo(() => { if (!selId) return new History(); let h = histories.current.get(selId); if (!h) { h = new History(); histories.current.set(selId, h); } return h; }, [selId]);
   const editable = canEdit && !!frame && !frame.locked;
 
@@ -242,7 +253,7 @@ export function StoryboardStudio(props: {
           {canEdit && <button type="button" className="btn-primary" onClick={addAFrame}>Add a Frame</button>}
           <ExportMenu disabled={!frame} onPng={exportThis} onAll={exportAll} pdfHref={`/print/storyboards/${sequenceId}`} jsonHref={`/api/storyboards/${sequenceId}/export`} />
           <AiMenu projectId={projectId} sequenceId={sequenceId} entityId={props.entityId} frame={frame} comp={comp} library={library} film={props.film} scenes={props.scenes}
-            canEdit={canEdit} ai={props.ai} jobs={props.jobs} onDone={refresh} onMessage={setMsg}
+            canEdit={canEdit} ai={props.ai} jobs={props.jobs} onDone={refresh} onMessage={setMsg} lookRefs={frameLookRefs}
             onAddFrames={async (items) => {
               let pos = frames.length ? frames[frames.length - 1].position : 0;
               for (const it of items) { pos += 1000; await addFrame({ projectId, sequenceId, position: pos, content: it, composition: emptyComposition(comp.aspect), origin: "agent" }); }
@@ -324,9 +335,24 @@ export function StoryboardStudio(props: {
                 </span>
               </div>
               {frame.locked && <p className="help">This frame is locked. Unlock it in the Frame panel to change it.</p>}
-              <ComposeCanvas comp={comp} images={images} selected={layerSel} tool={tool} pen={pen} showLook={showLook} editable={editable}
-                onChange={(next, commit) => setComp(next, commit)} onSelect={setLayerSel}
-                onTextEdit={(id) => { setLayerSel([id]); setTab("layers"); setTimeout(() => document.getElementById(`text-${id}`)?.focus(), 50); }} />
+              <div className="relative">
+                <ComposeCanvas comp={comp} images={images} selected={layerSel} tool={tool} pen={pen} showLook={showLook} editable={editable}
+                  onChange={(next, commit) => setComp(next, commit)} onSelect={setLayerSel}
+                  onTextEdit={(id) => { setLayerSel([id]); setTab("layers"); setTimeout(() => document.getElementById(`text-${id}`)?.focus(), 50); }} />
+                {trace && (
+                  <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ opacity: trace.opacity }} aria-hidden>
+                    <RefVisual r={trace.ref} large className="!max-h-none size-full object-contain" />
+                  </div>
+                )}
+              </div>
+              {trace && (
+                <div className="flex flex-wrap items-center gap-2 text-xs" role="group" aria-label="Tracing guide">
+                  <span>Tracing guide: <b>{trace.ref.title}</b> (not part of the frame, not exported)</span>
+                  <label className="flex items-center gap-1">Opacity <input type="range" min={0.1} max={0.9} step={0.05} value={trace.opacity}
+                    onChange={(e) => setTrace({ ...trace, opacity: Number(e.target.value) })} aria-label="Tracing guide opacity" /></label>
+                  <button type="button" className="btn min-h-8 px-2 text-xs" onClick={() => setTrace(null)}>Hide</button>
+                </div>
+              )}
               <p className="text-xs text-muted">Tip: {tipFor(comp)} <span className="hidden sm:inline">Shortcuts: drag to move · corners to scale · circle to rotate · Shift = free scale · Alt = no snapping · arrows nudge · Ctrl+D duplicate · Delete removes · Ctrl+Z undo.</span></p>
               {frame.illustrationAssetId && (
                 <details className="panel p-2 text-sm">
@@ -337,15 +363,17 @@ export function StoryboardStudio(props: {
                 </details>
               )}
               <ReferenceTray open={tray} onToggle={() => setTray((v) => !v)} library={library} editable={editable}
-                onPlace={(it) => placeLibrary(it)} />
+                onPlace={(it) => placeLibrary(it)}
+                look={{ refs: frameLookRefs, label: frameLookLabel, tracing: trace?.ref.id ?? null,
+                  onTrace: (r) => setTrace(r ? { ref: r, opacity: 0.35 } : null), onPlace: placeLookRef, onOpen: () => setTab("refs") }} />
             </>
           ) : <div className="panel help p-6">No frames yet. Press <b>Add a Frame</b> to start.</div>}
         </section>
 
         {/* Panels */}
         <aside aria-label="Assets, layers, frame, camera and look" className="panel flex min-w-0 flex-col lg:col-span-2 xl:col-span-1">
-          <div role="tablist" aria-label="Panels" className="grid grid-cols-5 border-b border-line">
-            {(["assets", "layers", "frame", "camera", "look"] as const).map((t) => (
+          <div role="tablist" aria-label="Panels" className="grid grid-cols-6 border-b border-line">
+            {(["assets", "layers", "frame", "camera", "look", "refs"] as const).map((t) => (
               <button key={t} role="tab" type="button" aria-selected={tab === t} onClick={() => setTab(t)}
                 className={`min-h-11 px-1 text-[11px] font-medium tracking-[0.06em] uppercase ${tab === t ? "bg-text text-panel-2" : "text-muted hover:text-text"}`}>{t}</button>
             ))}
@@ -367,6 +395,11 @@ export function StoryboardStudio(props: {
                 onClearReview={() => run(clearReview({ shotId: frame.id }))}
                 onRemove={async () => { const r = await run(removeFrame({ shotId: frame.id }), "Frame removed."); if (r) setSelId(frames.find((f) => f.id !== frame.id)?.id ?? null); }}
                 onRestored={refresh} />
+            ) : tab === "refs" ? (
+              <RefsPanel projectId={projectId} sequenceId={sequenceId} frame={frame} canEdit={canEdit} entities={props.lookEntities} film={props.film} library={library}
+                lookRefs={props.lookRefs} directions={props.directions} sequenceDirection={props.sequenceDirection} tracing={trace?.ref.id ?? null}
+                onTrace={(r) => setTrace(r ? { ref: r, opacity: 0.35 } : null)} onPlace={placeLookRef} onChanged={refresh} onMessage={setMsg}
+                onSaveContent={(content) => run(saveFrameDetails({ sequenceId, shotId: frame.id, content, expectedRevision: frame.revision }), "Frame details saved.")} />
             ) : tab === "camera" ? (
               <CameraPanel comp={comp} frame={frame} editable={editable} canEdit={canEdit} edit={edit}
                 projectId={projectId} lenses={props.lenses} frames={frames} onLensesChanged={refresh} onMessage={setMsg}
@@ -385,6 +418,22 @@ export function StoryboardStudio(props: {
       </div>
     </div>
   );
+
+  /** Only on her explicit action: put a Look & Feel image into the frame as a layer. */
+  function placeLookRef(r: LookRef) {
+    if (!r.assetId) { setMsg({ kind: "notice", text: `“${r.title}” has no image in your film, so it can't be placed.` }); return; }
+    const st = images.get(r.assetId);
+    const ratio = st?.ok ? st.img.naturalWidth / st.img.naturalHeight : 4 / 3;
+    edit((c) => {
+      const H = frameH(c);
+      const w = Math.max(FRAME_W, H * ratio);
+      const res = addLayer(c, { type: "image", name: `${r.title} (Look & Feel)`, assetId: r.assetId!, x: FRAME_W / 2, y: H / 2, w, h: w / ratio, rot: 0, opacity: 0.5 });
+      setLayerSel([res.id]);
+      return reorder(res.comp, [res.id], "back");
+    });
+    if (!st) void loadAll([r.assetId]).then((m) => setImages((prev) => new Map([...prev, ...m])));
+    setMsg({ kind: "notice", text: `“${r.title}” placed as a half-transparent layer at the back. It's part of this frame now (and exports); remove it in Layers anytime.` });
+  }
 
   function placeLibrary(it: LibItem) {
     if (!it.assetId || it.usage !== "composition") { setMsg({ kind: "notice", text: `“${it.name}” is a reference only. It stays in the tray; it isn't placed in exported frames.` }); return; }

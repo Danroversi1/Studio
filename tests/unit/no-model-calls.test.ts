@@ -20,6 +20,12 @@ const ROUTINE = [
   "app/projects/[projectId]/storyboards/[sequenceId]/page.tsx",   // opening a storyboard
   "app/print/storyboards/[sequenceId]/page.tsx",
   "app/api/storyboards/[sequenceId]/export/route.ts", "app/api/storyboards/frame-versions/route.ts",
+  "app/projects/[projectId]/look-actions.ts",                 // Look & Feel: add, tag, order, approve, directions
+  "components/look/look-feel.tsx", "components/look/directions.tsx", "components/look/parts.tsx",
+  "components/storyboard/look-refs.tsx", "lib/look/palette.ts", "lib/look/resolve.ts", "lib/look/upload.ts",
+  // (The Treatment page itself also hosts optional AI features through the shared actions.ts,
+  //  e.g. the Story Lead breakdown; Look & Feel's own modules above are the ones checked.)
+  "app/api/look/[directionId]/bundle/route.ts",
   "app/api/assets/route.ts", "app/api/assets/[assetId]/complete/route.ts", "app/api/assets/[assetId]/route.ts",
 ];
 

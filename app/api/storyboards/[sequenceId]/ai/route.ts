@@ -15,7 +15,7 @@ export const maxDuration = 300;
 export async function POST(req: Request, { params }: { params: Promise<{ sequenceId: string }> }) {
   const { sequenceId } = await params;
   const body = (await req.json().catch(() => null)) as {
-    kind?: string; shotId?: string; baseAssetId?: string; idempotencyKey?: string; style?: string;
+    kind?: string; shotId?: string; baseAssetId?: string; idempotencyKey?: string; style?: string; lookRefIds?: string[];
     library?: { kind?: string; name?: string; description?: string; views?: string; entity_id?: string | null };
   } | null;
   const no = (status: number, error: string, extra: Record<string, unknown> = {}) => NextResponse.json({ error, ...extra }, { status, headers: { "Cache-Control": "no-store" } });
@@ -30,6 +30,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ sequenc
   const style = isStyle(body.style) ? body.style : "pencil";
 
   let prompt: string, refs: { asset_id: string; role: string }[] = [], output = outputSize(16 / 9), library: Record<string, unknown> | null = null;
+  let lookUsed: { id: string; attached: boolean }[] = [];
   if (body.kind === "illustrate") {
     const { data: shot } = await sb.from("storyboard_shots").select("id, content, composition").eq("id", body.shotId ?? "").eq("sequence_id", sequenceId).maybeSingle();
     if (!shot) return no(404, "Frame not found.");
@@ -41,7 +42,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ sequenc
     const { data: items } = ids.length ? await sb.from("storyboard_library").select("id, name, kind, asset_id").in("id", ids) : { data: [] as { id: string; name: string; kind: string; asset_id: string | null }[] };
     const withImg = (items ?? []).filter((i) => i.asset_id).slice(0, provider.capabilities.referenceImages - 1);
     refs = withImg.map((i) => ({ asset_id: i.asset_id as string, role: i.kind }));
-    prompt = illustratePrompt(cleanShot(shot.content), style, withImg.map((i) => ({ name: i.name, kind: i.kind })));
+    // Look & Feel references she sees for this frame: images go along with the role
+    // "look_and_feel" while there is room; the image model has no separate style input, so
+    // the role and her notes are also stated in words. Treatment crops and links: words only.
+    const lookIds = (body.lookRefIds ?? []).filter((x) => /^[0-9a-f-]{36}$/i.test(x)).slice(0, 12);
+    const { data: lookRows } = lookIds.length
+      ? await sb.from("look_references").select("id, title, asset_id, use_for, leave_out, reason").eq("project_id", seq.project_id).in("id", lookIds).is("archived_at", null)
+      : { data: [] as { id: string; title: string; asset_id: string | null; use_for: string; leave_out: string; reason: string }[] };
+    const room = provider.capabilities.referenceImages - 1 - refs.length;
+    const ordered = lookIds.map((id) => (lookRows ?? []).find((r) => r.id === id)).filter((r): r is NonNullable<typeof r> => !!r);
+    let n = 0;
+    const look = ordered.map((r) => {
+      const attached = !!r.asset_id && n < room;
+      if (attached) { n++; refs.push({ asset_id: r.asset_id as string, role: "look_and_feel" }); }
+      return { id: r.id, title: r.title, useFor: r.use_for ?? "", leaveOut: r.leave_out ?? "", reason: r.reason ?? "", attached };
+    });
+    lookUsed = look.map((l) => ({ id: l.id, attached: l.attached }));
+    prompt = illustratePrompt(cleanShot(shot.content), style, withImg.map((i) => ({ name: i.name, kind: i.kind })), look);
   } else {
     const L = body.library ?? {};
     if (!L.name?.trim() || !L.description?.trim()) return no(400, "Give the asset a name and a description.");
@@ -53,7 +70,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ sequenc
   const { data: rows, error } = await sb.rpc("storyboard_job_request", {
     p_project: seq.project_id, p_kind: body.kind, p_shot: body.kind === "illustrate" ? body.shotId : null, p_library: library,
     p_provider: provider.id, p_model: provider.model, p_prompt_version: PROMPT_VERSION, p_prompt: prompt,
-    p_params: { style, output, provider: { id: provider.id, capabilities: provider.capabilities } },
+    p_params: { style, output, provider: { id: provider.id, capabilities: provider.capabilities }, look_references: lookUsed },
     p_reference_assets: refs, p_base_asset: body.kind === "illustrate" ? body.baseAssetId : null, p_idempotency_key: body.idempotencyKey,
   });
   if (error || !rows?.[0]) return no(400, friendlyError(error).message);

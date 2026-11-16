@@ -57,6 +57,13 @@ async function loadSnapshot(db: Db, projectId: string): Promise<{ snapshot: Proj
         .in("board_id", [...boardEntity.keys()]).order("created_at", { ascending: false }).limit(80)
     : { data: [] as { board_id: string; title: string | null; attribution: string | null; observations: string | null; source_domain: string | null }[] };
 
+  const [{ data: lookRefs }, { data: lookDirs }, { data: lookMemb }] = await Promise.all([
+    db.from("look_references").select("id, title, tags, reason, use_for, leave_out, status, asset_id, crop, source_url, applies").eq("project_id", projectId).is("archived_at", null).order("position").limit(80),
+    db.from("look_directions").select("id, name, intention, status, is_default, scope, palette").eq("project_id", projectId).neq("status", "archived").order("position").limit(20),
+    db.from("look_direction_refs").select("direction_id, reference_id, position").eq("project_id", projectId),
+  ]);
+  const scopeText = (a: { film?: boolean; entities?: string[]; scenes?: number[] } | null) =>
+    !a || a.film ? "whole film" : [...(a.entities ?? []).map((id) => ents.find((e) => e.id === id)?.name ?? "?"), ...(a.scenes ?? []).map((n) => `scene ${n}`)].join(", ") || "whole film";
   const nameOf = new Map(ents.map((e) => [e.id, e.name]));
   const screenplay = ents.find((e) => e.kind === "screenplay");
   const story = ents.find((e) => e.kind === "story");
@@ -78,6 +85,13 @@ async function loadSnapshot(db: Db, projectId: string): Promise<{ snapshot: Proj
     })),
     pendingSuggestions: (pending ?? []).map((p) => p.name),
     world: worldRow ? toWorld(worldRow) : null,
+    look: {
+      refs: (lookRefs ?? []).map((r) => ({ title: r.title, tags: r.tags ?? [], reason: r.reason ?? "", useFor: r.use_for ?? "", leaveOut: r.leave_out ?? "", status: r.status,
+        access: r.asset_id ? "image (not visible to you)" : r.crop ? "treatment crop (not visible to you)" : r.source_url ? "link only" : "missing", scope: scopeText(r.applies) })),
+      directions: (lookDirs ?? []).map((d) => ({ name: d.name, intention: d.intention ?? "", status: d.status, isDefault: !!d.is_default, scope: scopeText(d.scope),
+        refs: (lookMemb ?? []).filter((m) => m.direction_id === d.id).sort((x, y) => x.position - y.position).map((m) => (lookRefs ?? []).find((r) => r.id === m.reference_id)?.title).filter(Boolean) as string[],
+        palette: ((d.palette as { hex: string }[]) ?? []).map((c) => c.hex) })),
+    },
     connections: (boardLinks ?? []).map((l) => {
       const nm = (k: string) => k.startsWith("e:") ? (ents.find((e) => e.id === k.slice(2))?.name ?? "?")
         : k.startsWith("n:") ? `note "${String((boardNotes ?? []).find((n) => n.id === k.slice(2))?.body ?? "").slice(0, 80)}"` : "a reference";
