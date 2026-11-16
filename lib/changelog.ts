@@ -8,7 +8,7 @@ export interface ChangeRound { at: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeRound[] = [
   {
-    at: "2026-11-16T00:30:00Z",
+    at: "2026-11-16T01:05:00Z",
     title: "Connections board",
     items: [
       { text: "New Connections section: characters, locations, references with pictures and sticky notes on one board.", href: `${J}/connections` },
