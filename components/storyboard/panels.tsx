@@ -9,6 +9,7 @@ import {
   FRAME_W, frameH, group, reorder, removeLayers, ungroup, update, withGroup, DEFAULT_LOOK,
   type Composition, type Layer, type Look,
 } from "@/lib/storyboard/compose";
+import { lensFromLink } from "@/lib/storyboard/lens-link";
 import { LOOK_PRESETS } from "@/lib/storyboard/look";
 import { SHAPES, type BuiltinShape } from "@/lib/storyboard/shapes";
 import { ANGLES, SIZES, labelOf, type ShotContent } from "@/lib/storyboard/shot";
@@ -578,7 +579,24 @@ function LensForm({ projectId, lens, onCancel, onSaved, onMessage }: { projectId
     seenIn: lens?.seenIn ?? "", note: lens?.note ?? "",
   });
   const [busy, setBusy] = useState(false);
+  const [filled, setFilled] = useState<string | null>(null);
   const set = (p: Partial<typeof v>) => setV((x) => ({ ...x, ...p }));
+  // Paste a link → fill what the link itself says (name, focal length, aperture, type).
+  // Only the link text is read; fields she already typed are left alone.
+  const fromLink = (url: string) => {
+    const l = lensFromLink(url);
+    if (!l) { setFilled(url.trim() && /lensaddiction/i.test(url) ? "This link doesn't name a lens. Type the details below (open the page to see them)." : null); return; }
+    setV((x) => {
+      const next = { ...x, sourceUrl: url };
+      const got: string[] = [];
+      if (!x.name.trim()) { next.name = l.name; got.push("name"); }
+      if (!x.focals.trim() && l.focalLengths.length) { next.focals = l.focalLengths.join(", "); next.zoom = l.zoom; got.push(l.zoom ? "zoom range" : "focal length"); }
+      if (!x.maxAperture.trim() && l.maxAperture) { next.maxAperture = l.maxAperture; got.push("aperture"); }
+      if (l.optical === "anamorphic" && x.optical === "spherical") { next.optical = "anamorphic"; next.squeeze = String(l.squeeze ?? 2); got.push("anamorphic squeeze"); }
+      setFilled(got.length ? `Filled from the link: ${got.join(", ")}. Check them, then add the film and camera.` : null);
+      return next;
+    });
+  };
   const focals = v.focals.split(/[,\s–-]+/).map((x) => x.replace(/mm$/i, "")).filter(Boolean).map(Number);
   const badFocal = focals.some((x) => !Number.isFinite(x) || x < 4 || x > 2000);
   const submit = async () => {
@@ -597,7 +615,11 @@ function LensForm({ projectId, lens, onCancel, onSaved, onMessage }: { projectId
     <form className="flex flex-col gap-2 border border-line p-2 text-xs" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
       <p className="font-medium text-sm">{lens ? "Edit lens" : "Add a lens"}</p>
       <label className="flex flex-col gap-1"><span className="label">Link (Lens Addiction page)</span>
-        <input className={field} type="url" inputMode="url" placeholder="https://www.lensaddiction.net/…" value={v.sourceUrl} onChange={(e) => set({ sourceUrl: e.target.value })} /></label>
+        <input className={field} type="url" inputMode="url" placeholder="https://www.lensaddiction.net/…" value={v.sourceUrl}
+          onChange={(e) => { const url = e.target.value; set({ sourceUrl: url }); if (/[?&](lensModel|search)=/i.test(url)) fromLink(url); }}
+          onPaste={(e) => { const url = e.clipboardData.getData("text"); if (url) { e.preventDefault(); set({ sourceUrl: url.trim() }); fromLink(url.trim()); } }}
+          onBlur={(e) => fromLink(e.target.value)} /></label>
+      {filled && <p className="border-l-2 border-brand pl-2 text-[11px]">{filled}</p>}
       <label className="flex flex-col gap-1"><span className="label">Lens</span>
         <input className={field} placeholder="e.g. Canon K35" value={v.name} maxLength={120} onChange={(e) => set({ name: e.target.value })} required /></label>
       <div className="grid grid-cols-2 gap-2">
@@ -607,13 +629,12 @@ function LensForm({ projectId, lens, onCancel, onSaved, onMessage }: { projectId
         <label className="flex flex-col gap-1"><span className="label">Type</span>
           <select className={field} value={v.optical} onChange={(e) => set({ optical: e.target.value as LensPick["optical"] })}>
             <option value="spherical">Spherical</option><option value="anamorphic">Anamorphic</option></select></label>
-        {v.optical === "anamorphic" ? (
+        <label className="flex flex-col gap-1"><span className="label">Widest aperture</span>
+          <input className={field} placeholder="e.g. T1.5" value={v.maxAperture} maxLength={20} onChange={(e) => set({ maxAperture: e.target.value })} /></label>
+        {v.optical === "anamorphic" && (
           <label className="flex flex-col gap-1"><span className="label">Squeeze</span>
             <select className={field} value={v.squeeze} onChange={(e) => set({ squeeze: e.target.value })}>
-              {["1.3", "1.5", "1.65", "1.8", "2"].map((q) => <option key={q} value={q}>{q}×</option>)}</select></label>
-        ) : (
-          <label className="flex flex-col gap-1"><span className="label">Widest aperture</span>
-            <input className={field} placeholder="e.g. T1.5" value={v.maxAperture} maxLength={20} onChange={(e) => set({ maxAperture: e.target.value })} /></label>
+              {[...new Set(["1.3", "1.5", "1.65", "1.8", "2", v.squeeze])].map((q) => <option key={q} value={q}>{q}×</option>)}</select></label>
         )}
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -624,7 +645,7 @@ function LensForm({ projectId, lens, onCancel, onSaved, onMessage }: { projectId
       </div>
       <label className="flex flex-col gap-1"><span className="label">What do you like about it?</span>
         <textarea className={`${field} min-h-14`} maxLength={600} value={v.note} onChange={(e) => set({ note: e.target.value })} placeholder="e.g. soft faces, warm glow on the lights" /></label>
-      <p className="text-[11px] text-muted">Type what you see on the page; STUDIO keeps only your notes and the link.</p>
+      <p className="text-[11px] text-muted">STUDIO reads only the link itself (it doesn&apos;t open the page) and keeps your notes and the link.</p>
       <div className="flex gap-1">
         <button type="submit" className="btn btn-primary min-h-8 px-3 text-xs" disabled={busy}>{busy ? "Saving…" : lens ? "Save lens" : "Add to shelf"}</button>
         <button type="button" className="btn min-h-8 px-3 text-xs" onClick={onCancel}>Cancel</button>
