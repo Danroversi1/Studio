@@ -1,3 +1,5 @@
+import { noteModelCall } from "../ai/model-calls";
+
 // SERVER ONLY. Image providers behind one small interface, so generation isn't hard-coded
 // into the interface. OpenAI GPT Image is the live provider (key stays server-side). A mock
 // exists only for automated tests and is never selected by the running app.
@@ -44,6 +46,7 @@ export function openAiProvider(env: Record<string, string | undefined> = process
       const url = req.images.length ? "https://api.openai.com/v1/images/edits" : "https://api.openai.com/v1/images/generations";
       const body = req.images.length ? { ...common, images: req.images.slice(0, 16).map((i) => ({ image_url: toDataUrl(i) })) } : common;
       let res: Response;
+      noteModelCall("openai", url.replace("https://api.openai.com", ""));
       try {
         res = await fetch(url, {
           method: "POST",

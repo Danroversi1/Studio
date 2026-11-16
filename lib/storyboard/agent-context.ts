@@ -6,7 +6,7 @@ export async function renderStoryboard(db: SupabaseClient, projectId: string, se
   if (!sequenceId) return "<storyboard>She has no storyboard open. Help her pick a moment; shots can be added once she opens or creates a storyboard.</storyboard>";
   const [{ data: seq }, { data: shots }] = await Promise.all([
     db.from("storyboard_sequences").select("title, brief, entry").eq("id", sequenceId).eq("project_id", projectId).maybeSingle(),
-    db.from("storyboard_shots").select("id, position, state, locked, origin, content, frame_asset_id").eq("sequence_id", sequenceId)
+    db.from("storyboard_shots").select("id, position, state, locked, origin, content, composition").eq("sequence_id", sequenceId)
       .is("archived_at", null).order("position").limit(60),
   ]);
   if (!seq) return "<storyboard>(not found)</storyboard>";
@@ -14,7 +14,7 @@ export async function renderStoryboard(db: SupabaseClient, projectId: string, se
   const list = (shots ?? []).map((s, i) => {
     const c = cleanShot(s.content);
     return `${i + 1}. ${c.action || "(no action)"} — ${[labelOf(SIZES, c.size), labelOf(ANGLES, c.angle)].filter(Boolean).join(", ") || "framing not set"}`
-      + `${c.durationS ? `, ~${c.durationS}s` : ""} [${s.origin === "agent" ? "proposed by you" : "hers"}; ${s.locked ? "locked" : s.state}${s.frame_asset_id ? "; has a frame" : ""}]`;
+      + `${c.durationS ? `, ~${c.durationS}s` : ""} [${s.origin === "agent" ? "proposed by you" : "hers"}; ${s.locked ? "locked" : s.state}${(s.composition?.layers?.length ?? 0) ? `; ${s.composition.layers.length} layers composed` : "; empty frame"}]`;
   });
   const timing = sequenceTiming((shots ?? []).map((s) => ({ content: cleanShot(s.content) })));
   return `<storyboard>

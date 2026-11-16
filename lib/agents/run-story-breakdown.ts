@@ -13,9 +13,7 @@ import {
   type ExistingItem,
 } from "./story-breakdown";
 
-export function aiConfigured(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
-}
+export { aiConfigured } from "../ai/configured";
 
 export async function runStoryBreakdown(runId: string): Promise<void> {
   const db = supabaseService();

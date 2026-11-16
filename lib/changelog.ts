@@ -8,14 +8,14 @@ export interface ChangeRound { at: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeRound[] = [
   {
-    at: "2026-11-16T09:00:00Z",
-    title: "Storyboards + Shot Builder",
+    at: "2026-11-16T12:00:00Z",
+    title: "Storyboards: Compose (no AI needed)",
     items: [
-      { text: "New Storyboards desk: Create Your Frame from text, script scenes and/or images; shot list · frame · settings panel; reorder, approve, lock, annotate.", href: `${J}/storyboards` },
-      { text: "Shot Builder partner: one question at a time; proposed shots must quote her own words (no invented plot) and arrive marked as proposals." },
-      { text: "Generation via OpenAI GPT Image (gpt-image-2) once OPENAI_API_KEY is set; frames, variations, edits and Look Previews; every result kept in history; locked shots never replaced." },
-      { text: "Camera & lens: calculated field of view, framing distance and depth of field (labeled creative guidance); Kodak VISION3 50D/250D/200T/500T from Kodak's documents; original stock-inspired finishes with resolution-scaled grain." },
-      { text: "Script changes flag affected shots for review without touching images; PDF (print) and JSON shot-list exports." },
+      { text: "Storyboards desk: compose frames by hand on a canvas — starter silhouettes and set pieces, your uploads, text and dialogue captions, drawing and erasing; move, scale, rotate, crop, flip, duplicate, group, lock, hide; snapping guides, grids, aspect presets; undo/redo; autosave plus Save versions.", href: `${J}/storyboards` },
+      { text: "Project asset library: characters, poses, wardrobe, backgrounds, props, drawings and references (with purpose, what you like about it, credit, permission). Shared across frames; replacing a shared image shows exactly which frames change first." },
+      { text: "Local look: exposure, contrast, saturation, warm/cool, grayscale, vignette and seeded grain — same in preview and export. Stock-inspired starting points are labeled approximations." },
+      { text: "Exports rendered in the browser: PNG per frame or all, storyboard PDF, JSON with compositions." },
+      { text: "Optional AI in a secondary menu, only when asked: Suggest Shots (editable before adding), Create Missing Asset (saved to the library), Illustrate This Frame (separate result; layers untouched), Shot Builder conversation." },
     ],
   },
   {

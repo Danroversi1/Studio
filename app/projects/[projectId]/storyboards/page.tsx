@@ -1,9 +1,12 @@
-// STORYBOARDS: turn a moment into a shot. Start with text, with scenes from the script, or
-// with images (or any mix), then develop shots with the Shot Builder.
+// STORYBOARDS: build first, generate when needed. Start from text, script scenes or images
+// (any mix), then compose frames by hand. Nothing on this page calls an AI model.
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Empty, Flash } from "@/components/flash";
 import { IconFrames } from "@/components/icons";
+import { CardThumb } from "@/components/storyboard/card-thumb";
+import { ASPECTS } from "@/lib/storyboard/camera";
+import { cleanComposition } from "@/lib/storyboard/compose";
 import { createStoryboard } from "../storyboard-actions";
 import { getProjectShell, getScreenplay } from "@/lib/data";
 import { scriptScenes } from "@/lib/storyboard/review";
@@ -25,8 +28,10 @@ export default async function StoryboardsPage({ params, searchParams }: {
   ]);
   const ids = (seqs ?? []).map((s) => s.id);
   const { data: shots } = ids.length
-    ? await sb.from("storyboard_shots").select("sequence_id, position, content, frame_asset_id, state").in("sequence_id", ids).is("archived_at", null).order("position")
-    : { data: [] as { sequence_id: string; position: number; content: unknown; frame_asset_id: string | null; state: string }[] };
+    ? await sb.from("storyboard_shots").select("sequence_id, position, content, composition, state").in("sequence_id", ids).is("archived_at", null).order("position")
+    : { data: [] as { sequence_id: string; position: number; content: unknown; composition: unknown; state: string }[] };
+  const { data: lib } = await sb.from("storyboard_library").select("id, asset_id").eq("project_id", projectId);
+  const libAsset = new Map((lib ?? []).map((i) => [i.id, i.asset_id as string | null]));
   const body = String((sp as { versions?: { content: { body?: string } }[] } | null)?.versions?.[0]?.content?.body ?? "");
   const scenes = scriptScenes(body);
   const canEdit = !!shell.caps.can_edit;
@@ -38,9 +43,9 @@ export default async function StoryboardsPage({ params, searchParams }: {
         <div className="flex flex-col gap-2">
           <p className="eyebrow">Storyboards</p>
           <h1 className="display text-4xl leading-none sm:text-5xl">STORYBOARDS</h1>
-          <p className="max-w-2xl text-muted">Turn a moment into a shot.</p>
+          <p className="max-w-2xl text-muted">Turn a moment into a shot. Arrange figures, sets and your own drawings, frame by frame.</p>
         </div>
-        {canEdit && !creating && <Link href={`/projects/${projectId}/storyboards?new=1`} className="btn-primary">Create Your Frame</Link>}
+        {canEdit && !creating && <Link href={`/projects/${projectId}/storyboards?new=1`} className="btn-primary">New storyboard</Link>}
       </header>
       <Flash error={error} notice={notice} />
 
@@ -48,13 +53,22 @@ export default async function StoryboardsPage({ params, searchParams }: {
         <form action={createStoryboard} className="panel flex flex-col gap-5 p-5" aria-labelledby="new-sb">
           <input type="hidden" name="projectId" value={projectId} />
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 id="new-sb" className="font-semibold">Create Your Frame</h2>
+            <h2 id="new-sb" className="font-semibold">New storyboard</h2>
             <p className="text-xs text-muted">Use any of the three, or mix them.</p>
           </div>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium">Name this storyboard</span>
-            <input name="title" className="field" placeholder="e.g. The explosion at the café" maxLength={120} required />
-          </label>
+          <div className="grid gap-3 sm:grid-cols-[1fr_14rem]">
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium">Name this storyboard</span>
+              <input name="title" className="field" placeholder="e.g. The explosion at the café" maxLength={120} required />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium">Frame shape</span>
+              <select name="aspect" className="field" defaultValue={String(16 / 9)}>
+                {ASPECTS.map((a) => <option key={a.id} value={a.ratio}>{a.label}</option>)}
+                <option value={9 / 16}>9:16 (vertical)</option>
+              </select>
+            </label>
+          </div>
           <div className="grid gap-4 md:grid-cols-3">
             <fieldset className="flex flex-col gap-2 border border-line p-3">
               <legend className="px-1 text-sm font-semibold">1 · Start with text</legend>
@@ -65,7 +79,7 @@ export default async function StoryboardsPage({ params, searchParams }: {
               <legend className="px-1 text-sm font-semibold">2 · Use your script</legend>
               {scenes.length ? (
                 <>
-                  <p className="help">Pick scenes. Each starts as one shot with your own words; the Shot Builder can help break it down.</p>
+                  <p className="help">Pick scenes. Each starts as one frame with your own words as its action.</p>
                   <ul className="flex max-h-56 flex-col gap-1 overflow-y-auto">
                     {scenes.map((s) => (
                       <li key={s.number}>
@@ -81,12 +95,12 @@ export default async function StoryboardsPage({ params, searchParams }: {
             </fieldset>
             <fieldset className="flex flex-col gap-2 border border-line p-3">
               <legend className="px-1 text-sm font-semibold">3 · Start with images</legend>
-              <p className="help">Your drawings or visual references. You&apos;ll add them next and say what each one is for (a character, a place, the drawing style…).</p>
+              <p className="help">Your drawings, backgrounds or references. You&apos;ll add them next to your asset library and say what each one is for.</p>
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="images" value="1" /> I&apos;ll add images</label>
             </fieldset>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button className="btn-primary" type="submit">Create Your Frame</button>
+            <button className="btn-primary" type="submit">Start composing</button>
             {(seqs ?? []).length > 0 && <Link href={`/projects/${projectId}/storyboards`} className="btn">Cancel</Link>}
           </div>
         </form>
@@ -98,20 +112,18 @@ export default async function StoryboardsPage({ params, searchParams }: {
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {(seqs ?? []).map((s) => {
               const mine = (shots ?? []).filter((x) => x.sequence_id === s.id);
-              const thumb = mine.find((x) => x.frame_asset_id)?.frame_asset_id;
+              const first = mine[0] ? cleanComposition(mine[0].composition) : null;
+              const thumb = first && first.layers.length ? { ...first, layers: first.layers.map((l) => (l.libraryId && libAsset.get(l.libraryId) ? { ...l, assetId: libAsset.get(l.libraryId)! } : l)) } : null;
               const t = sequenceTiming(mine.map((x) => ({ content: cleanShot(x.content) })));
               return (
                 <li key={s.id}>
                   <Link href={`/projects/${projectId}/storyboards/${s.id}`} className="panel flex h-full flex-col hover:border-text">
-                    <div className="aspect-video w-full bg-line/40">
-                      {thumb
-                        // eslint-disable-next-line @next/next/no-img-element
-                        ? <img src={`/api/assets/${thumb}`} alt="" className="size-full object-cover" loading="lazy" />
-                        : <div className="flex size-full items-center justify-center text-muted"><IconFrames className="size-8" /></div>}
+                    <div className="aspect-video w-full overflow-hidden bg-line/40">
+                      {thumb ? <CardThumb comp={thumb} /> : <div className="flex size-full items-center justify-center text-muted"><IconFrames className="size-8" /></div>}
                     </div>
                     <div className="flex flex-col gap-1 p-3">
                       <p className="font-semibold">{s.title}</p>
-                      <p className="text-xs text-muted">{mine.length} {mine.length === 1 ? "shot" : "shots"} · {mine.filter((x) => x.state === "approved").length} approved · {t.label}</p>
+                      <p className="text-xs text-muted">{mine.length} {mine.length === 1 ? "frame" : "frames"} · {mine.filter((x) => x.state === "approved").length} approved · {t.label}</p>
                       {s.brief && <p className="line-clamp-2 text-sm text-muted">{s.brief}</p>}
                     </div>
                   </Link>

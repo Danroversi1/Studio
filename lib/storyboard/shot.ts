@@ -25,6 +25,8 @@ export interface ShotSource { kind: "text" | "script" | "image"; scene?: number;
 export interface ShotContent {
   action: string;              // what happens (her words or close to them)
   dialogue?: string;           // lines spoken, if any
+  notice?: string;             // "What should we notice?"
+  cameraNotes?: string;        // notes for the real shoot
   source?: ShotSource;         // where it comes from
   size?: Size;
   angle?: Angle;
@@ -51,6 +53,8 @@ export function cleanShot(x: unknown): ShotContent {
   const cam = (o.camera && typeof o.camera === "object" ? o.camera : null) as Record<string, unknown> | null;
   const out: ShotContent = { action: clip(o.action, 1200) ?? "" };
   const d = clip(o.dialogue, 1200); if (d) out.dialogue = d;
+  const nt = clip(o.notice, 400); if (nt) out.notice = nt;
+  const cn = clip(o.cameraNotes, 600); if (cn) out.cameraNotes = cn;
   if (src && ["text", "script", "image"].includes(String(src.kind))) {
     out.source = { kind: src.kind as ShotSource["kind"], scene: num(src.scene, 1, 999), heading: clip(src.heading, 200), excerpt: clip(src.excerpt, 2000) };
   }
