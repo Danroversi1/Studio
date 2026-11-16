@@ -8,6 +8,16 @@ export interface ChangeRound { at: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeRound[] = [
   {
+    at: "2026-11-16T03:00:00Z",
+    title: "Edit the outline in place",
+    items: [
+      { text: "Every beat has Edit, ↑ / ↓ and Remove; ↑ at the top of a part moves it into the part before, ↓ at the bottom into the next.", href: `${JOHNNY_STORY}#outline-h` },
+      { text: "\"+ Add a beat here\" between beats (and at the start of each part) to add earlier events, not just at the end." },
+      { text: "A beat added earlier gets its scene placed in the matching spot of the script, not at the end." },
+      { text: "The partners read the outline in its new order." },
+    ],
+  },
+  {
     at: "2026-11-16T01:05:00Z",
     title: "Connections board",
     items: [

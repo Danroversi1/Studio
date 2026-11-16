@@ -180,14 +180,54 @@ export function parseBreakdown(src: string): BreakdownScene[] {
 }
 
 /** Script blocks for a plan: scenes in order, each with its share of her beat text. */
-export function blocksFor(plan: PlannedScene[], beats: Beat[]): { part: Part; text: string }[] {
+export function blocksFor(plan: PlannedScene[], beats: Beat[], order?: Beat[]): { part: Part; text: string; afterBeat?: string | null }[] {
   const byId = new Map(beats.map((b) => [b.id, b]));
-  const out: { part: Part; text: string }[] = [];
+  const out: { part: Part; text: string; afterBeat?: string | null }[] = [];
   for (const b of beats) {
     const mine = plan.filter((p) => p.beat_id === b.id);
     if (!mine.length || !byId.has(b.id)) continue;
     const ex = excerptsFor(b.text, mine);
-    mine.forEach((sc, i) => out.push({ part: b.part, text: sceneBlock(sc, ex[i] ?? "") }));
+    // The beat before this one in the same part (from the full outline, when given).
+    const samePart = order?.filter((x) => x.part === b.part);
+    const idx = samePart ? samePart.findIndex((x) => x.id === b.id) : -1;
+    const prev = samePart && idx >= 0 ? (idx === 0 ? null : samePart[idx - 1].id) : undefined;
+    mine.forEach((sc, i) => out.push({ part: b.part, text: sceneBlock(sc, ex[i] ?? ""), afterBeat: i === 0 ? prev : b.id }));
   }
   return out;
+}
+
+/** Insert scenes in outline order: each block goes right after the scenes of the beat before
+ *  it (`afterBeat`), at the start of its part when it is the part's first beat (`afterBeat`
+ *  null), or at the end of its part when neither can be found. */
+export function insertScenesInOrder(src: string, blocks: { part: Part; text: string; afterBeat?: string | null }[]): string {
+  let body = (src ?? "").replace(/\r\n?/g, "\n").replace(/\s+$/, "");
+  for (const b of blocks) {
+    const at = insertionPoint(body, b.part, b.afterBeat);
+    if (at == null) { body = insertScenes(body, [b]).replace(/\s+$/, ""); continue; }
+    const head = body.slice(0, at).replace(/\s+$/, "");
+    const tail = body.slice(at).replace(/^\s+/, "");
+    body = `${head}\n\n${b.text}${tail ? `\n\n${tail}` : ""}`;
+  }
+  return `${body}\n`;
+}
+
+function insertionPoint(body: string, part: Part, afterBeat: string | null | undefined): number | null {
+  // Line starts of scene headings and part markers: where one scene ends and the next begins.
+  const starts: number[] = [];
+  const re = /^(#[^\n]*|(?:INT\.?\/EXT|I\/E|INT|EXT|EST)[.\s][^\n]*|\.[A-Za-z0-9][^\n]*)$/gim;
+  for (const m of body.matchAll(re)) starts.push(m.index ?? 0);
+  if (afterBeat) {
+    const i = body.lastIndexOf(`[[beat:${afterBeat}]]`);
+    if (i < 0) return null;
+    const next = starts.find((s) => s > i);
+    return next ?? body.length;
+  }
+  if (afterBeat === null) {
+    const marker = new RegExp(`^#\\s*${PART_LABEL[part]}\\b.*$`, "im").exec(body);
+    if (!marker) return null;
+    const after = marker.index + marker[0].length;
+    const next = starts.find((s) => s > after);
+    return next ?? body.length;
+  }
+  return null;
 }

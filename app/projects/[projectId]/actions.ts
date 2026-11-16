@@ -9,8 +9,9 @@ import { runPartnerTurn } from "@/lib/agents/run-partner-turn";
 import { aiConfigured, runStoryBreakdown } from "@/lib/agents/run-story-breakdown";
 import { friendlyError, withMessage } from "@/lib/errors";
 import { parseCast } from "@/lib/cast";
+import { between, sortByOrder } from "@/lib/notebook-order";
 import { runScenePlan } from "@/lib/agents/run-scene-plan";
-import { PARTS, blocksFor, insertScenes, parseBreakdown, titleCase, uncoveredBeats, type Beat, type Part } from "@/lib/scene-plan";
+import { PARTS, blocksFor, insertScenesInOrder, parseBreakdown, titleCase, uncoveredBeats, type Beat, type Part } from "@/lib/scene-plan";
 import { TREATMENT_ATTRIBUTION, TREATMENT_NOTES, composeIntake } from "@/lib/intake";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -522,12 +523,13 @@ async function planScenes(projectId: string): Promise<number> {
   if (!aiConfigured()) return 0;
   const sb = await supabaseServer();
   const [{ data: notes }, { data: sp }, { data: ents }] = await Promise.all([
-    sb.from("story_notebook").select("id, kind, body, status, created_at").eq("project_id", projectId)
+    sb.from("story_notebook").select("id, kind, body, status, created_at, position").eq("project_id", projectId)
       .in("kind", PARTS).neq("status", "archived").order("created_at"),
     sb.from("entities").select("id, current_version_id").eq("project_id", projectId).eq("kind", "screenplay").order("created_at").limit(1).maybeSingle(),
     sb.from("entities").select("id, kind, name").eq("project_id", projectId).in("kind", ["character", "location", "story"]).neq("status", "archived"),
   ]);
-  const beats: Beat[] = (notes ?? []).map((n) => ({ id: String(n.id), part: n.kind as Part, text: String(n.body ?? "") }));
+  const beats: Beat[] = sortByOrder((notes ?? []) as { id: string; kind: string; body: string; created_at: string; position: number | null }[])
+    .map((n) => ({ id: String(n.id), part: n.kind as Part, text: String(n.body ?? "") }));
   const latestOf = async (id: string) => (await sb.from("versions").select("id, content").eq("entity_id", id)
     .order("version_number", { ascending: false }).limit(1).maybeSingle()).data;
   const script = sp ? await latestOf(sp.id) : null;
@@ -559,9 +561,9 @@ async function planScenes(projectId: string): Promise<number> {
   const fresh = await latestOf(entityId);
   const current = String(fresh?.content?.body ?? "");
   const stillTodo = uncoveredBeats(current, todo);
-  const blocks = blocksFor(scenes, stillTodo);
+  const blocks = blocksFor(scenes, stillTodo, beats);
   if (!blocks.length) return 0;
-  const next = insertScenes(current, blocks);
+  const next = insertScenesInOrder(current, blocks);
   const { data: cur } = await sb.from("entities").select("current_version_id").eq("id", entityId).single();
   const { error: e2 } = await sb.rpc("create_revision", {
     p_entity: entityId, p_content: { body: next }, p_change_summary: `Scenes from your outline (${blocks.length})`,
@@ -576,4 +578,59 @@ async function planScenes(projectId: string): Promise<number> {
 /** Called by the Script desk when it sees outline beats without scenes. */
 export async function planScenesNow(input: { projectId: string }): Promise<{ added: number }> {
   return { added: await planScenes(input.projectId) };
+}
+
+// ---- Outline: edit in place --------------------------------------------------------------
+async function outlineBeats(sb: Sb, projectId: string) {
+  const { data } = await sb.from("story_notebook").select("id, kind, created_at, position").eq("project_id", projectId)
+    .in("kind", PARTS).not("status", "in", "(archived,done)");
+  return sortByOrder((data ?? []) as { id: string; kind: string; created_at: string; position: number | null }[]);
+}
+
+/** Add a beat at a chosen spot: after `afterId`, or at the start of its part. */
+export async function insertBeat(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const back = backTo(fd, projectId, `/projects/${projectId}`);
+  const kind = s(fd, "kind");
+  const sb = await supabaseServer();
+  const beats = (await outlineBeats(sb, projectId)).filter((b) => b.kind === kind);
+  const afterId = opt(fd, "afterId");
+  const i = afterId ? beats.findIndex((b) => b.id === afterId) : -1;
+  const position = between(i >= 0 ? beats[i] : null, beats[i + 1] ?? null);
+  const { data: id, error } = await sb.rpc("add_notebook_item", { p_project: projectId, p_kind: kind, p_body: s(fd, "body") });
+  if (error || !id) redirect(withMessage(back, "error", friendlyError(error!).message));
+  const { error: e2 } = await sb.rpc("place_notebook_item", { p_item: id, p_kind: null, p_position: position });
+  if (e2) redirect(withMessage(back, "error", friendlyError(e2).message));
+  after(() => planScenes(projectId).catch(() => undefined));
+  revalidatePath(back);
+  redirect(`${back}#outline-h`);
+}
+
+/** Move a beat one step up or down; at the edge of a part it moves into the next part. */
+export async function moveBeat(fd: FormData) {
+  const projectId = s(fd, "projectId");
+  const back = backTo(fd, projectId, `/projects/${projectId}`);
+  const sb = await supabaseServer();
+  const all = await outlineBeats(sb, projectId);
+  const me = all.find((b) => b.id === s(fd, "itemId"));
+  if (!me) redirect(back);
+  const parts = PARTS as string[];
+  const list = all.filter((b) => b.kind === me.kind);
+  const i = list.findIndex((b) => b.id === me.id);
+  const up = s(fd, "dir") === "up";
+  let kind: string | null = null;
+  let position: number;
+  if (up && i > 0) position = between(list[i - 2] ?? null, list[i - 1]);
+  else if (!up && i < list.length - 1) position = between(list[i + 1], list[i + 2] ?? null);
+  else {
+    const pi = parts.indexOf(me.kind) + (up ? -1 : 1);
+    if (pi < 0 || pi >= parts.length) redirect(back);
+    kind = parts[pi];
+    const other = all.filter((b) => b.kind === kind);
+    position = up ? between(other[other.length - 1] ?? null, null) : between(null, other[0] ?? null);
+  }
+  const { error } = await sb.rpc("place_notebook_item", { p_item: me.id, p_kind: kind, p_position: position });
+  if (error) redirect(withMessage(back, "error", friendlyError(error).message));
+  revalidatePath(back);
+  redirect(`${back}#outline-h`);
 }

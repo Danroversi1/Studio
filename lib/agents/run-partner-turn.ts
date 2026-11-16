@@ -7,6 +7,7 @@ import { costUsd, type Usage } from "../ai/pricing";
 import { supabaseService } from "../supabase/server";
 import { isRuntime } from "../runtime";
 import { parseScript } from "../screenplay";
+import { sortByOrder } from "../notebook-order";
 import { composeSentence, toWorld, worldOpsFromTool, type WorldOp } from "../world";
 import {
   type NoteOp, OFFER_CHOICES_TOOL, type PartnerProposal, type ProjectSnapshot, RECORD_RUNTIME_TOOL, type StoredMessage, SUGGEST_ITEM_TOOL,
@@ -30,7 +31,7 @@ async function loadSnapshot(db: Db, projectId: string): Promise<{ snapshot: Proj
       .eq("project_id", projectId).eq("task_type", "story_breakdown").eq("input_payload->>source", "treatment")
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
     db.from("agent_proposals").select("name").eq("project_id", projectId).eq("status", "pending").limit(50),
-    db.from("story_notebook").select("id, kind, body, status").eq("project_id", projectId).neq("status", "archived")
+    db.from("story_notebook").select("id, kind, body, status, created_at, position").eq("project_id", projectId).neq("status", "archived")
       .order("created_at", { ascending: true }).limit(120),
     db.from("story_world").select("data, version").eq("project_id", projectId).maybeSingle(),
   ]);
@@ -61,7 +62,7 @@ async function loadSnapshot(db: Db, projectId: string): Promise<{ snapshot: Proj
   const snapshot: ProjectSnapshot = {
     filmTitle: project?.name ?? "Untitled film",
     runtime: (project as { runtime?: string | null } | null)?.runtime ?? null,
-    notebook: notebook ?? [],
+    notebook: sortByOrder((notebook ?? []) as { id: string; kind: string; body: string; status: string; created_at: string; position: number | null }[]),
     synopsis: story ? String(latest.get(story.id)?.body ?? "") : "",
     synopsisApproved: !!story?.current_version_id,
     treatment: treatmentRun?.text ? { title: String(treatmentRun.title ?? "Treatment"), text: String(treatmentRun.text) } : null,

@@ -199,15 +199,16 @@ export async function getScreenplay(projectId: string) {
 }
 
 export interface NotebookItem {
-  id: string; kind: string; body: string; status: string; source: string; her_words: string | null; created_at: string;
+  id: string; kind: string; body: string; status: string; source: string; her_words: string | null; created_at: string; position?: number | null;
 }
 
 /** The story notebook (everything except removed items), oldest first. */
 export async function getNotebook(projectId: string) {
   const sb = await supabaseServer();
-  const { data } = await sb.from("story_notebook").select("id, kind, body, status, source, her_words, created_at")
+  const { data } = await sb.from("story_notebook").select("id, kind, body, status, source, her_words, created_at, position")
     .eq("project_id", projectId).neq("status", "archived").order("created_at", { ascending: true }).limit(300);
-  return (data ?? []) as NotebookItem[];
+  const { sortByOrder } = await import("./notebook-order");
+  return sortByOrder((data ?? []) as NotebookItem[]);
 }
 
 export interface ReferenceRow {

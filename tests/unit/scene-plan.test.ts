@@ -62,3 +62,14 @@ test("place names read naturally", () => {
   assert.equal(titleCase("MR. X'S HIDEOUT"), "Mr. X's Hideout");
   assert.equal(titleCase("OLD TOM"), "Old Tom");
 });
+
+import { insertScenesInOrder } from "../../lib/scene-plan";
+test("a beat inserted earlier in the outline lands in the right place in the script", () => {
+  const src = "# BEGINNING\n\nINT. A - DAY\n[[beat:b1]]\n\nFirst.\n\nINT. B - DAY\n[[beat:b2]]\n\nSecond.\n\n# MIDDLE\n\nINT. C - DAY\n[[beat:b3]]\n\nThird.\n";
+  const between = insertScenesInOrder(src, [{ part: "beginning", text: "EXT. NEW - DAY\n[[beat:n]]\n\nNew.", afterBeat: "b1" }]);
+  assert.ok(between.indexOf("EXT. NEW") > between.indexOf("First.") && between.indexOf("EXT. NEW") < between.indexOf("INT. B"));
+  const first = insertScenesInOrder(src, [{ part: "middle", text: "EXT. TOP - DAY\n[[beat:t]]\n\nTop.", afterBeat: null }]);
+  assert.ok(first.indexOf("EXT. TOP") > first.indexOf("# MIDDLE") && first.indexOf("EXT. TOP") < first.indexOf("INT. C"));
+  const endless = insertScenesInOrder(src, [{ part: "ending", text: "EXT. END - DAY\n\nEnd." }]);
+  assert.ok(endless.trimEnd().endsWith("End.") && endless.includes("# ENDING"));
+});

@@ -3,7 +3,7 @@
 // suggested (marked, until she keeps them). Stored in the story notebook, separate from
 // her synopsis, so nothing here rewrites her text.
 import Link from "next/link";
-import { addNote, updateNote } from "@/app/projects/[projectId]/actions";
+import { addNote, insertBeat, moveBeat, updateNote } from "@/app/projects/[projectId]/actions";
 import type { NotebookItem } from "@/lib/data";
 import { runtimeInfo, targetPages } from "@/lib/runtime";
 import { SubmitButton } from "./ui";
@@ -137,33 +137,40 @@ export function OutlineBox({ projectId, items, runtime, canEdit, back }: {
                 </div>
               )}
               {list.length > 0 && (
-                <ul className="flex flex-col gap-1.5">
-                  {list.map((b) => (
-                    <li key={b.id} className="flex flex-wrap items-start justify-between gap-2 text-sm">
-                      <span className="whitespace-pre-wrap">
-                        {b.status === "proposed" && <span className="badge mr-1.5 align-middle">Suggested</span>}
-                        {b.body}
-                      </span>
+                <ul className="flex flex-col">
+                  {canEdit && <InsertHere projectId={projectId} back={back} kind={p.kind} afterId={null} label="Add a beat at the start" />}
+                  {list.map((b, j) => (
+                    <li key={b.id} className="flex flex-col">
+                      <div className="group flex flex-wrap items-start justify-between gap-2 border-t border-line py-1.5 text-sm">
+                        <span className="min-w-0 flex-1 whitespace-pre-wrap">
+                          {b.status === "proposed" && <span className="badge mr-1.5 align-middle">Suggested</span>}
+                          {b.body}
+                        </span>
+                        {canEdit && (
+                          <span className="flex shrink-0 items-center gap-2 text-[11px] tracking-[0.08em] text-muted uppercase">
+                            {b.status === "proposed" && <NoteButton projectId={projectId} back={back} id={b.id} field="status" value="confirmed">Keep</NoteButton>}
+                            <MoveButton projectId={projectId} back={back} id={b.id} dir="up" disabled={i === 0 && j === 0} label={`Move "${b.body.slice(0, 30)}" up`}>↑</MoveButton>
+                            <MoveButton projectId={projectId} back={back} id={b.id} dir="down" disabled={i === PARTS.length - 1 && j === list.length - 1} label={`Move "${b.body.slice(0, 30)}" down`}>↓</MoveButton>
+                            <NoteButton projectId={projectId} back={back} id={b.id} field="status" value="archived">Remove</NoteButton>
+                          </span>
+                        )}
+                      </div>
                       {canEdit && (
-                        <span className="flex shrink-0 gap-3 text-[11px] tracking-[0.08em] text-muted uppercase">
-                          {b.status === "proposed" && (
-                            <form action={updateNote}>
-                              <input type="hidden" name="projectId" value={projectId} />
-                              <input type="hidden" name="back" value={back} />
-                              <input type="hidden" name="itemId" value={b.id} />
-                              <input type="hidden" name="status" value="confirmed" />
-                              <button type="submit" className="uppercase hover:text-accent">Keep</button>
-                            </form>
-                          )}
-                          <form action={updateNote}>
+                        <details className="-mt-1 mb-1">
+                          <summary className="cursor-pointer list-none text-[11px] tracking-[0.08em] text-muted uppercase hover:text-accent">Edit</summary>
+                          <form action={updateNote} className="mt-1.5 flex flex-col gap-1.5">
                             <input type="hidden" name="projectId" value={projectId} />
                             <input type="hidden" name="back" value={back} />
                             <input type="hidden" name="itemId" value={b.id} />
-                            <input type="hidden" name="status" value="archived" />
-                            <button type="submit" className="uppercase hover:text-accent">Remove</button>
+                            <textarea name="body" defaultValue={b.body} rows={3} maxLength={2000} required className="field font-serif text-sm [field-sizing:content]" aria-label="Edit beat" />
+                            <span className="flex flex-wrap items-center gap-3">
+                              <SubmitButton pendingText="Saving…">Save</SubmitButton>
+                              <span className="text-xs text-muted">Scenes already in your script keep their text; change them on the Script desk.</span>
+                            </span>
                           </form>
-                        </span>
+                        </details>
                       )}
+                      {canEdit && j < list.length - 1 && <InsertHere projectId={projectId} back={back} kind={p.kind} afterId={b.id} label="Add a beat here" />}
                     </li>
                   ))}
                 </ul>
@@ -175,7 +182,7 @@ export function OutlineBox({ projectId, items, runtime, canEdit, back }: {
                   <input type="hidden" name="kind" value={p.kind} />
                   <label className="sr-only" htmlFor={`outline-${p.kind}`}>{p.title}</label>
                   <textarea id={`outline-${p.kind}`} name="body" rows={isFocus ? 3 : 2} required maxLength={2000}
-                    placeholder={list.length ? "Add another beat…" : "In your words…"} className="field font-serif text-sm" />
+                    placeholder={list.length ? "Add a beat at the end…" : "In your words…"} className="field font-serif text-sm" />
                   <span><SubmitButton variant={isFocus ? "primary" : "default"} pendingText="Adding…">Add to {p.title.toLowerCase()}</SubmitButton></span>
                 </form>
               )}
@@ -187,5 +194,49 @@ export function OutlineBox({ projectId, items, runtime, canEdit, back }: {
         Stuck? <Link href={`/projects/${projectId}/partners/story`} className="link-accent">Talk it through with your Storybuilder</Link>.
       </p>
     </section>
+  );
+}
+
+function NoteButton({ projectId, back, id, field, value, children }: { projectId: string; back: string; id: string; field: string; value: string; children: React.ReactNode }) {
+  return (
+    <form action={updateNote}>
+      <input type="hidden" name="projectId" value={projectId} />
+      <input type="hidden" name="back" value={back} />
+      <input type="hidden" name="itemId" value={id} />
+      <input type="hidden" name={field} value={value} />
+      <button type="submit" className="min-h-8 uppercase hover:text-accent">{children}</button>
+    </form>
+  );
+}
+
+function MoveButton({ projectId, back, id, dir, disabled, label, children }: { projectId: string; back: string; id: string; dir: "up" | "down"; disabled: boolean; label: string; children: React.ReactNode }) {
+  return (
+    <form action={moveBeat}>
+      <input type="hidden" name="projectId" value={projectId} />
+      <input type="hidden" name="back" value={back} />
+      <input type="hidden" name="itemId" value={id} />
+      <input type="hidden" name="dir" value={dir} />
+      <button type="submit" disabled={disabled} aria-label={label} title={dir === "up" ? "Move up (into the part before, at the top)" : "Move down (into the next part, at the bottom)"}
+        className="min-h-8 min-w-6 text-sm hover:text-accent disabled:opacity-30">{children}</button>
+    </form>
+  );
+}
+
+/** A quiet "+" between beats that opens into a small form. */
+function InsertHere({ projectId, back, kind, afterId, label }: { projectId: string; back: string; kind: string; afterId: string | null; label: string }) {
+  return (
+    <details className="group/ins">
+      <summary className="flex cursor-pointer list-none items-center gap-2 py-0.5 text-[11px] text-muted opacity-60 hover:text-accent hover:opacity-100 focus-visible:opacity-100">
+        <span className="h-px flex-1 bg-line" aria-hidden /> + {label} <span className="h-px flex-1 bg-line" aria-hidden />
+      </summary>
+      <form action={insertBeat} className="my-1.5 flex flex-col gap-1.5">
+        <input type="hidden" name="projectId" value={projectId} />
+        <input type="hidden" name="back" value={back} />
+        <input type="hidden" name="kind" value={kind} />
+        {afterId && <input type="hidden" name="afterId" value={afterId} />}
+        <textarea name="body" rows={2} required maxLength={2000} placeholder="In your words…" className="field font-serif text-sm" aria-label={label} />
+        <span><SubmitButton pendingText="Adding…">Add here</SubmitButton></span>
+      </form>
+    </details>
   );
 }
