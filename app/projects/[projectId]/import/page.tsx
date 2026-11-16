@@ -15,10 +15,10 @@ export default async function ImportPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ from?: string; ref?: string; to?: string; dept?: string }>;
+  searchParams: Promise<{ from?: string; ref?: string; to?: string; dept?: string; thumb?: string }>;
 }) {
   const { projectId } = await params;
-  const { from, ref, to, dept } = await searchParams;
+  const { from, ref, to, dept, thumb } = await searchParams;
   const shell = await getProjectShell(projectId);
   if (!shell || !shell.caps.member) notFound();
   if (!shell.caps.can_edit) {
@@ -32,10 +32,13 @@ export default async function ImportPage({
   if (!story) notFound();
 
   const treatments = (await getStoryReferences(projectId, story.id)).filter((r) => isTreatmentRef(r));
+  const isDeck = (k?: string) => k === "doc" || k === "slides";
   const chosen = treatments.find((t) => t.id === ref) ??
-    treatments.find((t) => parseGoogleLink(t.source_url)?.kind === "doc");
+    treatments.find((t) => isDeck(parseGoogleLink(t.source_url)?.kind));
   const link = chosen ? parseGoogleLink(chosen.source_url) : null;
-  const treatment = chosen && link?.kind === "doc" ? { docId: link.id, title: chosen.title || "your treatment" } : null;
+  const treatment = chosen && link && (link.kind === "doc" || link.kind === "slides")
+    ? { fileId: link.id, kind: link.kind, title: chosen.title || "your treatment" } : null;
+  const thumbTarget = thumb === "1" ? targets.find((t) => t.id === to && t.kind !== "story") : undefined;
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -43,12 +46,14 @@ export default async function ImportPage({
         <Link href={`/projects/${projectId}/references`} className="inline-flex min-h-11 w-fit items-center gap-1.5 text-xs tracking-[0.12em] text-muted uppercase hover:text-text">
           <IconArrowLeft /> References
         </Link>
-        <p className="eyebrow">Additional references</p>
-        <h1 className="display text-4xl leading-none sm:text-5xl">Bring in your pictures</h1>
-        <p className="max-w-2xl text-muted">Take the pictures from your treatment, or pick images in Google Drive. You choose which to keep and where they go.</p>
+        <p className="eyebrow">{thumbTarget ? `Thumbnail for ${thumbTarget.name}` : "Additional references"}</p>
+        <h1 className="display text-4xl leading-none sm:text-5xl">{thumbTarget ? "Pick a picture" : "Bring in your pictures"}</h1>
+        <p className="max-w-2xl text-muted">{thumbTarget
+          ? `Take the pictures from your treatment (or Google Drive), then tap "Use for ${thumbTarget.name}" under the one you want.`
+          : "Take the pictures from your treatment, or pick images in Google Drive. You choose which to keep and where they go."}</p>
       </header>
-      <DriveImport targets={targets} defaultTargetId={targets.some((t) => t.id === to) ? to! : story.id}
-        treatment={treatment} startWithTreatment={from === "treatment"} defaultDepartment={isDepartment(dept) ? dept : ""} />
+      <DriveImport projectId={projectId} thumbFor={thumbTarget ? { id: thumbTarget.id, name: thumbTarget.name } : null} targets={targets} defaultTargetId={targets.some((t) => t.id === to) ? to! : story.id}
+        treatment={treatment} startWithTreatment={from === "treatment" || !!thumbTarget} defaultDepartment={isDepartment(dept) ? dept : ""} />
     </div>
   );
 }

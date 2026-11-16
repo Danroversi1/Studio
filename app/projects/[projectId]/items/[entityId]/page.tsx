@@ -292,7 +292,7 @@ export default async function ItemWorkspace({
         <p className="help">Pick the picture that shows on {entity.name}&apos;s card.</p>
       )}
       {caps.can_edit && (thumbChoices.length === 0 ? (
-        <p className="text-xs text-muted">Upload artwork or add a reference image here first, then choose it as the thumbnail.</p>
+        <p className="text-xs text-muted">No pictures on {entity.name} yet.</p>
       ) : (
         <ul className="grid grid-cols-3 gap-2">
           {thumbChoices.map((c) => (
@@ -311,6 +311,9 @@ export default async function ItemWorkspace({
           ))}
         </ul>
       ))}
+      {caps.can_edit && (
+        <Link href={`${base}/import?thumb=1&to=${entityId}&from=treatment`} className="btn self-start text-xs">Pick from the treatment</Link>
+      )}
     </section>
   );
 

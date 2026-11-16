@@ -7,10 +7,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { MAX_ARTWORK_BYTES, sniffImageType } from "@/lib/assets/validate";
 import {
-  DOC_MIME, downloadDriveFile, exportDocZip, getGoogleToken, googleConfig, openDocWithPermission,
+  DOC_MIME, SLIDES_MIME, downloadDriveFile, exportDocZip, exportSlidesZip, getGoogleToken, googleConfig, openTreatmentWithPermission,
   pickFromDrive, preloadGoogle,
 } from "@/lib/google/client";
-import { docUrl, driveFileUrl, splitDocExport } from "@/lib/google/links";
+import { setThumbnailFor } from "@/app/projects/[projectId]/thumb-actions";
+import { docUrl, driveFileUrl, slidesUrl, splitDocExport } from "@/lib/google/links";
 import { DEPARTMENTS } from "@/lib/departments";
 import { TREATMENT_ATTRIBUTION } from "@/lib/intake";
 
@@ -41,12 +42,15 @@ async function readError(res: Response) {
   }
 }
 
-export function DriveImport({ targets, defaultTargetId, treatment, startWithTreatment, defaultDepartment }: {
+export function DriveImport({ projectId, targets, defaultTargetId, treatment, startWithTreatment, defaultDepartment, thumbFor }: {
+  projectId: string;
   targets: ImportTarget[];
   defaultTargetId: string;
-  treatment: { docId: string; title: string } | null;
+  treatment: { fileId: string; kind: "doc" | "slides"; title: string } | null;
   startWithTreatment: boolean;
   defaultDepartment: string;
+  /** Choosing a thumbnail for this character or location: one tap adds the picture and uses it. */
+  thumbFor?: { id: string; name: string } | null;
 }) {
   const router = useRouter();
   const cfg = googleConfig();
@@ -75,12 +79,12 @@ export function DriveImport({ targets, defaultTargetId, treatment, startWithTrea
     setItems((prev) => (prev.some((p) => p.key === c.key) ? prev : [...prev, { ...c, blob, mime, preview, selected: true }]));
   }
 
-  function addDocImages(docId: string, docName: string, entries: { name: string; bytes: Uint8Array }[], fromTreatment: boolean, skipped: string[]) {
+  function addDocImages(docId: string, docName: string, entries: { name: string; bytes: Uint8Array }[], fromTreatment: boolean, skipped: string[], kind: "doc" | "slides" = "doc") {
     const { images } = splitDocExport(entries);
     if (!images.length) skipped.push(`${docName}: no images inside`);
     images.forEach((img, i) =>
       addCandidate({
-        key: `${docId}:${img.name}`, name: `${docName} – image ${i + 1}`, sourceUrl: docUrl(docId), fileId: docId,
+        key: `${docId}:${img.name}`, name: `${docName} – image ${i + 1}`, sourceUrl: kind === "doc" ? docUrl(docId) : slidesUrl(docId), fileId: docId,
         fromTreatment, from: fromTreatment ? "Treatment" : docName,
       }, img.bytes, skipped));
   }
@@ -102,9 +106,9 @@ export function DriveImport({ targets, defaultTargetId, treatment, startWithTrea
   const fromTreatment = () =>
     run("Opening your treatment…", async (skipped) => {
       if (!treatment || !cfg) return;
-      const { entries, name } = await openDocWithPermission(cfg, treatment.docId);
+      const { entries, name } = await openTreatmentWithPermission(cfg, treatment.fileId, treatment.kind);
       setPhase({ kind: "busy", label: "Finding images…" });
-      addDocImages(treatment.docId, name || treatment.title, entries, true, skipped);
+      addDocImages(treatment.fileId, name || treatment.title, entries, true, skipped, treatment.kind);
     });
 
   const fromDrive = () =>
@@ -112,18 +116,55 @@ export function DriveImport({ targets, defaultTargetId, treatment, startWithTrea
       if (!cfg) return;
       const token = await getGoogleToken(cfg);
       const picked = await pickFromDrive(cfg, token, {
-        mimeTypes: ["image/png", "image/jpeg", DOC_MIME], multiselect: true, title: "Choose images or a Google Doc",
+        mimeTypes: ["image/png", "image/jpeg", DOC_MIME, SLIDES_MIME], multiselect: true, title: "Choose images, a Google Doc or Slides",
       });
       for (const [i, f] of picked.entries()) {
         setPhase({ kind: "busy", label: `Downloading ${i + 1} of ${picked.length}…` });
         if (f.mimeType === DOC_MIME) {
-          addDocImages(f.id, f.name, await exportDocZip(token, f.id), f.id === treatment?.docId, skipped);
+          addDocImages(f.id, f.name, await exportDocZip(token, f.id), f.id === treatment?.fileId, skipped);
+        } else if (f.mimeType === SLIDES_MIME) {
+          addDocImages(f.id, f.name, await exportSlidesZip(token, f.id), f.id === treatment?.fileId, skipped, "slides");
         } else {
           addCandidate({ key: f.id, name: f.name, sourceUrl: driveFileUrl(f.id), fileId: f.id, fromTreatment: false, from: "Google Drive" },
             await downloadDriveFile(token, f.id), skipped);
         }
       }
     });
+
+  async function uploadOne(c: Candidate, entityId: string): Promise<string> {
+    const reserve = await fetch("/api/assets/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        entityId, fileName: `${c.name}.${c.mime === "image/png" ? "png" : "jpg"}`, mimeType: c.mime,
+        byteSize: c.blob.size, sourceUrl: c.sourceUrl, attribution, fileId: c.fileId, fromTreatment: c.fromTreatment,
+        department: department || null,
+      }),
+    });
+    if (!reserve.ok) throw new Error(await readError(reserve));
+    const { assetId, upload } = (await reserve.json()) as {
+      assetId: string; upload: { url: string; method: string; headers: Record<string, string> };
+    };
+    const put = await fetch(upload.url, { method: upload.method, headers: upload.headers, body: c.blob });
+    if (!put.ok) throw new Error("The upload was interrupted. Please try again.");
+    const fin = await fetch(`/api/assets/${assetId}/complete`, { method: "POST" });
+    if (!fin.ok) throw new Error(await readError(fin));
+    return assetId;
+  }
+
+  /** Thumbnail mode: add this one picture to the item and use it as its thumbnail. */
+  async function useAsThumbnail(c: Candidate) {
+    if (!thumbFor) return;
+    setPhase({ kind: "busy", label: `Setting ${thumbFor.name}'s thumbnail…` });
+    try {
+      const assetId = await uploadOne(c, thumbFor.id);
+      const r = await setThumbnailFor({ projectId, entityId: thumbFor.id, assetId });
+      if (!r.ok) throw new Error(r.error);
+      router.push(`/projects/${projectId}/items/${thumbFor.id}#thumbnail`);
+    } catch (e) {
+      setPhase({ kind: "error", message: e instanceof Error ? e.message : "That didn't work. Try again." });
+    }
+  }
 
   async function attach() {
     const chosen = items.filter((i) => i.selected);
@@ -132,23 +173,7 @@ export function DriveImport({ targets, defaultTargetId, treatment, startWithTrea
     try {
       for (const c of chosen) {
         setPhase({ kind: "busy", label: `Adding ${done + 1} of ${chosen.length}…` });
-        const reserve = await fetch("/api/assets/import", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            entityId: target, fileName: `${c.name}.${c.mime === "image/png" ? "png" : "jpg"}`, mimeType: c.mime,
-            byteSize: c.blob.size, sourceUrl: c.sourceUrl, attribution, fileId: c.fileId, fromTreatment: c.fromTreatment,
-            department: department || null,
-          }),
-        });
-        if (!reserve.ok) throw new Error(await readError(reserve));
-        const { assetId, upload } = (await reserve.json()) as {
-          assetId: string; upload: { url: string; method: string; headers: Record<string, string> };
-        };
-        const put = await fetch(upload.url, { method: upload.method, headers: upload.headers, body: c.blob });
-        if (!put.ok) throw new Error("The upload was interrupted. Please try again.");
-        const fin = await fetch(`/api/assets/${assetId}/complete`, { method: "POST" });
-        if (!fin.ok) throw new Error(await readError(fin));
+        await uploadOne(c, target);
         done++;
         setItems((prev) => prev.filter((p) => p.key !== c.key));
       }
@@ -179,7 +204,7 @@ export function DriveImport({ targets, defaultTargetId, treatment, startWithTrea
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="panel flex flex-col gap-3 p-5">
           <p className="eyebrow">From your treatment</p>
-          <p className="help">{treatment ? `Find every picture in “${treatment.title}”.` : "Link a Google Docs treatment first (Treatment page)."}</p>
+          <p className="help">{treatment ? `Find every picture in “${treatment.title}”.` : "Link your treatment (Google Docs or Slides) on the Treatment page first."}</p>
           <button type="button" className={`btn ${startWithTreatment ? "btn-primary" : ""} self-start`} disabled={busy || !treatment} onClick={fromTreatment}>
             Get images from treatment
           </button>
@@ -227,6 +252,11 @@ export function DriveImport({ targets, defaultTargetId, treatment, startWithTrea
                   <span className="truncate px-2 py-1.5 text-xs">{c.name}</span>
                   <span className="px-2 pb-2 text-[10px] tracking-[0.1em] text-muted uppercase">{c.from}</span>
                 </label>
+                {thumbFor && (
+                  <button type="button" className="btn-primary mt-1 min-h-9 w-full text-xs" disabled={busy} onClick={() => useAsThumbnail(c)}>
+                    Use for {thumbFor.name}
+                  </button>
+                )}
               </li>
             ))}
           </ul>

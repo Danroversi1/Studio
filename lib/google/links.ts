@@ -34,6 +34,7 @@ export function parseGoogleLink(raw: string): GoogleLink {
 }
 
 export const docUrl = (id: string) => `https://docs.google.com/document/d/${id}/edit`;
+export const slidesUrl = (id: string) => `https://docs.google.com/presentation/d/${id}/edit`;
 /** Google's own embeddable player for a Slides deck (no autoplay). */
 export const slidesEmbedUrl = (id: string) =>
   `https://docs.google.com/presentation/d/${id}/embed?start=false&loop=false&delayms=60000`;
@@ -53,6 +54,8 @@ export function isSafeHref(href: string): boolean {
 /** Find the HTML file and image files in an exported Docs ZIP. */
 export function splitDocExport<T extends { name: string }>(entries: T[]) {
   const html = entries.find((e) => /\.html?$/i.test(e.name) && !e.name.includes("/"));
-  const images = entries.filter((e) => /^images\/[^/]+$/i.test(e.name));
+  // Docs "web page" export keeps pictures in images/; a Slides PowerPoint export in ppt/media/.
+  const images = entries.filter((e) => /^images\/[^/]+$/i.test(e.name) || /^ppt\/media\/[^/]+\.(png|jpe?g)$/i.test(e.name))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   return { html, images };
 }

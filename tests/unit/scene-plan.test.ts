@@ -73,3 +73,9 @@ test("a beat inserted earlier in the outline lands in the right place in the scr
   const endless = insertScenesInOrder(src, [{ part: "ending", text: "EXT. END - DAY\n\nEnd." }]);
   assert.ok(endless.trimEnd().endsWith("End.") && endless.includes("# ENDING"));
 });
+
+import { splitDocExport } from "../../lib/google/links";
+test("pictures inside a Slides (PowerPoint) export are found, in slide order", () => {
+  const e = ["ppt/media/image10.png", "ppt/media/image2.jpeg", "ppt/slides/slide1.xml", "ppt/media/image1.png", "[Content_Types].xml"].map((name) => ({ name }));
+  assert.deepEqual(splitDocExport(e).images.map((x) => x.name), ["ppt/media/image1.png", "ppt/media/image2.jpeg", "ppt/media/image10.png"]);
+});

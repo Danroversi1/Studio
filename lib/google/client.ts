@@ -170,6 +170,20 @@ export async function exportDocZip(accessToken: string, id: string): Promise<Zip
 
 export const SLIDES_MIME = "application/vnd.google-apps.presentation";
 
+/** Export a Google Slides deck as PowerPoint: a zip whose ppt/media/ folder holds every picture. */
+export async function exportSlidesZip(accessToken: string, id: string): Promise<ZipEntry[]> {
+  const res = await driveFetch(accessToken, `files/${encodeURIComponent(id)}/export?mimeType=${encodeURIComponent("application/vnd.openxmlformats-officedocument.presentationml.presentation")}`);
+  return readZip(new Uint8Array(await res.arrayBuffer()));
+}
+
+/** Open the treatment (a Doc or a Slides deck), asking her to pick it the first time. */
+export async function openTreatmentWithPermission(cfg: GoogleConfig, fileId: string, kind: "doc" | "slides"): Promise<{ entries: ZipEntry[]; name: string }> {
+  return withFilePermission(cfg, fileId, kind === "doc" ? DOC_MIME : SLIDES_MIME, "Select your treatment so STUDIO can open it", async (t) => ({
+    entries: kind === "doc" ? await exportDocZip(t, fileId) : await exportSlidesZip(t, fileId),
+    name: await getDriveFileName(t, fileId),
+  }));
+}
+
 /** Plain text of a Google Doc or Slides deck (Google's own text export). */
 export async function exportText(accessToken: string, id: string): Promise<string> {
   const res = await driveFetch(accessToken, `files/${encodeURIComponent(id)}/export?mimeType=text%2Fplain`);

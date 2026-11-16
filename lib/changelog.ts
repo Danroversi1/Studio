@@ -8,6 +8,14 @@ export interface ChangeRound { at: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeRound[] = [
   {
+    at: "2026-11-16T03:10:00Z",
+    title: "Thumbnails from the treatment",
+    items: [
+      { text: "Character and location pages: \"Pick from the treatment\" opens the treatment's pictures; one tap on \"Use for …\" sets the thumbnail.", href: `${J}/items/b547cb85-1d37-413a-8e10-3ebe1a74e14f#thumbnail` },
+      { text: "Google Slides treatments now work for pulling pictures (before, only Google Docs did); Slides decks can also be picked from Drive." },
+    ],
+  },
+  {
     at: "2026-11-16T02:40:00Z",
     title: "Edit the outline in place",
     items: [
