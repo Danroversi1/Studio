@@ -7,7 +7,7 @@ import { loadAll, renderComposition } from "@/lib/storyboard/render";
 import type { ShotContent } from "@/lib/storyboard/shot";
 import { ANGLES, SIZES, formatSeconds, labelOf } from "@/lib/storyboard/shot";
 
-export interface PrintFrame { id: string; content: ShotContent; composition: Composition; notes: string; state: string; locked: boolean }
+export interface PrintFrame { id: string; content: ShotContent; lensName?: string | null; composition: Composition; notes: string; state: string; locked: boolean }
 
 export function PrintSheet({ project, title, brief, frames, totals, credits }: {
   project: string; title: string; brief: string; frames: PrintFrame[]; totals: string; credits: string[];
@@ -63,8 +63,8 @@ export function PrintSheet({ project, title, brief, frames, totals, credits }: {
               {c.notice && <p className="text-xs"><b>Notice:</b> {c.notice}</p>}
               {c.action && <p className="text-sm">{c.action}</p>}
               {c.dialogue && <p className="text-sm italic">“{c.dialogue}”</p>}
-              {meta && (c.size || c.angle || c.cameraNotes || c.camera?.focalMm) && (
-                <p className="text-[10px] text-neutral-700">{[labelOf(SIZES, c.size), labelOf(ANGLES, c.angle), c.cameraNotes, c.camera?.focalMm ? `${c.camera.focalMm} mm (note)` : ""].filter(Boolean).join(" · ")}</p>
+              {meta && (c.size || c.angle || c.cameraNotes || c.camera?.focalMm || f.lensName) && (
+                <p className="text-[10px] text-neutral-700">{[labelOf(SIZES, c.size), labelOf(ANGLES, c.angle), c.cameraNotes, [f.lensName, c.camera?.focalMm ? `${c.camera.focalMm} mm` : ""].filter(Boolean).join(" ") + (f.lensName || c.camera?.focalMm ? " (note)" : "")].filter(Boolean).join(" · ")}</p>
               )}
               {f.notes && <p className="text-xs">Notes: {f.notes}</p>}
               <p className="text-[10px] uppercase tracking-[0.1em] text-neutral-600">{f.state === "approved" ? "Approved" : "Proposal"}{f.locked ? " · locked" : ""}</p>

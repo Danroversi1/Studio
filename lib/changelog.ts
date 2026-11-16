@@ -8,6 +8,14 @@ export interface ChangeRound { at: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeRound[] = [
   {
+    at: "2026-11-16T13:00:00Z",
+    title: "Lens shelf (with Lens Addiction)",
+    items: [
+      { text: "Camera tab → Lens shelf: browse Lens Addiction, then add a lens with its link, focal lengths, spherical/anamorphic, the film you saw it in and what you like. STUDIO keeps your notes and the link only; “Open on Lens Addiction” goes back to the page.", href: `${J}/storyboards` },
+      { text: "Click a focal length to use that lens for a frame: field of view, depth of field and how far the camera stands for the shot size fill in. The lens name shows on the printed storyboard, with a credit link." },
+    ],
+  },
+  {
     at: "2026-11-16T12:00:00Z",
     title: "Storyboards: Compose (no AI needed)",
     items: [

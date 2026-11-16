@@ -13,6 +13,17 @@ export interface LibItem {
 }
 export interface JobRow { id: string; shotId: string | null; kind: string; status: string; outputAssetId: string | null; applied: boolean; error: string | null; createdAt: string; model: string; usage: Record<string, unknown> | null }
 export interface FilmItem { id: string; kind: "character" | "location"; name: string; assetId: string | null }
+export interface LensPick {
+  id: string; name: string; focalLengths: number[]; zoom: boolean; optical: "spherical" | "anamorphic"; squeeze: number | null;
+  maxAperture: string; camera: string; seenIn: string; note: string; sourceUrl: string | null; sourceName: string;
+}
+export const lensFromRow = (l: Record<string, unknown>): LensPick => ({
+  id: String(l.id), name: String(l.name), focalLengths: ((l.focal_lengths as (number | string)[]) ?? []).map(Number), zoom: !!l.zoom,
+  optical: l.optical === "anamorphic" ? "anamorphic" : "spherical", squeeze: l.squeeze == null ? null : Number(l.squeeze),
+  maxAperture: String(l.max_aperture ?? ""), camera: String(l.camera ?? ""), seenIn: String(l.seen_in ?? ""), note: String(l.note ?? ""),
+  sourceUrl: (l.source_url as string | null) ?? null, sourceName: String(l.source_name ?? ""),
+});
+export const LENS_ADDICTION_URL = "https://www.lensaddiction.net/breakdowns";
 export interface StockRef { id: string; manufacturer: string; stock: string; product_codes: string[]; balance: string | null; ei_daylight: number | null; ei_tungsten: number | null; source_urls: string[]; documented: string; editorial: string; gauges: string[] }
 
 export const KIND_LABELS: Record<LibItem["kind"], string> = {

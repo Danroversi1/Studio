@@ -2,9 +2,9 @@
 // Side panels for Compose. All local editing: no model calls.
 import { useEffect, useRef, useState } from "react";
 import {
-  archiveLibraryItem, libraryUsage, replaceLibrarySource, restoreVersion, saveLibraryItem,
+  archiveLens, archiveLibraryItem, libraryUsage, replaceLibrarySource, restoreVersion, saveLens, saveLibraryItem,
 } from "@/app/projects/[projectId]/storyboard-actions";
-import { FORMATS, depthOfField, fieldOfView, formatOf, round } from "@/lib/storyboard/camera";
+import { FORMATS, depthOfField, distanceForFraming, fieldOfView, formatOf, round } from "@/lib/storyboard/camera";
 import {
   FRAME_W, frameH, group, reorder, removeLayers, ungroup, update, withGroup, DEFAULT_LOOK,
   type Composition, type Layer, type Look,
@@ -13,7 +13,7 @@ import { LOOK_PRESETS } from "@/lib/storyboard/look";
 import { SHAPES, type BuiltinShape } from "@/lib/storyboard/shapes";
 import { ANGLES, SIZES, labelOf, type ShotContent } from "@/lib/storyboard/shot";
 import { imageSize, uploadImage } from "@/lib/storyboard/upload";
-import { KIND_LABELS, PURPOSES, type FilmItem, type FrameRow, type LibItem, type StockRef } from "./types";
+import { KIND_LABELS, LENS_ADDICTION_URL, PURPOSES, type FilmItem, type FrameRow, type LensPick, type LibItem, type StockRef } from "./types";
 
 type Edit = (f: (c: Composition) => Composition) => void;
 type Msg = (m: { kind: "error" | "notice"; text: string } | null) => void;
@@ -407,8 +407,9 @@ export function FramePanel({ frame, number, canEdit, onSave, onNotes, onState, o
 }
 
 // ---- Camera (2D framing + notes for the real shoot) ---------------------------------------
-export function CameraPanel({ comp, frame, editable, canEdit, edit, onSaveContent }: {
+export function CameraPanel({ comp, frame, editable, canEdit, edit, onSaveContent, projectId, lenses, frames, onLensesChanged, onMessage }: {
   comp: Composition; frame: FrameRow; editable: boolean; canEdit: boolean; edit: Edit; onSaveContent: (c: ShotContent) => void;
+  projectId: string; lenses: LensPick[]; frames: FrameRow[]; onLensesChanged: () => void; onMessage: Msg;
 }) {
   const f = comp.framing;
   const setF = (patch: Partial<Composition["framing"]>) => edit((c) => ({ ...c, framing: { ...c.framing, ...patch } }));
@@ -421,9 +422,27 @@ export function CameraPanel({ comp, frame, editable, canEdit, edit, onSaveConten
   const dirty = JSON.stringify(c) !== JSON.stringify(frame.content);
   const setCam = (patch: Partial<NonNullable<ShotContent["camera"]>>) => setC((x) => ({ ...x, camera: { ...(x.camera ?? {}), ...patch } }));
   const n = (v: string) => (v === "" ? undefined : Number(v));
+  const lens = lenses.find((l) => l.id === c.lensId) ?? null;
+  const useLens = (l: LensPick | null, focal?: number) => setC((x) => {
+    if (!l) { const { lensId: _, ...rest } = x; return rest; }
+    const cam0 = x.camera ?? {};
+    return { ...x, lensId: l.id, camera: { ...cam0, focalMm: focal ?? cam0.focalMm ?? l.focalLengths[0],
+      anamorphic: l.optical === "anamorphic" || undefined, squeeze: l.optical === "anamorphic" ? (l.squeeze ?? 2) : undefined,
+      formatId: l.optical === "anamorphic" && (!cam0.formatId || cam0.formatId === "s35") ? "ana35" : cam0.formatId ?? "s35" } };
+  });
+  const sizeKey = c.size ?? "medium";
+  const standM = cam.focalMm ? distanceForFraming(cam, sizeKey) : null;
   return (
     <div className="flex flex-col gap-3">
-      <section className="flex flex-col gap-2">
+      <LensShelf projectId={projectId} lenses={lenses} frames={frames} current={c.lensId ?? null} currentFocal={cam.focalMm}
+        canEdit={canEdit} frameLocked={frame.locked} onUse={useLens} onChanged={onLensesChanged} onMessage={onMessage} />
+      {canEdit && !frame.locked && dirty && (
+        <div className="flex items-center gap-2 border border-brand bg-brand/5 p-2 text-xs">
+          <span className="flex-1">{lens ? `${lens.name}${cam.focalMm ? ` · ${cam.focalMm} mm` : ""} picked for this frame.` : "Camera notes changed."}</span>
+          <button type="button" className="btn btn-primary min-h-8 px-3 text-xs" onClick={() => onSaveContent(c)}>Save</button>
+        </div>
+      )}
+      <section className="flex flex-col gap-2 border-t border-line pt-2">
         <h3 className="font-semibold">Framing</h3>
         <div className="flex flex-wrap gap-1">
           {([["Wide", 1], ["Medium", 1.6], ["Close", 2.6]] as const).map(([l, z]) => (
@@ -457,7 +476,7 @@ export function CameraPanel({ comp, frame, editable, canEdit, edit, onSaveConten
         </div>
         <p className="text-xs text-muted">{c.angle && c.angle !== "eye" ? `${labelOf(ANGLES, c.angle)} is a note here: draw or arrange the frame to show it.` : "Eye level, high or low angle: draw or arrange the frame to show it; these are notes."}</p>
         <details className="border border-line p-2">
-          <summary className="cursor-pointer text-sm font-medium">Lens notes for the real shoot</summary>
+          <summary className="cursor-pointer text-sm font-medium">Lens notes for the real shoot{lens ? ` · ${lens.name}` : ""}{cam.focalMm ? ` ${cam.focalMm} mm` : ""}</summary>
           <fieldset className="mt-2 grid grid-cols-2 gap-2 text-xs" disabled={!canEdit || frame.locked}>
             <label className="col-span-2 flex flex-col gap-1"><span className="label">Capture format</span>
               <select className="field py-1.5 text-sm" value={cam.formatId} onChange={(e) => setCam({ formatId: e.target.value })}>
@@ -471,12 +490,146 @@ export function CameraPanel({ comp, frame, editable, canEdit, edit, onSaveConten
             <label className="flex flex-col gap-1"><span className="label">Camera height (m)</span><input type="number" step="0.1" className="field py-1.5 text-sm" value={cam.cameraHeightM ?? ""} onChange={(e) => setCam({ cameraHeightM: n(e.target.value) })} /></label>
           </fieldset>
           <p className="mt-2 text-xs text-muted">{fov && fmt ? `On ${fmt.name} at ${comp.aspect.toFixed(2)}:1, a ${cam.focalMm} mm lens sees about ${Math.round(fov.h)}° × ${Math.round(fov.v)}° (calculated from the capture width after cropping to this aspect).` : "Add a focal length to calculate the field of view."}
+            {standM ? ` For a ${labelOf(SIZES, sizeKey).toLowerCase()} shot of a standing person, the camera is about ${round(standM, 1)} m away.` : ""}
             {dof ? ` Depth of field ≈ ${round(dof.nearM, 2)}–${dof.farM ? `${round(dof.farM, 2)} m` : "∞"}${dof.approximate ? " (approximate for T-stops)" : ""}.` : ""} These are notes; the 2D frame is not an optical simulation, and a lens name doesn&apos;t reproduce its flare or bokeh.</p>
         </details>
         {canEdit && !frame.locked && dirty && <button type="button" className="btn self-start" onClick={() => onSaveContent(c)}>Save shot notes</button>}
       </section>
       <p className="text-[11px] text-muted">Frame width: {FRAME_W} units · height {Math.round(frameH(comp))}.</p>
     </div>
+  );
+}
+
+// ---- Lens shelf ----------------------------------------------------------------------------
+// Lenses she picked while browsing Lens Addiction (or elsewhere): her link and her notes.
+// Nothing is copied from the source site; "Open" always goes back to it.
+const focalText = (l: LensPick) => (l.focalLengths.length ? (l.zoom && l.focalLengths.length >= 2 ? `${l.focalLengths[0]}–${l.focalLengths[l.focalLengths.length - 1]} mm` : `${l.focalLengths.join(", ")} mm`) : "");
+
+function LensShelf({ projectId, lenses, frames, current, currentFocal, canEdit, frameLocked, onUse, onChanged, onMessage }: {
+  projectId: string; lenses: LensPick[]; frames: FrameRow[]; current: string | null; currentFocal?: number; canEdit: boolean; frameLocked: boolean;
+  onUse: (l: LensPick | null, focal?: number) => void; onChanged: () => void; onMessage: Msg;
+}) {
+  const [form, setForm] = useState<null | { id: string | null }>(null);
+  const [open, setOpen] = useState<string | null>(current);
+  const usedIn = (id: string) => frames.map((f, i) => (f.content.lensId === id ? i + 1 : 0)).filter(Boolean);
+  const editing = form?.id ? lenses.find((l) => l.id === form.id) ?? null : null;
+  const pickable = canEdit && !frameLocked;
+  return (
+    <section className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 className="font-semibold">Lens shelf</h3>
+        <a href={LENS_ADDICTION_URL} target="_blank" rel="noopener noreferrer" className="text-xs underline">Browse Lens Addiction ↗</a>
+      </div>
+      <p className="text-xs text-muted">Find a look you love on Lens Addiction, then add that lens here with the link. Pick it for a frame and the camera notes fill in.</p>
+      {lenses.length === 0 && !form && <p className="border border-dashed border-line p-2 text-xs text-muted">No lenses yet.</p>}
+      <ul className="flex flex-col gap-1.5">
+        {lenses.map((l) => {
+          const used = usedIn(l.id);
+          const isCurrent = l.id === current;
+          return (
+            <li key={l.id} className={`border p-2 text-xs ${isCurrent ? "border-brand" : "border-line"}`}>
+              <button type="button" className="flex w-full items-baseline justify-between gap-2 text-left" onClick={() => setOpen(open === l.id ? null : l.id)} aria-expanded={open === l.id}>
+                <span className="font-medium text-sm">{l.name}</span>
+                <span className="shrink-0 text-muted">{l.optical === "anamorphic" ? `Anamorphic ${l.squeeze ?? 2}×` : "Spherical"}{isCurrent ? " · this frame" : ""}</span>
+              </button>
+              {l.focalLengths.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {(l.zoom ? [l.focalLengths[0], l.focalLengths[l.focalLengths.length - 1]] : l.focalLengths).map((mm) => (
+                    <button key={mm} type="button" disabled={!pickable} className={`btn min-h-7 px-2 text-[11px] ${isCurrent && currentFocal === mm ? "btn-primary" : ""}`}
+                      onClick={() => onUse(l, mm)} title={`Use ${l.name} at ${mm} mm for this frame`}>{mm} mm</button>
+                  ))}
+                  {l.zoom && <span className="self-center text-muted">zoom: type any focal length in the lens notes</span>}
+                </div>
+              )}
+              {open === l.id && (
+                <div className="mt-2 flex flex-col gap-1">
+                  {l.seenIn && <p><span className="text-muted">Seen in:</span> {l.seenIn}{l.camera ? ` · ${l.camera}` : ""}</p>}
+                  {!l.seenIn && l.camera && <p><span className="text-muted">Camera:</span> {l.camera}</p>}
+                  {l.maxAperture && <p><span className="text-muted">Widest aperture:</span> {l.maxAperture}</p>}
+                  {l.note && <p><span className="text-muted">What I like:</span> {l.note}</p>}
+                  <p className="text-muted">{used.length ? `Used in frame${used.length > 1 ? "s" : ""} ${used.join(", ")} of this storyboard.` : "Not used in this storyboard yet."}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {l.sourceUrl && <a href={l.sourceUrl} target="_blank" rel="noopener noreferrer" className="btn min-h-7 px-2 text-[11px]">Open on {l.sourceName || "source"} ↗</a>}
+                    {pickable && !l.focalLengths.length && <button type="button" className="btn min-h-7 px-2 text-[11px]" onClick={() => onUse(l)}>Use for this frame</button>}
+                    {pickable && isCurrent && <button type="button" className="btn min-h-7 px-2 text-[11px]" onClick={() => onUse(null)}>Clear from this frame</button>}
+                    {canEdit && <button type="button" className="btn min-h-7 px-2 text-[11px]" onClick={() => setForm({ id: l.id })}>Edit</button>}
+                    {canEdit && <button type="button" className="btn min-h-7 px-2 text-[11px]" onClick={async () => {
+                      const r = await archiveLens({ lensId: l.id });
+                      if (!r.ok) onMessage({ kind: "error", text: r.error }); else { onMessage({ kind: "notice", text: `${l.name} removed from the shelf${used.length ? " (frames keep their focal length notes)" : ""}.` }); onChanged(); }
+                    }}>Remove</button>}
+                  </div>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {canEdit && !form && <button type="button" className="btn self-start" onClick={() => setForm({ id: null })}>+ Add a lens</button>}
+      {form && <LensForm key={form.id ?? "new"} projectId={projectId} lens={editing} onCancel={() => setForm(null)}
+        onSaved={(name) => { setForm(null); onMessage({ kind: "notice", text: `${name} is on the shelf.` }); onChanged(); }} onMessage={onMessage} />}
+    </section>
+  );
+}
+
+function LensForm({ projectId, lens, onCancel, onSaved, onMessage }: { projectId: string; lens: LensPick | null; onCancel: () => void; onSaved: (name: string) => void; onMessage: Msg }) {
+  const [v, setV] = useState({
+    sourceUrl: lens?.sourceUrl ?? "", name: lens?.name ?? "", focals: lens ? lens.focalLengths.join(", ") : "", zoom: lens?.zoom ?? false,
+    optical: lens?.optical ?? "spherical", squeeze: String(lens?.squeeze ?? 2), maxAperture: lens?.maxAperture ?? "", camera: lens?.camera ?? "",
+    seenIn: lens?.seenIn ?? "", note: lens?.note ?? "",
+  });
+  const [busy, setBusy] = useState(false);
+  const set = (p: Partial<typeof v>) => setV((x) => ({ ...x, ...p }));
+  const focals = v.focals.split(/[,\s–-]+/).map((x) => x.replace(/mm$/i, "")).filter(Boolean).map(Number);
+  const badFocal = focals.some((x) => !Number.isFinite(x) || x < 4 || x > 2000);
+  const submit = async () => {
+    if (!v.name.trim()) { onMessage({ kind: "error", text: "Give the lens a name, like “Cooke S4/i” or “Canon K35”." }); return; }
+    if (badFocal) { onMessage({ kind: "error", text: "Focal lengths are numbers in mm, like 25, 40, 75." }); return; }
+    setBusy(true);
+    const r = await saveLens({ projectId, lensId: lens?.id ?? null, data: {
+      name: v.name.trim(), focal_lengths: focals, zoom: v.zoom, optical: v.optical, squeeze: v.optical === "anamorphic" ? Number(v.squeeze) : null,
+      max_aperture: v.maxAperture.trim(), camera: v.camera.trim(), seen_in: v.seenIn.trim(), note: v.note.trim(), source_url: v.sourceUrl.trim(),
+    } });
+    setBusy(false);
+    if (!r.ok) onMessage({ kind: "error", text: r.error }); else onSaved(v.name.trim());
+  };
+  const field = "field py-1.5 text-sm";
+  return (
+    <form className="flex flex-col gap-2 border border-line p-2 text-xs" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+      <p className="font-medium text-sm">{lens ? "Edit lens" : "Add a lens"}</p>
+      <label className="flex flex-col gap-1"><span className="label">Link (Lens Addiction page)</span>
+        <input className={field} type="url" inputMode="url" placeholder="https://www.lensaddiction.net/…" value={v.sourceUrl} onChange={(e) => set({ sourceUrl: e.target.value })} /></label>
+      <label className="flex flex-col gap-1"><span className="label">Lens</span>
+        <input className={field} placeholder="e.g. Canon K35" value={v.name} maxLength={120} onChange={(e) => set({ name: e.target.value })} required /></label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex flex-col gap-1"><span className="label">Focal lengths (mm)</span>
+          <input className={field} placeholder={v.zoom ? "24, 290" : "18, 35, 50"} value={v.focals} onChange={(e) => set({ focals: e.target.value })} aria-invalid={badFocal} /></label>
+        <label className="flex items-end gap-1 pb-2"><input type="checkbox" checked={v.zoom} onChange={(e) => set({ zoom: e.target.checked })} /> Zoom (shortest, longest)</label>
+        <label className="flex flex-col gap-1"><span className="label">Type</span>
+          <select className={field} value={v.optical} onChange={(e) => set({ optical: e.target.value as LensPick["optical"] })}>
+            <option value="spherical">Spherical</option><option value="anamorphic">Anamorphic</option></select></label>
+        {v.optical === "anamorphic" ? (
+          <label className="flex flex-col gap-1"><span className="label">Squeeze</span>
+            <select className={field} value={v.squeeze} onChange={(e) => set({ squeeze: e.target.value })}>
+              {["1.3", "1.5", "1.65", "1.8", "2"].map((q) => <option key={q} value={q}>{q}×</option>)}</select></label>
+        ) : (
+          <label className="flex flex-col gap-1"><span className="label">Widest aperture</span>
+            <input className={field} placeholder="e.g. T1.5" value={v.maxAperture} maxLength={20} onChange={(e) => set({ maxAperture: e.target.value })} /></label>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex flex-col gap-1"><span className="label">Seen in (film)</span>
+          <input className={field} placeholder="e.g. Another Round" value={v.seenIn} maxLength={200} onChange={(e) => set({ seenIn: e.target.value })} /></label>
+        <label className="flex flex-col gap-1"><span className="label">Camera</span>
+          <input className={field} placeholder="e.g. ARRI Alexa Mini" value={v.camera} maxLength={120} onChange={(e) => set({ camera: e.target.value })} /></label>
+      </div>
+      <label className="flex flex-col gap-1"><span className="label">What do you like about it?</span>
+        <textarea className={`${field} min-h-14`} maxLength={600} value={v.note} onChange={(e) => set({ note: e.target.value })} placeholder="e.g. soft faces, warm glow on the lights" /></label>
+      <p className="text-[11px] text-muted">Type what you see on the page; STUDIO keeps only your notes and the link.</p>
+      <div className="flex gap-1">
+        <button type="submit" className="btn btn-primary min-h-8 px-3 text-xs" disabled={busy}>{busy ? "Saving…" : lens ? "Save lens" : "Add to shelf"}</button>
+        <button type="button" className="btn min-h-8 px-3 text-xs" onClick={onCancel}>Cancel</button>
+      </div>
+    </form>
   );
 }
 

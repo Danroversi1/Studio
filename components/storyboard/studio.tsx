@@ -19,7 +19,7 @@ import { between, formatSeconds, sequenceTiming } from "@/lib/storyboard/shot";
 import { ComposeCanvas, type Pen, type Tool } from "./compose-canvas";
 import { AiMenu } from "./ai-menu";
 import { AssetsPanel, CameraPanel, FramePanel, LayersPanel, LookPanel, ReferenceTray } from "./panels";
-import type { FilmItem, FrameRow, JobRow, LibItem, StockRef } from "./types";
+import type { FilmItem, FrameRow, JobRow, LensPick, LibItem, StockRef } from "./types";
 import type { ChatMessage } from "@/components/partner-chat";
 
 type Tab = "assets" | "layers" | "frame" | "camera" | "look";
@@ -33,7 +33,7 @@ export function resolveAssets(c: Composition, lib: LibItem[]): Composition {
 
 export function StoryboardStudio(props: {
   projectId: string; sequenceId: string; entityId: string; title: string; settings: { aspect?: number };
-  frames: FrameRow[]; library: LibItem[]; jobs: JobRow[]; film: FilmItem[]; stocks: StockRef[];
+  frames: FrameRow[]; library: LibItem[]; jobs: JobRow[]; film: FilmItem[]; stocks: StockRef[]; lenses: LensPick[];
   canEdit: boolean; initialFrame?: string; initialTab?: Tab;
   ai: { imageMissing: string | null; textAvailable: string | null; builder: { threadId: string | null; messages: ChatMessage[]; opening: string } };
   scenes: { number: number; heading: string; text: string }[];
@@ -369,6 +369,7 @@ export function StoryboardStudio(props: {
                 onRestored={refresh} />
             ) : tab === "camera" ? (
               <CameraPanel comp={comp} frame={frame} editable={editable} canEdit={canEdit} edit={edit}
+                projectId={projectId} lenses={props.lenses} frames={frames} onLensesChanged={refresh} onMessage={setMsg}
                 onSaveContent={(content) => run(saveFrameDetails({ sequenceId, shotId: frame.id, content, expectedRevision: frame.revision }), "Camera notes saved.")} />
             ) : (
               <LookPanel comp={comp} editable={editable} edit={edit} stocks={props.stocks} frames={frames.length}

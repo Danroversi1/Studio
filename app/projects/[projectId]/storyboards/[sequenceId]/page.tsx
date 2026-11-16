@@ -4,7 +4,7 @@
 import { notFound } from "next/navigation";
 import { Empty, Flash } from "@/components/flash";
 import { StoryboardStudio } from "@/components/storyboard/studio";
-import type { FilmItem, FrameRow, JobRow, LibItem, StockRef } from "@/components/storyboard/types";
+import { lensFromRow, type FilmItem, type FrameRow, type JobRow, type LibItem, type StockRef } from "@/components/storyboard/types";
 import { openingFor } from "@/lib/agents/partners";
 import { aiConfigured } from "@/lib/ai/configured";
 import { getAiBudget, getPartnerThreads, getProjectShell, getScreenplay, getThreadMessages } from "@/lib/data";
@@ -29,12 +29,13 @@ export default async function StoryboardPage({ params, searchParams }: {
   const canEdit = !!shell.caps.can_edit;
   const aspect = Number((seq.settings as { aspect?: number } | null)?.aspect) || 16 / 9;
 
-  const [{ data: shotRows }, { data: libRows }, { data: jobRows }, { data: ents }, { data: stocks }, sp, threads, budget] = await Promise.all([
+  const [{ data: shotRows }, { data: libRows }, { data: jobRows }, { data: ents }, { data: stocks }, { data: lensRows }, sp, threads, budget] = await Promise.all([
     sb.from("storyboard_shots").select("*").eq("sequence_id", sequenceId).is("archived_at", null).order("position"),
     sb.from("storyboard_library").select("*").eq("project_id", projectId).is("archived_at", null).order("created_at"),
     sb.from("storyboard_jobs").select("id, shot_id, kind, status, output_asset_id, applied, error, created_at, model, usage").eq("sequence_id", sequenceId).order("created_at", { ascending: false }).limit(200),
     sb.from("entities").select("id, kind, name").eq("project_id", projectId).in("kind", ["character", "location"]).neq("status", "archived").order("created_at"),
     sb.from("storyboard_stock_profiles").select("*").order("id"),
+    sb.from("storyboard_lens_shelf").select("*").eq("project_id", projectId).is("archived_at", null).order("created_at"),
     getScreenplay(projectId),
     getPartnerThreads(projectId, "shots"),
     getAiBudget(projectId),
@@ -76,7 +77,7 @@ export default async function StoryboardPage({ params, searchParams }: {
     <div className="mx-auto flex max-w-[110rem] flex-col gap-3">
       <Flash error={error} notice={notice} />
       <StoryboardStudio projectId={projectId} sequenceId={sequenceId} entityId={seq.entity_id} title={seq.title} settings={{ aspect }}
-        frames={frames} library={library} jobs={jobs} film={film} stocks={(stocks ?? []) as StockRef[]} canEdit={canEdit}
+        frames={frames} library={library} jobs={jobs} film={film} stocks={(stocks ?? []) as StockRef[]} lenses={(lensRows ?? []).map(lensFromRow)} canEdit={canEdit}
         initialFrame={frameParam} initialTab={tab} scenes={scenes}
         ai={{ imageMissing: provider.missing ? "Needs an OpenAI API key (OPENAI_API_KEY) in Vercel." : null, textAvailable: textMissing,
           builder: { threadId: current?.id ?? null, messages: messages.map((m) => ({ id: m.id, role: m.role, content: m.content })), opening: openingFor("shots", { hasStory: true, runtime: null, filmTitle: shell.project.name }) } }} />

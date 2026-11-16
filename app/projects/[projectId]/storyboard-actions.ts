@@ -171,6 +171,19 @@ export async function archiveLibraryItem(input: { itemId: string }): Promise<R> 
   return error ? fail(error) : { ok: true };
 }
 
+/** Lens shelf: a lens she picked (usually from Lens Addiction) with her own notes. */
+export async function saveLens(input: { projectId: string; lensId: string | null; data: Record<string, unknown> }): Promise<R> {
+  const sb = await supabaseServer();
+  const { data, error } = await sb.rpc("storyboard_lens_save", { p_project: input.projectId, p_item: input.lensId, p_data: input.data });
+  return error ? fail(error) : { ok: true, id: data as string };
+}
+
+export async function archiveLens(input: { lensId: string }): Promise<R> {
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("storyboard_lens_archive", { p_item: input.lensId });
+  return error ? fail(error) : { ok: true };
+}
+
 export async function cancelJob(input: { jobId: string }): Promise<R> {
   const sb = await supabaseServer();
   const { error } = await sb.rpc("storyboard_job_cancel", { p_job: input.jobId });
