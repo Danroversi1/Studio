@@ -1,0 +1,17 @@
+{
+  "1": { "class_type": "Loader", "inputs": { "unet_name": "model-a.safetensors" }, "_meta": { "title": "Load model" } },
+  "2": { "class_type": "Text", "inputs": { "text": "", "clip": ["1", 0] }, "_meta": { "title": "STUDIO prompt" } },
+  "3": { "class_type": "LoadImage", "inputs": { "image": "x.png" }, "_meta": { "title": "STUDIO image 1" } },
+  "4": { "class_type": "Encode", "inputs": { "pixels": ["3", 0] }, "_meta": { "title": "STUDIO encode 1" } },
+  "10": { "class_type": "Ref", "inputs": { "conditioning": ["2", 0], "latent": ["4", 0] }, "_meta": { "title": "STUDIO ref 1" } },
+  "5": { "class_type": "LoadImage", "inputs": { "image": "x.png" }, "_meta": { "title": "STUDIO image 2" } },
+  "6": { "class_type": "Encode", "inputs": { "pixels": ["5", 0] }, "_meta": { "title": "STUDIO encode 2" } },
+  "11": { "class_type": "Ref", "inputs": { "conditioning": ["10", 0], "latent": ["6", 0] }, "_meta": { "title": "STUDIO ref 2" } },
+  "7": { "class_type": "LoadImage", "inputs": { "image": "x.png" }, "_meta": { "title": "STUDIO image 3" } },
+  "8": { "class_type": "Encode", "inputs": { "pixels": ["7", 0] }, "_meta": { "title": "STUDIO encode 3" } },
+  "12": { "class_type": "Ref", "inputs": { "conditioning": ["11", 0], "latent": ["8", 0] }, "_meta": { "title": "STUDIO ref 3" } },
+  "13": { "class_type": "Noise", "inputs": { "noise_seed": 0 }, "_meta": { "title": "STUDIO seed" } },
+  "14": { "class_type": "Latent", "inputs": { "width": 512, "height": 512 }, "_meta": { "title": "STUDIO size" } },
+  "15": { "class_type": "Sample", "inputs": { "positive": ["12", 0], "noise": ["13", 0], "latent": ["14", 0], "model": ["1", 0] }, "_meta": { "title": "Sampler" } },
+  "16": { "class_type": "Save", "inputs": { "images": ["15", 0] }, "_meta": { "title": "STUDIO output" } }
+}

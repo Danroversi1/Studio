@@ -8,6 +8,16 @@ export interface ChangeRound { at: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeRound[] = [
   {
+    at: "2026-11-16T19:30:00Z",
+    title: "Generate Locally (on your own computer)",
+    items: [
+      { text: "Storyboards → Connect Local Renderer: pair your computer with a one-time code. It shows what your computer reports (system, graphics card and memory, installed workflow, what it can do) and what isn't supported. Nothing is installed or downloaded for you.", href: `${J}/storyboards/renderer` },
+      { text: "Generate Locally on a frame: choose the cast and location pictures and Look & Feel, see exactly which pictures go to your computer and which can't (with why), pick Draft or Refine, then send ONE frame. It runs on your computer through ComfyUI; no cloud image service is used." },
+      { text: "Results stay in the frame's history: compare, show one on the frame, approve & lock. Approved or locked frames are never replaced. Cancel, out-of-memory, missing model, disconnect and failed upload are handled without losing your work; nothing retries on its own." },
+      { text: "Print sheet: option to use each frame's chosen generated picture." },
+    ],
+  },
+  {
     at: "2026-11-16T17:00:00Z",
     title: "Look & Feel (Treatment desk)",
     items: [

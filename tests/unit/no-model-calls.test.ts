@@ -8,6 +8,7 @@ import { test } from "node:test";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const FORBIDDEN = [
+  "lib/storyboard/provider.ts",               // the cloud image provider (OpenAI): never on the local path
   "lib/ai/client.ts", "lib/storyboard/suggest.ts", "lib/storyboard/run-job.ts", "lib/agents/run-partner-turn.ts",
   "lib/agents/run-story-breakdown.ts", "lib/agents/run-scene-plan.ts", "lib/agents/run-cast-scan.ts", "lib/agents/run-world-read.ts",
 ];
@@ -26,6 +27,11 @@ const ROUTINE = [
   // (The Treatment page itself also hosts optional AI features through the shared actions.ts,
   //  e.g. the Story Lead breakdown; Look & Feel's own modules above are the ones checked.)
   "app/api/look/[directionId]/bundle/route.ts",
+  // Local rendering: everything Studio does for Generate Locally / the companion.
+  "app/projects/[projectId]/local-actions.ts", "components/storyboard/local-generate.tsx", "components/storyboard/renderer-setup.tsx",
+  "app/projects/[projectId]/storyboards/renderer/page.tsx", "lib/local/bundle.ts", "lib/local/server.ts",
+  "app/api/renderer/pair/route.ts", "app/api/renderer/poll/route.ts", "app/api/renderer/jobs/[jobId]/progress/route.ts",
+  "app/api/renderer/jobs/[jobId]/output/route.ts", "app/api/renderer/jobs/[jobId]/complete/route.ts", "app/api/renderer/jobs/[jobId]/fail/route.ts",
   "app/api/assets/route.ts", "app/api/assets/[assetId]/complete/route.ts", "app/api/assets/[assetId]/route.ts",
 ];
 

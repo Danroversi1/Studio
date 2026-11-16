@@ -1,0 +1,21 @@
+{
+  "id": "fake-refs", "version": "7", "title": "Fake (tests)", "model": "fake", "license": "test",
+  "graph": "graph.api.json",
+  "bindings": {
+    "prompt": { "title": "STUDIO prompt", "input": "text" },
+    "seed": { "title": "STUDIO seed", "input": "noise_seed" },
+    "width": { "title": "STUDIO size", "input": "width" },
+    "height": { "title": "STUDIO size", "input": "height" },
+    "steps": null,
+    "output": { "title": "STUDIO output" },
+    "images": [
+      { "title": "STUDIO image 1", "input": "image" },
+      { "title": "STUDIO image 2", "input": "image", "bypass": { "remove": ["STUDIO image 2", "STUDIO encode 2", "STUDIO ref 2"], "rewire": { "from": "STUDIO ref 2", "through": "conditioning" } } },
+      { "title": "STUDIO image 3", "input": "image", "bypass": { "remove": ["STUDIO image 3", "STUDIO encode 3", "STUDIO ref 3"], "rewire": { "from": "STUDIO ref 3", "through": "conditioning" } } }
+    ]
+  },
+  "conditioning": { "editInput": true, "referenceImages": true, "sketchControl": false, "depthControl": false, "poseControl": false, "masks": false, "characterAdapter": false, "distinctRoles": false },
+  "sizes": { "min": 256, "max": 1536, "multiple": 16 },
+  "presets": { "draft": { "longSide": 768 }, "refine": { "longSide": 1216 } },
+  "params": { "seed": true, "steps": false, "strength": false }
+}

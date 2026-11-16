@@ -21,7 +21,10 @@ import { AiMenu } from "./ai-menu";
 import { AssetsPanel, CameraPanel, FramePanel, LayersPanel, LookPanel, ReferenceTray } from "./panels";
 import { RefsPanel, lookFor, resolvedRefs } from "./look-refs";
 import { RefVisual } from "@/components/look/parts";
-import type { FilmEntity } from "@/lib/look/data";
+import type { FilmEntity, FilmPicture } from "@/lib/look/data";
+import type { DeviceRow } from "@/lib/local/types";
+import type { LocalJob } from "@/app/projects/[projectId]/local-actions";
+import { LocalGenerate } from "./local-generate";
 import type { LookDirection, LookRef } from "@/lib/look/types";
 import type { FilmItem, FrameRow, JobRow, LensPick, LibItem, StockRef } from "./types";
 import type { ChatMessage } from "@/components/partner-chat";
@@ -39,6 +42,7 @@ export function StoryboardStudio(props: {
   projectId: string; sequenceId: string; entityId: string; title: string; settings: { aspect?: number };
   frames: FrameRow[]; library: LibItem[]; jobs: JobRow[]; film: FilmItem[]; stocks: StockRef[]; lenses: LensPick[];
   lookRefs: LookRef[]; directions: LookDirection[]; lookEntities: FilmEntity[]; sequenceDirection: string | null;
+  pictures: FilmPicture[]; devices: DeviceRow[]; localJobs: LocalJob[];
   canEdit: boolean; initialFrame?: string; initialTab?: Tab;
   ai: { imageMissing: string | null; textAvailable: string | null; builder: { threadId: string | null; messages: ChatMessage[]; opening: string } };
   scenes: { number: number; heading: string; text: string }[];
@@ -250,7 +254,10 @@ export function StoryboardStudio(props: {
           <p className="text-sm text-muted">{frames.length} {frames.length === 1 ? "frame" : "frames"} · {timing.label} · durations are proposals</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {canEdit && <button type="button" className="btn-primary" onClick={addAFrame}>Add a Frame</button>}
+          {frame && <LocalGenerate projectId={projectId} sequenceId={sequenceId} entityId={props.entityId} frame={frame} frameIndex={index} comp={comp} canEdit={canEdit}
+            library={library} entities={props.lookEntities} pictures={props.pictures} lookRefs={props.lookRefs} directions={props.directions}
+            sequenceDirection={props.sequenceDirection} lenses={props.lenses} devices={props.devices} jobs={props.localJobs} onMessage={setMsg} onChanged={refresh} />}
+          {canEdit && <button type="button" className={frame ? "btn" : "btn-primary"} onClick={addAFrame}>Add a Frame</button>}
           <ExportMenu disabled={!frame} onPng={exportThis} onAll={exportAll} pdfHref={`/print/storyboards/${sequenceId}`} jsonHref={`/api/storyboards/${sequenceId}/export`} />
           <AiMenu projectId={projectId} sequenceId={sequenceId} entityId={props.entityId} frame={frame} comp={comp} library={library} film={props.film} scenes={props.scenes}
             canEdit={canEdit} ai={props.ai} jobs={props.jobs} onDone={refresh} onMessage={setMsg} lookRefs={frameLookRefs}
@@ -356,10 +363,10 @@ export function StoryboardStudio(props: {
               <p className="text-xs text-muted">Tip: {tipFor(comp)} <span className="hidden sm:inline">Shortcuts: drag to move · corners to scale · circle to rotate · Shift = free scale · Alt = no snapping · arrows nudge · Ctrl+D duplicate · Delete removes · Ctrl+Z undo.</span></p>
               {frame.illustrationAssetId && (
                 <details className="panel p-2 text-sm">
-                  <summary className="cursor-pointer">Illustration made from this frame (AI)</summary>
+                  <summary className="cursor-pointer">Generated picture shown on this frame</summary>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={`/api/assets/${frame.illustrationAssetId}`} alt={`Illustration of frame ${index + 1}`} className="mt-2 w-full" />
-                  <p className="mt-1 text-xs text-muted">A separate result linked to this frame. Your editable composition above is unchanged.</p>
+                  <p className="mt-1 text-xs text-muted">A separate result linked to this frame (from Generate Locally or AI assist). Your editable composition above is unchanged.</p>
                 </details>
               )}
               <ReferenceTray open={tray} onToggle={() => setTray((v) => !v)} library={library} editable={editable}

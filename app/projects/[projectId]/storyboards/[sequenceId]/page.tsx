@@ -4,14 +4,15 @@
 import { notFound } from "next/navigation";
 import { Empty, Flash } from "@/components/flash";
 import { StoryboardStudio } from "@/components/storyboard/studio";
-import { getFilmEntities, getLook } from "@/lib/look/data";
+import { localJobs, myDevices } from "@/app/projects/[projectId]/local-actions";
+import { getFilmEntities, getFilmPictures, getLook } from "@/lib/look/data";
 import { cleanFrameLook } from "@/lib/look/types";
 import { lensFromRow, type FilmItem, type FrameRow, type JobRow, type LibItem, type StockRef } from "@/components/storyboard/types";
 import { openingFor } from "@/lib/agents/partners";
 import { aiConfigured } from "@/lib/ai/configured";
 import { getAiBudget, getPartnerThreads, getProjectShell, getScreenplay, getThreadMessages } from "@/lib/data";
 import { cleanComposition } from "@/lib/storyboard/compose";
-import { imageProvider } from "@/lib/storyboard/provider";
+import { cloudImageConfigured } from "@/lib/storyboard/provider-status";
 import { reviewFor, scriptScenes } from "@/lib/storyboard/review";
 import { cleanShot } from "@/lib/storyboard/shot";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -31,7 +32,7 @@ export default async function StoryboardPage({ params, searchParams }: {
   const canEdit = !!shell.caps.can_edit;
   const aspect = Number((seq.settings as { aspect?: number } | null)?.aspect) || 16 / 9;
 
-  const [look, lookEntities] = await Promise.all([getLook(projectId), getFilmEntities(projectId)]);
+  const [look, lookEntities, pictures, devices, lJobs] = await Promise.all([getLook(projectId), getFilmEntities(projectId), getFilmPictures(projectId), myDevices(), localJobs({ sequenceId })]);
   const [{ data: shotRows }, { data: libRows }, { data: jobRows }, { data: ents }, { data: stocks }, { data: lensRows }, sp, threads, budget] = await Promise.all([
     sb.from("storyboard_shots").select("*").eq("sequence_id", sequenceId).is("archived_at", null).order("position"),
     sb.from("storyboard_library").select("*").eq("project_id", projectId).is("archived_at", null).order("created_at"),
@@ -72,7 +73,6 @@ export default async function StoryboardPage({ params, searchParams }: {
   const jobs: JobRow[] = (jobRows ?? []).map((j) => ({ id: j.id, shotId: j.shot_id, kind: j.kind, status: j.status, outputAssetId: j.output_asset_id, applied: j.applied, error: j.error, createdAt: j.created_at, model: j.model, usage: j.usage }));
   const current = threads[0] ?? null;
   const messages = current ? await getThreadMessages(projectId, current.id) : [];
-  const provider = imageProvider();
   const textMissing = !aiConfigured() ? "The AI team isn't set up yet." : !budget.available ? "This month's AI budget is used up." : null;
   const tab = (["assets", "layers", "frame", "camera", "look", "refs"] as const).find((t) => t === panel);
 
@@ -81,9 +81,9 @@ export default async function StoryboardPage({ params, searchParams }: {
       <Flash error={error} notice={notice} />
       <StoryboardStudio projectId={projectId} sequenceId={sequenceId} entityId={seq.entity_id} title={seq.title} settings={{ aspect }}
         frames={frames} library={library} jobs={jobs} film={film} stocks={(stocks ?? []) as StockRef[]} lenses={(lensRows ?? []).map(lensFromRow)}
-        lookRefs={look.refs} directions={look.directions} lookEntities={lookEntities} sequenceDirection={(seq.look_direction_id as string | null) ?? null} canEdit={canEdit}
+        lookRefs={look.refs} directions={look.directions} lookEntities={lookEntities} pictures={pictures} devices={devices} localJobs={lJobs} sequenceDirection={(seq.look_direction_id as string | null) ?? null} canEdit={canEdit}
         initialFrame={frameParam} initialTab={tab} scenes={scenes}
-        ai={{ imageMissing: provider.missing ? "Needs an OpenAI API key (OPENAI_API_KEY) in Vercel." : null, textAvailable: textMissing,
+        ai={{ imageMissing: !cloudImageConfigured() ? "Needs an OpenAI API key (OPENAI_API_KEY) in Vercel." : null, textAvailable: textMissing,
           builder: { threadId: current?.id ?? null, messages: messages.map((m) => ({ id: m.id, role: m.role, content: m.content })), opening: openingFor("shots", { hasStory: true, runtime: null, filmTitle: shell.project.name }) } }} />
     </div>
   );

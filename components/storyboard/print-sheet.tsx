@@ -7,7 +7,7 @@ import { loadAll, renderComposition } from "@/lib/storyboard/render";
 import type { ShotContent } from "@/lib/storyboard/shot";
 import { ANGLES, SIZES, formatSeconds, labelOf } from "@/lib/storyboard/shot";
 
-export interface PrintFrame { id: string; content: ShotContent; lensName?: string | null; composition: Composition; notes: string; state: string; locked: boolean }
+export interface PrintFrame { id: string; content: ShotContent; picture?: string | null; lensName?: string | null; composition: Composition; notes: string; state: string; locked: boolean }
 
 export function PrintSheet({ project, title, brief, frames, totals, credits }: {
   project: string; title: string; brief: string; frames: PrintFrame[]; totals: string; credits: string[];
@@ -16,6 +16,9 @@ export function PrintSheet({ project, title, brief, frames, totals, credits }: {
   const [problems, setProblems] = useState<string[]>([]);
   const [meta, setMeta] = useState(true);
   const [cols, setCols] = useState(2);
+  /** Use each frame's chosen generated picture (if it has one) instead of its drawn composition. */
+  const [generated, setGenerated] = useState(false);
+  const anyPicture = frames.some((f) => f.picture);
   useEffect(() => {
     let live = true;
     (async () => {
@@ -39,6 +42,7 @@ export function PrintSheet({ project, title, brief, frames, totals, credits }: {
       <div className="no-print mb-6 flex flex-wrap items-center gap-2 border-b border-black/20 pb-4">
         <button type="button" className="btn-primary" onClick={() => window.print()} disabled={urls.length < frames.length}>{urls.length < frames.length ? "Rendering frames…" : "Save as PDF / Print"}</button>
         <label className="flex items-center gap-1 text-sm"><input type="checkbox" checked={meta} onChange={(e) => setMeta(e.target.checked)} /> Camera notes</label>
+        {anyPicture && <label className="flex items-center gap-1 text-sm"><input type="checkbox" checked={generated} onChange={(e) => setGenerated(e.target.checked)} /> Use the generated picture each frame shows</label>}
         {[1, 2, 3].map((n) => <button key={n} type="button" className={`btn ${n === cols ? "btn-primary" : ""}`} onClick={() => setCols(n)}>{n} per row</button>)}
         {problems.length > 0 && <p className="w-full text-sm text-red-700">Some pictures couldn&apos;t be drawn: {problems.join(" · ")}</p>}
       </div>
@@ -58,7 +62,8 @@ export function PrintSheet({ project, title, brief, frames, totals, credits }: {
               <div className="flex items-baseline justify-between text-xs font-bold uppercase"><span>Frame {i + 1}</span><span>{c.durationS ? `${formatSeconds(c.durationS)} (proposed)` : ""}</span></div>
               <div className="w-full border border-black/30 bg-neutral-100" style={{ aspectRatio: String(f.composition.aspect) }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                {urls[i] ? <img src={urls[i]!} alt={`Frame ${i + 1}`} className="size-full object-contain" /> : <p className="flex size-full items-center justify-center text-xs text-neutral-500">{urls.length > i ? "Couldn't render" : "Rendering…"}</p>}
+                {generated && f.picture ? <img src={`/api/assets/${f.picture}`} alt={`Frame ${i + 1} (generated picture)`} className="size-full object-contain" />
+                  : urls[i] ? <img src={urls[i]!} alt={`Frame ${i + 1}`} className="size-full object-contain" /> : <p className="flex size-full items-center justify-center text-xs text-neutral-500">{urls.length > i ? "Couldn't render" : "Rendering…"}</p>}
               </div>
               {c.notice && <p className="text-xs"><b>Notice:</b> {c.notice}</p>}
               {c.action && <p className="text-sm">{c.action}</p>}
