@@ -544,10 +544,8 @@ function LensShelf({ projectId, lenses, frames, current, currentFocal, canEdit, 
               )}
               {open === l.id && (
                 <div className="mt-2 flex flex-col gap-1">
-                  {l.seenIn && <p><span className="text-muted">Shot on this lens:</span> {l.seenIn}{l.camera ? ` · ${l.camera}` : ""}</p>}
-                  {!l.seenIn && l.camera && <p><span className="text-muted">Camera:</span> {l.camera}</p>}
+                  {l.camera && <p><span className="text-muted">Camera:</span> {l.camera}</p>}
                   {l.maxAperture && <p><span className="text-muted">Widest aperture:</span> {l.maxAperture}</p>}
-                  {l.note && <p><span className="text-muted">What I like:</span> {l.note}</p>}
                   <p className="text-muted">{used.length ? `Used in frame${used.length > 1 ? "s" : ""} ${used.join(", ")} of this storyboard.` : "Not used in this storyboard yet."}</p>
                   <div className="flex flex-wrap gap-1">
                     {l.sourceUrl && <a href={l.sourceUrl} target="_blank" rel="noopener noreferrer" className="btn min-h-7 px-2 text-[11px]">Open on {l.sourceName || "source"} ↗</a>}
@@ -596,7 +594,7 @@ function LensForm({ projectId, lens, onCancel, onSaved, onMessage }: { projectId
       if (free("focals") && l.focalLengths.length) { next.focals = l.focalLengths.join(", "); next.zoom = l.zoom; auto.current.focals = next.focals; got.push(l.zoom ? "zoom range" : "focal length"); }
       if (free("maxAperture") && l.maxAperture) { next.maxAperture = l.maxAperture; auto.current.maxAperture = l.maxAperture; got.push("aperture"); }
       if (l.optical === "anamorphic") { next.optical = "anamorphic"; next.squeeze = String(l.squeeze ?? 2); got.push("anamorphic squeeze"); }
-      setFilled(got.length ? `Filled from the link: ${got.join(", ")}. Check them, then add the movie or video it was used on, and the camera.` : null);
+      setFilled(got.length ? `Filled from the link: ${got.join(", ")}. Check them, then add the camera if you like.` : null);
       return next;
     });
   };
@@ -640,15 +638,9 @@ function LensForm({ projectId, lens, onCancel, onSaved, onMessage }: { projectId
               {[...new Set(["1.3", "1.5", "1.65", "1.8", "2", v.squeeze])].map((q) => <option key={q} value={q}>{q}×</option>)}</select></label>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <label className="flex flex-col gap-1"><span className="label">Shot on this lens (movie, video…)</span>
-          <input className={field} placeholder="e.g. the movie Another Round" value={v.seenIn} maxLength={200} onChange={(e) => set({ seenIn: e.target.value })} /></label>
-        <label className="flex flex-col gap-1"><span className="label">Camera</span>
-          <input className={field} placeholder="e.g. ARRI Alexa Mini" value={v.camera} maxLength={120} onChange={(e) => set({ camera: e.target.value })} /></label>
-      </div>
-      <label className="flex flex-col gap-1"><span className="label">What do you like about it?</span>
-        <textarea className={`${field} min-h-14`} maxLength={600} value={v.note} onChange={(e) => set({ note: e.target.value })} placeholder="e.g. soft faces, warm glow on the lights" /></label>
-      <p className="text-[11px] text-muted">STUDIO reads only the link itself (it doesn&apos;t open the page) and keeps your notes and the link.</p>
+      <label className="flex flex-col gap-1"><span className="label">Camera</span>
+        <input className={field} placeholder="e.g. ARRI Alexa Mini" value={v.camera} maxLength={120} onChange={(e) => set({ camera: e.target.value })} /></label>
+      <p className="text-[11px] text-muted">STUDIO reads only the link itself (it doesn&apos;t open the page) and keeps the details above and the link.</p>
       <div className="flex gap-1">
         <button type="submit" className="btn btn-primary min-h-8 px-3 text-xs" disabled={busy}>{busy ? "Saving…" : lens ? "Save lens" : "Add to shelf"}</button>
         <button type="button" className="btn min-h-8 px-3 text-xs" onClick={onCancel}>Cancel</button>
