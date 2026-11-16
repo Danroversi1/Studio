@@ -8,6 +8,13 @@ export interface ChangeRound { at: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeRound[] = [
   {
+    at: "2026-11-16T07:20:00Z",
+    title: "Thumbnail picker sees new slides right away",
+    items: [
+      { text: "Each time the picker opens it re-reads the treatment (slide IDs and labels) so slides just added or moved show up, and it jumps to the matching \"Casting / …\" or \"Locations / …\" slide. Works without signing in to Google or the Slides API, for a treatment shared by link.", href: `${J}/items/b547cb85-1d37-413a-8e10-3ebe1a74e14f#thumbnail` },
+    ],
+  },
+  {
     at: "2026-11-16T06:10:00Z",
     title: "Thumbnail picker opens on the right slide",
     items: [

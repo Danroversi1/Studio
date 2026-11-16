@@ -26,7 +26,7 @@ export function slidesFor(slides: SlideInfo[], name: string, kind: "character" |
     const first = norm(text.split(/\n/).find((l) => l.trim()) ?? "");
     let score = 1;
     if (first.includes(` ${n} `)) score = 2;
-    for (const label of LABELS[kind]) if (all.includes(` ${label} ${n} `)) score = Math.max(score, 3);
+    for (const label of LABELS[kind]) if (all.includes(` ${label} ${n} `) || all.includes(` ${label} the ${n} `)) score = Math.max(score, 3);
     const otherKind = kind === "character" ? "location" : "character";
     for (const label of LABELS[otherKind]) if (all.includes(` ${label} ${n} `) && score < 3) score = 0.5;
     scored.push({ i: i + 1, score });

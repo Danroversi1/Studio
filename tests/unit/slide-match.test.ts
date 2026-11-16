@@ -29,3 +29,11 @@ test("possessives and stray dots don't matter", () => {
   assert.deepEqual(slidesFor(d, "Marie's Apartment", "location"), [3]);
   assert.deepEqual(slidesFor([{ id: "p", text: "Casting / President" }], "The President", "character"), [1]);
 });
+test("reads the live deck's labels", async () => {
+  const { parseEmbedSlides } = await import("../../lib/google/embed-slides");
+  const html = `x["s1",0,"",[]] y["s2",1,"",[]] <g id=\\x22s1\\x22><p aria-label=\\x22Look and Feel\\x22></g><g id=\\x22s2\\x22><p aria-label=\\x22Casting \\/ \\x26#xa;The Newscaster\\x22><p aria-label=\\x22Screenshot 1.png\\x22></g>`;
+  const d = parseEmbedSlides(html);
+  assert.deepEqual(d.map((x) => x.id), ["s1", "s2"]);
+  assert.equal(d[1].text, "Casting / \nThe Newscaster");
+  assert.deepEqual(slidesFor(d, "The Newscaster", "character"), [2]);
+});

@@ -4,7 +4,7 @@
 // The crop is pinned to the slide's permanent Google ID plus its position and size on the
 // slide, so it stays put when slides are added, removed or reordered.
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { saveTreatmentSlides, setThumbnailCrop } from "@/app/projects/[projectId]/thumb-actions";
 import { SlidesApiOffError, googleConfig, treatmentSlides } from "@/lib/google/client";
 import { slidesFor, type SlideInfo } from "@/lib/slide-match";
@@ -28,6 +28,40 @@ export function TreatmentCropPicker({ projectId, entityId, entityName, entityKin
   const [slide, setSlide] = useState(same ? (slides?.findIndex((d) => d.id === initial.slide_id) ?? -1) + 1 || initial.slide : startAt ?? 1);
   const [slideId, setSlideId] = useState<string | null>(same ? initial.slide_id ?? null : startAt ? slides?.[startAt - 1]?.id ?? null : null);
   const [reading, setReading] = useState(false);
+  /** True once the slide list was read from the deck in this visit (not the saved copy). */
+  const [fresh, setFresh] = useState(false);
+  const touched = useRef(same);
+
+  // Every time the picker opens, re-read the deck so new or moved slides show up.
+  useEffect(() => {
+    let live = true;
+    fetchDeck().then((list) => {
+      if (!live || !list) return;
+      applyDeck(list);
+      if (!touched.current) {
+        const m = slidesFor(list, entityName, entityKind);
+        if (m.length) { setSlide(m[0]); setSlideId(list[m[0] - 1].id); }
+      } else if (slideId) {
+        const at = list.findIndex((d) => d.id === slideId);
+        if (at >= 0) setSlide(at + 1);
+      }
+    });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function fetchDeck(): Promise<SlideInfo[] | null> {
+    try {
+      const r = await fetch(`/api/projects/${projectId}/treatment-slides?file=${encodeURIComponent(fileId)}`, { cache: "no-store" });
+      const j = (await r.json()) as { slides: SlideInfo[] | null };
+      return j.slides?.length ? j.slides : null;
+    } catch { return null; }
+  }
+  function applyDeck(list: SlideInfo[]) {
+    setDeck(list);
+    setMatches(slidesFor(list, entityName, entityKind));
+    setFresh(true);
+  }
   const [win, setWin] = useState(initial?.file_id === fileId ? { x: initial.x, y: initial.y, w: initial.w, h: initial.h } : windowOf(0.35, 0.2, 0.3));
   const [msg, setMsg] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -35,6 +69,7 @@ export function TreatmentCropPicker({ projectId, entityId, entityName, entityKin
   const drag = useRef<{ mode: "move" | "size"; sx: number; sy: number; o: typeof win } | null>(null);
 
   function down(e: React.PointerEvent, mode: "move" | "size") {
+    touched.current = true;
     e.preventDefault(); e.stopPropagation();
     drag.current = { mode, sx: e.clientX, sy: e.clientY, o: win };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -57,18 +92,20 @@ export function TreatmentCropPicker({ projectId, entityId, entityName, entityKin
     setWin((w) => windowOf(w.x + m[0], w.y + m[1], w.w + m[2]));
   }
   function go(n: number) {
-    const next = Math.max(1, Math.min(ids?.length || 500, n));
+    touched.current = true;
+    const next = Math.max(1, Math.min(fresh && ids?.length ? ids.length : 500, n));
     setSlide(next);
     setSlideId(ids?.[next - 1] ?? null);
   }
 
   /** Read the treatment's slides from Google (IDs and text) and keep the list. */
   async function readDeck(): Promise<SlideInfo[]> {
+    const viaEmbed = await fetchDeck();
+    if (viaEmbed) { applyDeck(viaEmbed); return viaEmbed; }
     const cfg = googleConfig();
     if (!cfg) throw new Error("Google isn't set up for STUDIO yet.");
     const list = await treatmentSlides(cfg, fileId);
-    setDeck(list);
-    setMatches(slidesFor(list, entityName, entityKind));
+    applyDeck(list);
     void saveTreatmentSlides({ projectId, fileId, slides: list }).catch(() => {});
     return list;
   }
@@ -91,7 +128,7 @@ export function TreatmentCropPicker({ projectId, entityId, entityName, entityKin
   async function pin(): Promise<{ n: number; id: string | null; note?: string }> {
     if (!googleConfig() && !ids) return { n: slide, id: slideId };
     try {
-      const list = ids ?? (await readDeck()).map((d) => d.id);
+      const list = fresh && ids ? ids : (await readDeck()).map((d) => d.id);
       const at = slideId ? list.indexOf(slideId) : -1;
       if (at >= 0) return { n: at + 1, id: slideId };
       return { n: slide, id: list[slide - 1] ?? null };
@@ -121,7 +158,7 @@ export function TreatmentCropPicker({ projectId, entityId, entityName, entityKin
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <button type="button" className="btn min-h-9 px-3 text-xs" onClick={() => go(slide - 1)} disabled={slide <= 1} aria-label="Previous slide">←</button>
         <span>Slide <b>{slide}</b></span>
-        <button type="button" className="btn min-h-9 px-3 text-xs" onClick={() => go(slide + 1)} disabled={!!ids && slide >= ids.length} aria-label="Next slide">→</button>
+        <button type="button" className="btn min-h-9 px-3 text-xs" onClick={() => go(slide + 1)} disabled={fresh && !!ids && slide >= ids.length} aria-label="Next slide">→</button>
         <span className="text-xs text-muted">Drag the box over the part you want; drag its corner to resize (or use the arrow keys and + / −).</span>
       </div>
       <div className="flex flex-wrap items-center gap-2 text-xs">
