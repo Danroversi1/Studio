@@ -10,6 +10,8 @@ import { SubmitButton } from "@/components/ui";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
 import { getAiBudget, getLatestVersions, getProjectShell, getStoryReferences, getWorld, type VersionStatus } from "@/lib/data";
 import { WorldLine } from "@/components/world-line";
+import { ThumbView } from "@/components/thumb-view";
+import { thumbOf } from "@/lib/thumb";
 import { TREATMENT_ATTRIBUTION } from "@/lib/intake";
 import { requestBreakdown } from "./actions";
 
@@ -98,7 +100,7 @@ export default async function ProjectOverview({
   const thumbSrc = firstTreatment
     ? firstTreatment.kind === "slides" ? slidesEmbedUrl(firstTreatment.id) : `https://docs.google.com/document/d/${firstTreatment.id}/preview`
     : null;
-  const thumbOf = (e: { metadata?: Record<string, unknown> | null }) => (e.metadata?.thumbnail_asset_id as string | undefined) ?? null;
+  const thumbFor = (e: { metadata?: Record<string, unknown> | null }) => thumbOf(e.metadata);
   const storyHref = story ? `/projects/${projectId}/items/${story.id}` : addHref;
 
   return (
@@ -185,10 +187,9 @@ export default async function ProjectOverview({
                 const v = latest.get(e.id);
                 return (
                   <Card key={e.id} icon={sec.icon} title={e.name} badge={statusBadge(!!e.current_version_id, v)}
-                    bleed={!!thumbOf(e)}
-                    preview={thumbOf(e) ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={`/api/assets/${thumbOf(e)}`} alt={`${e.name} thumbnail`} className="size-full object-cover" loading="lazy" />
+                    bleed={!!thumbFor(e)}
+                    preview={thumbFor(e) ? (
+                      <ThumbView source={thumbFor(e)} alt={`${e.name} thumbnail`} className="size-full" />
                     ) : (
                       <div className="flex h-full flex-col gap-2">
                         <p className="line-clamp-3">{v?.content.summary || "Nothing written yet. Open to describe them."}</p>

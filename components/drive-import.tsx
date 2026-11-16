@@ -10,7 +10,6 @@ import {
   DOC_MIME, SLIDES_MIME, downloadDriveFile, exportDocZip, exportSlidesZip, getGoogleToken, googleConfig, openTreatmentWithPermission,
   pickFromDrive, preloadGoogle,
 } from "@/lib/google/client";
-import { setThumbnailFor } from "@/app/projects/[projectId]/thumb-actions";
 import { docUrl, driveFileUrl, slidesUrl, splitDocExport } from "@/lib/google/links";
 import { DEPARTMENTS } from "@/lib/departments";
 import { TREATMENT_ATTRIBUTION } from "@/lib/intake";
@@ -42,15 +41,12 @@ async function readError(res: Response) {
   }
 }
 
-export function DriveImport({ projectId, targets, defaultTargetId, treatment, startWithTreatment, defaultDepartment, thumbFor }: {
-  projectId: string;
+export function DriveImport({ targets, defaultTargetId, treatment, startWithTreatment, defaultDepartment }: {
   targets: ImportTarget[];
   defaultTargetId: string;
   treatment: { fileId: string; kind: "doc" | "slides"; title: string } | null;
   startWithTreatment: boolean;
   defaultDepartment: string;
-  /** Choosing a thumbnail for this character or location: one tap adds the picture and uses it. */
-  thumbFor?: { id: string; name: string } | null;
 }) {
   const router = useRouter();
   const cfg = googleConfig();
@@ -152,20 +148,6 @@ export function DriveImport({ projectId, targets, defaultTargetId, treatment, st
     return assetId;
   }
 
-  /** Thumbnail mode: add this one picture to the item and use it as its thumbnail. */
-  async function useAsThumbnail(c: Candidate) {
-    if (!thumbFor) return;
-    setPhase({ kind: "busy", label: `Setting ${thumbFor.name}'s thumbnail…` });
-    try {
-      const assetId = await uploadOne(c, thumbFor.id);
-      const r = await setThumbnailFor({ projectId, entityId: thumbFor.id, assetId });
-      if (!r.ok) throw new Error(r.error);
-      router.push(`/projects/${projectId}/items/${thumbFor.id}#thumbnail`);
-    } catch (e) {
-      setPhase({ kind: "error", message: e instanceof Error ? e.message : "That didn't work. Try again." });
-    }
-  }
-
   async function attach() {
     const chosen = items.filter((i) => i.selected);
     if (!chosen.length) return;
@@ -252,11 +234,6 @@ export function DriveImport({ projectId, targets, defaultTargetId, treatment, st
                   <span className="truncate px-2 py-1.5 text-xs">{c.name}</span>
                   <span className="px-2 pb-2 text-[10px] tracking-[0.1em] text-muted uppercase">{c.from}</span>
                 </label>
-                {thumbFor && (
-                  <button type="button" className="btn-primary mt-1 min-h-9 w-full text-xs" disabled={busy} onClick={() => useAsThumbnail(c)}>
-                    Use for {thumbFor.name}
-                  </button>
-                )}
               </li>
             ))}
           </ul>

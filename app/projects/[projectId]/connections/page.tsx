@@ -2,6 +2,7 @@
 import { notFound } from "next/navigation";
 import { ConnectionsBoard } from "@/components/connections-board";
 import { Empty } from "@/components/flash";
+import { thumbOf } from "@/lib/thumb";
 import { getAllReferences, getBoard, getLatestVersions, getProjectShell, getScreenplay } from "@/lib/data";
 
 export default async function ConnectionsPage({ params }: { params: Promise<{ projectId: string }> }) {
@@ -15,7 +16,7 @@ export default async function ConnectionsPage({ params }: { params: Promise<{ pr
     .map((e) => ({
       id: e.id, kind: e.kind as "character" | "location", name: e.name,
       summary: String(latest.get(e.id)?.content?.summary ?? ""),
-      thumb: ((e as { metadata?: Record<string, unknown> | null }).metadata?.thumbnail_asset_id as string | undefined) ?? null,
+      thumb: thumbOf((e as { metadata?: Record<string, unknown> | null }).metadata),
     }));
   const references = refs.filter((r) => r.preview_asset_id).map((r) => ({ id: r.id, title: r.title ?? "", credit: r.attribution ?? "", previewAssetId: r.preview_asset_id }));
   const script = String(sp?.versions?.[0]?.content?.body ?? "");

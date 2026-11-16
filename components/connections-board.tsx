@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { boardLabel, boardLink, boardMove, boardNote, boardNoteDelete, boardUnlink } from "@/app/projects/[projectId]/board-actions";
+import { ThumbView } from "./thumb-view";
 import { CARD_H, CARD_W, autoEdges, buildNodes, stringPath, type BoardInput, type BoardLink, type BoardNode } from "@/lib/board";
 
 type View = { x: number; y: number; k: number };
@@ -187,9 +188,9 @@ export function ConnectionsBoard({ projectId, input, links: initialLinks, canEdi
                 <p className="line-clamp-5 px-3 pt-5 font-serif text-sm leading-snug text-black">{n.body}</p>
               ) : (
                 <div className="flex h-full gap-2 p-2 pt-5">
-                  {(n.kind === "character" || n.kind === "reference" || (n.kind === "location" && n.imageAssetId)) && (
+                  {(n.kind === "character" || n.kind === "reference" || (n.kind === "location" && n.thumb)) && (
                     <div className="h-full w-16 shrink-0 bg-line/60">
-                      {n.imageAssetId
+                      {n.thumb ? <ThumbView source={n.thumb} alt="" className="size-full" /> : n.imageAssetId
                         // eslint-disable-next-line @next/next/no-img-element
                         ? <img src={`/api/assets/${n.imageAssetId}`} alt="" className="size-full object-cover" draggable={false} />
                         : <svg viewBox="0 0 24 24" className="size-full p-2 text-muted" aria-hidden><circle cx="12" cy="8" r="4" fill="currentColor" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="currentColor" /></svg>}

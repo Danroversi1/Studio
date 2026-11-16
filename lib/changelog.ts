@@ -8,6 +8,15 @@ export interface ChangeRound { at: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeRound[] = [
   {
+    at: "2026-11-16T04:10:00Z",
+    title: "Thumbnails are crops of the treatment",
+    items: [
+      { text: "Character and location pages: pick a slide, drag a box over the part you want, resize it from the corner, then \"Use for …\". Nothing is copied or stored; the crop shows live from the Google Slides treatment.", href: `${J}/items/b547cb85-1d37-413a-8e10-3ebe1a74e14f#thumbnail` },
+      { text: "Crops show on the Overview cards and the Connections board too." },
+      { text: "Removed the upload-based picker from the import page." },
+    ],
+  },
+  {
     at: "2026-11-16T03:10:00Z",
     title: "Thumbnails from the treatment",
     items: [

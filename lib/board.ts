@@ -2,11 +2,12 @@
 // Pure (unit-tested). Her own strings and notes come from the database; automatic
 // strings are worked out from the script here every time, so they can't go stale.
 import { parseBreakdown, titleCase } from "./scene-plan";
+import type { ThumbSource } from "./thumb";
 
 export type NodeKind = "character" | "location" | "reference" | "note" | "scene";
 export interface BoardNode {
   key: string; kind: NodeKind; title: string; body: string;
-  x: number; y: number; href?: string; imageAssetId?: string | null; color?: string;
+  x: number; y: number; href?: string; imageAssetId?: string | null; thumb?: ThumbSource; color?: string;
 }
 export interface AutoEdge { from: string; to: string; label: string; weight: number }
 export interface BoardLink { id: string; from: string; to: string; label: string | null }
@@ -15,7 +16,7 @@ export const CARD_W = 184;
 export const CARD_H = 124;
 
 export interface BoardInput {
-  entities: { id: string; kind: "character" | "location"; name: string; summary: string; thumb?: string | null }[];
+  entities: { id: string; kind: "character" | "location"; name: string; summary: string; thumb?: ThumbSource }[];
   references: { id: string; title: string; credit: string; previewAssetId: string | null }[];
   notes: { id: string; body: string; color: string }[];
   positions: Record<string, { x: number; y: number }>;
@@ -32,8 +33,8 @@ export function buildNodes(inp: BoardInput): BoardNode[] {
   const place = (key: string, col: number, row: number) => inp.positions[key] ?? { x: 40 + col * (CARD_W + 36), y: 40 + row * (CARD_H + 90) };
   const chars = inp.entities.filter((e) => e.kind === "character");
   const locs = inp.entities.filter((e) => e.kind === "location");
-  chars.forEach((e, i) => out.push({ key: `e:${e.id}`, kind: "character", title: e.name, body: e.summary, href: `${inp.base}/items/${e.id}`, imageAssetId: e.thumb ?? null, ...place(`e:${e.id}`, i, 0) }));
-  locs.forEach((e, i) => out.push({ key: `e:${e.id}`, kind: "location", title: e.name, body: e.summary, href: `${inp.base}/items/${e.id}`, imageAssetId: e.thumb ?? null, ...place(`e:${e.id}`, i, inp.showScenes ? 3 : 2) }));
+  chars.forEach((e, i) => out.push({ key: `e:${e.id}`, kind: "character", title: e.name, body: e.summary, href: `${inp.base}/items/${e.id}`, thumb: e.thumb ?? null, ...place(`e:${e.id}`, i, 0) }));
+  locs.forEach((e, i) => out.push({ key: `e:${e.id}`, kind: "location", title: e.name, body: e.summary, href: `${inp.base}/items/${e.id}`, thumb: e.thumb ?? null, ...place(`e:${e.id}`, i, inp.showScenes ? 3 : 2) }));
   inp.references.filter((r) => r.previewAssetId).slice(0, 24).forEach((r, i) =>
     out.push({ key: `r:${r.id}`, kind: "reference", title: r.title || "Reference", body: r.credit, href: `${inp.base}/references`, imageAssetId: r.previewAssetId, ...place(`r:${r.id}`, Math.max(chars.length, locs.length) + 1 + (i % 2), Math.floor(i / 2)) }));
   inp.notes.forEach((n, i) => out.push({ key: `n:${n.id}`, kind: "note", title: "", body: n.body, color: n.color, ...place(`n:${n.id}`, i, inp.showScenes ? 4 : 3) }));

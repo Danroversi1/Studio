@@ -9,9 +9,12 @@ import { UploadArtwork } from "@/components/upload-artwork";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
 import { parseGoogleLink, slidesEmbedUrl } from "@/lib/google/links";
 import { INTAKE_QUESTIONS, TREATMENT_ATTRIBUTION, parseIntake, isTreatmentRef } from "@/lib/intake";
-import { currentUser, getAiBudget, getBoard, getCast, getNotebook, getScreenplay, getEntityWorkspace, getProjectShell, type VersionRow } from "@/lib/data";
+import { currentUser, getAiBudget, getBoard, getCast, getNotebook, getScreenplay, getStoryReferences, getEntityWorkspace, getProjectShell, type VersionRow } from "@/lib/data";
 import { CastBox } from "@/components/cast-box";
 import { autoEdges } from "@/lib/board";
+import { ThumbView } from "@/components/thumb-view";
+import { TreatmentCropPicker } from "@/components/treatment-crop-picker";
+import { thumbOf } from "@/lib/thumb";
 import { parseCast } from "@/lib/cast";
 import { addReference, approveRevision, renameEntity, requestBreakdown, saveRevision, saveSynopsis, setThumbnail } from "../../actions";
 
@@ -48,6 +51,8 @@ export default async function ItemWorkspace({
     getProjectShell(projectId), getEntityWorkspace(projectId, entityId), currentUser(), getAiBudget(projectId),
     getNotebook(projectId), getCast(projectId), getBoard(projectId), getScreenplay(projectId),
   ]);
+  const storyEntity = shell?.entities.find((e) => e.kind === "story");
+  const storyRefs = storyEntity ? await getStoryReferences(projectId, storyEntity.id) : [];
   if (!shell || !ws) notFound();
   const boardAuto = autoEdges({
     entities: shell.entities.filter((e) => e.kind === "character" || e.kind === "location").map((e) => ({ id: e.id, kind: e.kind as "character" | "location", name: e.name, summary: "" })),
@@ -276,43 +281,54 @@ export default async function ItemWorkspace({
     </div>
   );
 
-  // Thumbnail chooser for characters and locations: their artwork or reference images.
-  const thumbId = (entity as { metadata?: Record<string, unknown> | null }).metadata?.thumbnail_asset_id as string | undefined;
+  // Thumbnail for characters and locations: a live crop of the treatment (nothing stored),
+  // or a picture already on this item.
+  const thumbSrc = thumbOf((entity as { metadata?: Record<string, unknown> | null }).metadata);
+  const thumbId = thumbSrc?.kind === "asset" ? thumbSrc.assetId : undefined;
   const thumbChoices = [
     ...assets.map((a) => ({ id: a.id, name: a.display_name })),
     ...references.filter((r) => r.preview_asset_id).map((r) => ({ id: r.preview_asset_id as string, name: r.title ?? "Reference" })),
   ];
+  const deck = storyRefs.filter((r) => isTreatmentRef(r)).map((r) => parseGoogleLink(r.source_url)).find((l) => l?.kind === "slides");
   const thumbnailPanel = !isStory && (
     <section id="thumbnail" className="panel flex scroll-mt-6 flex-col gap-3 p-4" aria-labelledby="thumb-h">
       <h3 id="thumb-h" className="font-medium">Thumbnail</h3>
-      {thumbId ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={`/api/assets/${thumbId}`} alt={`${entity.name} thumbnail`} className="aspect-[4/3] w-full border border-line object-cover" />
+      {thumbSrc ? (
+        <ThumbView source={thumbSrc} alt={`${entity.name} thumbnail`} className="aspect-[4/3] w-full border border-line" />
       ) : (
         <p className="help">Pick the picture that shows on {entity.name}&apos;s card.</p>
       )}
-      {caps.can_edit && (thumbChoices.length === 0 ? (
-        <p className="text-xs text-muted">No pictures on {entity.name} yet.</p>
+      {caps.can_edit && (deck ? (
+        <details open={!thumbSrc}>
+          <summary className="cursor-pointer list-none text-sm text-accent">{thumbSrc ? "Change: crop from the treatment" : "Crop from the treatment"}</summary>
+          <div className="mt-3">
+            <TreatmentCropPicker projectId={projectId} entityId={entityId} entityName={entity.name} fileId={deck.id}
+              initial={thumbSrc?.kind === "crop" ? thumbSrc.crop : null} />
+          </div>
+        </details>
       ) : (
-        <ul className="grid grid-cols-3 gap-2">
-          {thumbChoices.map((c) => (
-            <li key={c.id}>
-              <form action={setThumbnail}>
-                <input type="hidden" name="projectId" value={projectId} />
-                <input type="hidden" name="entityId" value={entityId} />
-                <input type="hidden" name="assetId" value={c.id} />
-                <button type="submit" title={`Use ${c.name}`} aria-pressed={c.id === thumbId}
-                  className={`block aspect-square w-full overflow-hidden border-2 ${c.id === thumbId ? "border-brand" : "border-transparent hover:border-line"}`}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`/api/assets/${c.id}`} alt={c.name} className="size-full object-cover" loading="lazy" />
-                </button>
-              </form>
-            </li>
-          ))}
-        </ul>
+        <p className="text-xs text-muted">Link your Google Slides treatment (Treatment page) to crop thumbnails from it.</p>
       ))}
-      {caps.can_edit && (
-        <Link href={`${base}/import?thumb=1&to=${entityId}&from=treatment`} className="btn self-start text-xs">Pick from the treatment</Link>
+      {caps.can_edit && thumbChoices.length > 0 && (
+        <details>
+          <summary className="cursor-pointer list-none text-xs text-muted hover:text-accent">Or use a picture already on {entity.name}</summary>
+          <ul className="mt-2 grid grid-cols-3 gap-2">
+            {thumbChoices.map((c) => (
+              <li key={c.id}>
+                <form action={setThumbnail}>
+                  <input type="hidden" name="projectId" value={projectId} />
+                  <input type="hidden" name="entityId" value={entityId} />
+                  <input type="hidden" name="assetId" value={c.id} />
+                  <button type="submit" title={`Use ${c.name}`} aria-pressed={c.id === thumbId}
+                    className={`block aspect-square w-full overflow-hidden border-2 ${c.id === thumbId ? "border-brand" : "border-transparent hover:border-line"}`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/api/assets/${c.id}`} alt={c.name} className="size-full object-cover" loading="lazy" />
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
     </section>
   );
