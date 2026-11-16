@@ -1,6 +1,8 @@
 // Thumbnails as crops of the treatment: a window onto part of one slide, shown live from
 // Google. Nothing is copied or stored. Pure (unit-tested).
-export interface ThumbCrop { file_id: string; slide: number; x: number; y: number; w: number; h: number }
+/** slide_id is the slide's permanent Google ID, so the crop stays on the same slide when
+ *  slides are added, removed or reordered; slide is its number when it was chosen. */
+export interface ThumbCrop { file_id: string; slide: number; slide_id?: string | null; x: number; y: number; w: number; h: number }
 export type ThumbSource = { kind: "crop"; crop: ThumbCrop } | { kind: "asset"; assetId: string } | null;
 
 /** Google Slides pages are 16:9 unless the deck says otherwise. */
@@ -8,8 +10,12 @@ export const SLIDE_ASPECT = 16 / 9;
 /** Thumbnails are chosen as 4:3 windows. */
 export const THUMB_ASPECT = 4 / 3;
 
-export const slideEmbedUrl = (fileId: string, slide: number) =>
-  `https://docs.google.com/presentation/d/${encodeURIComponent(fileId)}/embed?start=false&loop=false&delayms=60000&rm=minimal&slide=${slide}`;
+/** A slide by permanent ID when known, otherwise by number. */
+export const slideEmbedUrl = (fileId: string, slide: number, slideId?: string | null) =>
+  `https://docs.google.com/presentation/d/${encodeURIComponent(fileId)}/embed?start=false&loop=false&delayms=60000&rm=minimal&slide=${
+    slideId && SLIDE_ID_RE.test(slideId) ? `id.${slideId}` : slide}`;
+
+export const SLIDE_ID_RE = /^[A-Za-z0-9_.-]{1,100}$/;
 
 export function thumbOf(metadata: Record<string, unknown> | null | undefined): ThumbSource {
   const c = metadata?.thumbnail_crop as Partial<ThumbCrop> | undefined;

@@ -8,6 +8,13 @@ export interface ChangeRound { at: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeRound[] = [
   {
+    at: "2026-11-16T05:40:00Z",
+    title: "Thumbnails stay put when the treatment changes",
+    items: [
+      { text: "A thumbnail now remembers the slide's permanent Google ID plus the spot (X, Y) and size of the area chosen, so adding, removing or reordering slides doesn't move it.", href: `${J}/items/b547cb85-1d37-413a-8e10-3ebe1a74e14f#thumbnail` },
+    ],
+  },
+  {
     at: "2026-11-16T05:00:00Z",
     title: "Characters the script calls out join the cast",
     items: [

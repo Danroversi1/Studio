@@ -22,7 +22,7 @@ export function ThumbView({ source, alt, className = "" }: { source: ThumbSource
   return (
     <div ref={box} className={`relative overflow-hidden bg-line/40 ${className}`} role="img" aria-label={alt}>
       {p && (
-        <iframe title={alt} src={slideEmbedUrl(source.crop.file_id, source.crop.slide)} tabIndex={-1} aria-hidden loading="lazy"
+        <iframe title={alt} src={slideEmbedUrl(source.crop.file_id, source.crop.slide, source.crop.slide_id)} tabIndex={-1} aria-hidden loading="lazy"
           className="pointer-events-none absolute max-w-none border-0"
           style={{ width: p.width, height: p.height, left: p.left, top: p.top }} />
       )}

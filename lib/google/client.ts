@@ -221,3 +221,27 @@ export async function openDocWithPermission(cfg: GoogleConfig, docId: string): P
     name: await getDriveFileName(t, docId),
   }));
 }
+
+/** Thrown when the Google Slides API isn't switched on for STUDIO's Google project. */
+export class SlidesApiOffError extends Error {}
+
+/** Each slide's permanent ID, in deck order. IDs stay the same when slides move. */
+export async function listSlideIds(accessToken: string, id: string): Promise<string[]> {
+  const res = await fetch(`https://slides.googleapis.com/v1/presentations/${encodeURIComponent(id)}?fields=slides.objectId`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (res.ok) return (((await res.json()) as { slides?: { objectId: string }[] }).slides ?? []).map((s) => s.objectId);
+  const text = await res.text().catch(() => "");
+  if (res.status === 401) token = null;
+  if (/SERVICE_DISABLED|has not been used|is disabled|accessNotConfigured/i.test(text)) {
+    throw new SlidesApiOffError("The Google Slides API needs to be switched on for STUDIO.");
+  }
+  if (res.status === 404 || res.status === 403 || res.status === 401)
+    throw new GoogleAccessError(res.status, "STUDIO doesn't have permission to open that file yet.");
+  throw new GoogleAccessError(res.status, `Google Slides answered with an error (${res.status}).`);
+}
+
+/** Slide IDs of the treatment, asking her to pick it the first time. */
+export async function treatmentSlideIds(cfg: GoogleConfig, fileId: string): Promise<string[]> {
+  return withFilePermission(cfg, fileId, SLIDES_MIME, "Select your treatment so STUDIO can open it", (t) => listSlideIds(t, fileId));
+}
