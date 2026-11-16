@@ -8,7 +8,7 @@ export interface ChangeRound { at: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeRound[] = [
   {
-    at: "2026-11-16T03:00:00Z",
+    at: "2026-11-16T02:40:00Z",
     title: "Edit the outline in place",
     items: [
       { text: "Every beat has Edit, ↑ / ↓ and Remove; ↑ at the top of a part moves it into the part before, ↓ at the bottom into the next.", href: `${JOHNNY_STORY}#outline-h` },
