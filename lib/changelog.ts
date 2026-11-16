@@ -8,6 +8,14 @@ export interface ChangeRound { at: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeRound[] = [
   {
+    at: "2026-11-16T06:10:00Z",
+    title: "Thumbnail picker opens on the right slide",
+    items: [
+      { text: "The picker reads the treatment's slide labels (\"Casting/Johnny\", \"Location/Coffee Shop\") and opens on that character's or location's slide, with buttons for any other slides that name them. Plain text matching, no AI.", href: `${J}/items/b547cb85-1d37-413a-8e10-3ebe1a74e14f#thumbnail` },
+      { text: "The slide list (IDs and labels, no images) is kept with the treatment, so every page knows it; \"Re-read slides\" updates it after the deck changes." },
+    ],
+  },
+  {
     at: "2026-11-16T05:40:00Z",
     title: "Thumbnails stay put when the treatment changes",
     items: [

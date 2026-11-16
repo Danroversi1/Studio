@@ -86,7 +86,7 @@ export async function getStoryReferences(projectId: string, storyId: string) {
   const ids = (boards ?? []).map((b) => b.id);
   if (!ids.length) return [];
   const { data } = await sb.from("research_references")
-    .select("id, title, source_url, source_domain, attribution, observations, preview_asset_id, created_at")
+    .select("id, title, source_url, source_domain, attribution, observations, preview_asset_id, created_at, metadata")
     .in("board_id", ids).order("created_at", { ascending: false });
   return data ?? [];
 }

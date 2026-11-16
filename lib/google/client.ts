@@ -225,12 +225,26 @@ export async function openDocWithPermission(cfg: GoogleConfig, docId: string): P
 /** Thrown when the Google Slides API isn't switched on for STUDIO's Google project. */
 export class SlidesApiOffError extends Error {}
 
-/** Each slide's permanent ID, in deck order. IDs stay the same when slides move. */
-export async function listSlideIds(accessToken: string, id: string): Promise<string[]> {
-  const res = await fetch(`https://slides.googleapis.com/v1/presentations/${encodeURIComponent(id)}?fields=slides.objectId`, {
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function textOf(el: any): string {
+  if (!el) return "";
+  const runs = (t: any) => (t?.textElements ?? []).map((e: any) => e.textRun?.content ?? "").join("");
+  if (el.shape?.text) return runs(el.shape.text);
+  if (el.elementGroup?.children) return el.elementGroup.children.map(textOf).join("\n");
+  if (el.table?.tableRows) return el.table.tableRows.flatMap((r: any) => (r.tableCells ?? []).map((c: any) => runs(c.text))).join("\n");
+  return "";
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/** Each slide's permanent ID (unchanged when slides move) and its text, in deck order. */
+export async function listSlides(accessToken: string, id: string): Promise<{ id: string; text: string }[]> {
+  const res = await fetch(`https://slides.googleapis.com/v1/presentations/${encodeURIComponent(id)}?fields=slides(objectId,pageElements(shape(text(textElements(textRun(content)))),elementGroup,table(tableRows(tableCells(text(textElements(textRun(content))))))))`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (res.ok) return (((await res.json()) as { slides?: { objectId: string }[] }).slides ?? []).map((s) => s.objectId);
+  if (res.ok) {
+    const data = (await res.json()) as { slides?: { objectId: string; pageElements?: unknown[] }[] };
+    return (data.slides ?? []).map((sl) => ({ id: sl.objectId, text: (sl.pageElements ?? []).map(textOf).filter(Boolean).join("\n") }));
+  }
   const text = await res.text().catch(() => "");
   if (res.status === 401) token = null;
   if (/SERVICE_DISABLED|has not been used|is disabled|accessNotConfigured/i.test(text)) {
@@ -241,7 +255,7 @@ export async function listSlideIds(accessToken: string, id: string): Promise<str
   throw new GoogleAccessError(res.status, `Google Slides answered with an error (${res.status}).`);
 }
 
-/** Slide IDs of the treatment, asking her to pick it the first time. */
-export async function treatmentSlideIds(cfg: GoogleConfig, fileId: string): Promise<string[]> {
-  return withFilePermission(cfg, fileId, SLIDES_MIME, "Select your treatment so STUDIO can open it", (t) => listSlideIds(t, fileId));
+/** The treatment's slides, asking her to pick it the first time. */
+export async function treatmentSlides(cfg: GoogleConfig, fileId: string): Promise<{ id: string; text: string }[]> {
+  return withFilePermission(cfg, fileId, SLIDES_MIME, "Select your treatment so STUDIO can open it", (t) => listSlides(t, fileId));
 }

@@ -5,19 +5,29 @@
 // slide, so it stays put when slides are added, removed or reordered.
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { setThumbnailCrop } from "@/app/projects/[projectId]/thumb-actions";
-import { SlidesApiOffError, googleConfig, treatmentSlideIds } from "@/lib/google/client";
+import { saveTreatmentSlides, setThumbnailCrop } from "@/app/projects/[projectId]/thumb-actions";
+import { SlidesApiOffError, googleConfig, treatmentSlides } from "@/lib/google/client";
+import { slidesFor, type SlideInfo } from "@/lib/slide-match";
 import { SLIDE_ASPECT, slideEmbedUrl, windowOf, type ThumbCrop } from "@/lib/thumb";
 import { ThumbView } from "./thumb-view";
 
-export function TreatmentCropPicker({ projectId, entityId, entityName, fileId, initial, onDone }: {
-  projectId: string; entityId: string; entityName: string; fileId: string; initial: ThumbCrop | null; onDone?: () => void;
+export function TreatmentCropPicker({ projectId, entityId, entityName, entityKind, fileId, initial, slides, onDone }: {
+  projectId: string; entityId: string; entityName: string; entityKind: "character" | "location"; fileId: string;
+  initial: ThumbCrop | null;
+  /** The treatment's slide list as last read (IDs and text), if any. */
+  slides: SlideInfo[] | null;
+  onDone?: () => void;
 }) {
   const router = useRouter();
   const same = initial?.file_id === fileId;
-  const [slide, setSlide] = useState(same ? initial.slide : 1);
-  const [slideId, setSlideId] = useState<string | null>(same ? initial.slide_id ?? null : null);
-  const [ids, setIds] = useState<string[] | null>(null);
+  const [deck, setDeck] = useState<SlideInfo[] | null>(slides?.length ? slides : null);
+  const ids = deck?.map((d) => d.id) ?? null;
+  const [matches, setMatches] = useState<number[]>(() => (slides?.length ? slidesFor(slides, entityName, entityKind) : []));
+  // Start on the crop she chose, else on the slide labeled for this character or location.
+  const startAt = same ? null : matches[0] ?? null;
+  const [slide, setSlide] = useState(same ? (slides?.findIndex((d) => d.id === initial.slide_id) ?? -1) + 1 || initial.slide : startAt ?? 1);
+  const [slideId, setSlideId] = useState<string | null>(same ? initial.slide_id ?? null : startAt ? slides?.[startAt - 1]?.id ?? null : null);
+  const [reading, setReading] = useState(false);
   const [win, setWin] = useState(initial?.file_id === fileId ? { x: initial.x, y: initial.y, w: initial.w, h: initial.h } : windowOf(0.35, 0.2, 0.3));
   const [msg, setMsg] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -52,13 +62,36 @@ export function TreatmentCropPicker({ projectId, entityId, entityName, fileId, i
     setSlideId(ids?.[next - 1] ?? null);
   }
 
+  /** Read the treatment's slides from Google (IDs and text) and keep the list. */
+  async function readDeck(): Promise<SlideInfo[]> {
+    const cfg = googleConfig();
+    if (!cfg) throw new Error("Google isn't set up for STUDIO yet.");
+    const list = await treatmentSlides(cfg, fileId);
+    setDeck(list);
+    setMatches(slidesFor(list, entityName, entityKind));
+    void saveTreatmentSlides({ projectId, fileId, slides: list }).catch(() => {});
+    return list;
+  }
+
+  async function findMine() {
+    setMsg(null); setReading(true);
+    try {
+      const list = await readDeck();
+      const m = slidesFor(list, entityName, entityKind);
+      if (m.length) { setSlide(m[0]); setSlideId(list[m[0] - 1].id); }
+      else setMsg(`Saved the slide list, but no slide is labeled for ${entityName} (e.g. "${entityKind === "character" ? "Casting" : "Location"}/${entityName}"). Use the arrows to choose one.`);
+    } catch (e) {
+      setMsg(e instanceof SlidesApiOffError
+        ? "STUDIO can't read slide labels yet: the Google Slides API needs to be switched on for STUDIO. Use the arrows for now."
+        : e instanceof Error ? e.message : "Google didn't open the treatment. Try again.");
+    } finally { setReading(false); }
+  }
+
   /** The slide's permanent ID (asks Google once; she may be asked to pick the treatment). */
   async function pin(): Promise<{ n: number; id: string | null; note?: string }> {
-    const cfg = googleConfig();
-    if (!cfg) return { n: slide, id: slideId };
+    if (!googleConfig() && !ids) return { n: slide, id: slideId };
     try {
-      const list = ids ?? await treatmentSlideIds(cfg, fileId);
-      setIds(list);
+      const list = ids ?? (await readDeck()).map((d) => d.id);
       const at = slideId ? list.indexOf(slideId) : -1;
       if (at >= 0) return { n: at + 1, id: slideId };
       return { n: slide, id: list[slide - 1] ?? null };
@@ -90,6 +123,25 @@ export function TreatmentCropPicker({ projectId, entityId, entityName, fileId, i
         <span>Slide <b>{slide}</b></span>
         <button type="button" className="btn min-h-9 px-3 text-xs" onClick={() => go(slide + 1)} disabled={!!ids && slide >= ids.length} aria-label="Next slide">→</button>
         <span className="text-xs text-muted">Drag the box over the part you want; drag its corner to resize (or use the arrow keys and + / −).</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        {matches.length > 0 ? (
+          <>
+            <span className="text-muted">{entityName}&apos;s {matches.length === 1 ? "slide" : "slides"}:</span>
+            {matches.slice(0, 8).map((n) => (
+              <button key={n} type="button" onClick={() => go(n)} aria-pressed={n === slide}
+                className={`btn min-h-8 px-2 text-xs ${n === slide ? "border-brand" : ""}`}
+                title={deck?.[n - 1]?.text.split("\n")[0] ?? ""}>
+                {n}{deck?.[n - 1] ? ` · ${deck[n - 1].text.split("\n")[0].slice(0, 28)}` : ""}
+              </button>
+            ))}
+          </>
+        ) : deck ? (
+          <span className="text-muted">No slide is labeled for {entityName} yet (e.g. &quot;{entityKind === "character" ? "Casting" : "Location"}/{entityName}&quot;).</span>
+        ) : null}
+        <button type="button" className="text-accent underline disabled:opacity-50" onClick={findMine} disabled={reading || pending}>
+          {reading ? "Reading the treatment…" : deck ? "Re-read slides" : `Find ${entityName}'s slide in the treatment`}
+        </button>
       </div>
       <div ref={stage} className="relative w-full overflow-hidden border border-line bg-black select-none touch-none"
         style={{ aspectRatio: String(SLIDE_ASPECT) }} onPointerMove={move} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}>

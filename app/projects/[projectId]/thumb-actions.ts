@@ -14,3 +14,12 @@ export async function setThumbnailCrop(input: { projectId: string; entityId: str
   revalidatePath(`/projects/${input.projectId}`, "layout");
   return { ok: true };
 }
+
+/** Keep the treatment's slide list (IDs and the start of each slide's text; no images). */
+export async function saveTreatmentSlides(input: { projectId: string; fileId: string; slides: { id: string; text: string }[] }): Promise<R> {
+  const sb = await supabaseServer();
+  const { trimSlides } = await import("@/lib/slide-match");
+  const { error } = await sb.rpc("save_treatment_slides", { p_project: input.projectId, p_file: input.fileId, p_slides: trimSlides(input.slides) });
+  if (error) return { ok: false, error: friendlyError(error).message };
+  return { ok: true };
+}

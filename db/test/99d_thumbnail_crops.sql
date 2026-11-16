@@ -1,4 +1,4 @@
--- STUDIO — thumbnails as treatment crops. Runs after 10_–99c_.
+-- STUDIO — thumbnails as treatment crops (and the treatment's slide list). Runs after 10_–99c_.
 \set ON_ERROR_STOP 1
 \pset footer off
 set client_min_messages = warning;
@@ -22,6 +22,11 @@ select tests.throws(format($q$select public.set_entity_thumbnail_crop(%L, '{"fil
 select tests.throws(format($q$select public.set_entity_thumbnail_crop(%L, '{"file_id":"DECK_abcdef123","slide":1,"x":0,"y":0,"w":0.5,"h":0.5}')$q$, tests.v('story')), '22023', 'the story has no thumbnail');
 select public.set_entity_thumbnail_crop(tests.v('mira'), null);
 select tests.ok((select metadata ? 'thumbnail_crop' from public.entities where id = tests.v('mira')) = false, 'a crop can be cleared');
+:as_dir
+select public.save_treatment_slides(tests.v('A'), 'DECK_abcdef123', '[{"id":"g1_0_1","text":"Look and feel"},{"id":"g1_0_2","text":"Casting/Mira"}]');
+select tests.ok((select metadata -> 'slides' -> 1 ->> 'text' from public.research_references where source_url like '%DECK_abcdef123%' limit 1) = 'Casting/Mira', 'slide list kept with the treatment');
+select tests.throws(format($q$select public.save_treatment_slides(%L, 'NOT_LINKED_999', '[]')$q$, tests.v('A')), '22023', 'only this film''s treatment');
+select tests.throws(format($q$select public.save_treatment_slides(%L, 'DECK_abcdef123', '[{"id":"bad id!","text":""}]')$q$, tests.v('A')), '22023', 'odd slide IDs refused');
 :as_reviewer
 select tests.throws(format($q$select public.set_entity_thumbnail_crop(%L, null)$q$, tests.v('mira')), '42501', 'review access cannot choose thumbnails');
 

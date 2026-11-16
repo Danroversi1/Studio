@@ -15,6 +15,7 @@ import { autoEdges } from "@/lib/board";
 import { ThumbView } from "@/components/thumb-view";
 import { TreatmentCropPicker } from "@/components/treatment-crop-picker";
 import { thumbOf } from "@/lib/thumb";
+import type { SlideInfo } from "@/lib/slide-match";
 import { parseCast } from "@/lib/cast";
 import { addReference, approveRevision, renameEntity, requestBreakdown, saveRevision, saveSynopsis, setThumbnail } from "../../actions";
 
@@ -289,7 +290,10 @@ export default async function ItemWorkspace({
     ...assets.map((a) => ({ id: a.id, name: a.display_name })),
     ...references.filter((r) => r.preview_asset_id).map((r) => ({ id: r.preview_asset_id as string, name: r.title ?? "Reference" })),
   ];
-  const deck = storyRefs.filter((r) => isTreatmentRef(r)).map((r) => parseGoogleLink(r.source_url)).find((l) => l?.kind === "slides");
+  const deckRef = storyRefs.filter((r) => isTreatmentRef(r)).map((r) => ({ link: parseGoogleLink(r.source_url), meta: r.metadata as Record<string, unknown> | null }))
+    .find((x) => x.link?.kind === "slides");
+  const deck = deckRef?.link;
+  const deckSlides = Array.isArray(deckRef?.meta?.slides) ? (deckRef.meta.slides as SlideInfo[]) : null;
   const thumbnailPanel = !isStory && (
     <section id="thumbnail" className="panel flex scroll-mt-6 flex-col gap-3 p-4" aria-labelledby="thumb-h">
       <h3 id="thumb-h" className="font-medium">Thumbnail</h3>
@@ -303,6 +307,7 @@ export default async function ItemWorkspace({
           <summary className="cursor-pointer list-none text-sm text-accent">{thumbSrc ? "Change: crop from the treatment" : "Crop from the treatment"}</summary>
           <div className="mt-3">
             <TreatmentCropPicker projectId={projectId} entityId={entityId} entityName={entity.name} fileId={deck.id}
+              entityKind={entity.kind === "location" ? "location" : "character"} slides={deckSlides}
               initial={thumbSrc?.kind === "crop" ? thumbSrc.crop : null} />
           </div>
         </details>
