@@ -34,6 +34,10 @@ async function loadSnapshot(db: Db, projectId: string): Promise<{ snapshot: Proj
       .order("created_at", { ascending: true }).limit(120),
     db.from("story_world").select("data, version").eq("project_id", projectId).maybeSingle(),
   ]);
+  const [{ data: boardLinks }, { data: boardNotes }] = await Promise.all([
+    db.from("story_board_links").select("from_key, to_key, label").eq("project_id", projectId).limit(200),
+    db.from("story_board_notes").select("id, body").eq("project_id", projectId).limit(200),
+  ]);
   const ents = entities ?? [];
   const ids = ents.map((e) => e.id);
   const [{ data: versions }, { data: boards }] = await Promise.all([
@@ -72,6 +76,11 @@ async function loadSnapshot(db: Db, projectId: string): Promise<{ snapshot: Proj
     })),
     pendingSuggestions: (pending ?? []).map((p) => p.name),
     world: worldRow ? toWorld(worldRow) : null,
+    connections: (boardLinks ?? []).map((l) => {
+      const nm = (k: string) => k.startsWith("e:") ? (ents.find((e) => e.id === k.slice(2))?.name ?? "?")
+        : k.startsWith("n:") ? `note "${String((boardNotes ?? []).find((n) => n.id === k.slice(2))?.body ?? "").slice(0, 80)}"` : "a reference";
+      return `${nm(l.from_key)} — ${l.label ?? "connected"} — ${nm(l.to_key)}`;
+    }),
   };
   return { snapshot, existing: ents.filter((e) => e.kind === "character" || e.kind === "location") };
 }

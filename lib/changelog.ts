@@ -8,6 +8,18 @@ export interface ChangeRound { at: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeRound[] = [
   {
+    at: "2026-11-16T00:30:00Z",
+    title: "Connections board",
+    items: [
+      { text: "New Connections section: characters, locations, references with pictures and sticky notes on one board.", href: `${J}/connections` },
+      { text: "Drag a card's pin to another card to tie a string and name it in her words; click a string to rename or remove it." },
+      { text: "Grey dashed strings come from the script (who's in a scene where, who shares scenes) and update themselves." },
+      { text: "\"Show scenes\" puts scene cards on the board too. Zoom, pan and Fit; a full list of connections below for keyboard use." },
+      { text: "The old Connect buttons are gone; character and location pages show their connections with a link to the board.", href: `${J}/items/b547cb85-1d37-413a-8e10-3ebe1a74e14f` },
+      { text: "The partners see her strings and labels." },
+    ],
+  },
+  {
     at: "2026-11-15T23:40:00Z",
     title: "Navigation fixed · World & Time cards open · synopsis box fits",
     items: [

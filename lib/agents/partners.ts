@@ -293,6 +293,8 @@ export interface ProjectSnapshot {
   runtime?: string | null;
   notebook?: { id: string; kind: string; body: string; status: string }[];
   world?: World | null;
+  /** Her strings on the Connections board, "A — label — B". */
+  connections?: string[];
 }
 
 const LIMITS = { synopsis: 15000, treatment: 40000, script: 30000, field: 600, items: 80, refs: 60 };
@@ -352,6 +354,9 @@ ${s.treatment ? cut(s.treatment.text, LIMITS.treatment) : "(not read yet)"}
 
 Screenplay${s.script ? ` [${s.script.approved ? "approved by her" : "her working draft"}; ${scriptSummary(s.script.text)}]` : ""}:
 ${s.script?.text.trim() ? cut(s.script.text, LIMITS.script) : "(not started)"}
+
+Connections she made on the board (her words):
+${s.connections?.length ? s.connections.map((c) => `- ${cut(c, 300)}`).join("\n") : "(none yet)"}
 
 Characters:
 ${items("character")}

@@ -268,3 +268,18 @@ export async function getWorld(projectId: string) {
   const { toWorld } = await import("./world");
   return toWorld(data);
 }
+
+/** Everything the Connections board shows. */
+export async function getBoard(projectId: string) {
+  const sb = await supabaseServer();
+  const [{ data: notes }, { data: positions }, { data: links }] = await Promise.all([
+    sb.from("story_board_notes").select("id, body, color").eq("project_id", projectId).order("created_at"),
+    sb.from("story_board_positions").select("node_key, x, y").eq("project_id", projectId),
+    sb.from("story_board_links").select("id, from_key, to_key, label").eq("project_id", projectId).order("created_at"),
+  ]);
+  return {
+    notes: (notes ?? []) as { id: string; body: string; color: string }[],
+    positions: Object.fromEntries((positions ?? []).map((p) => [p.node_key, { x: Number(p.x), y: Number(p.y) }])) as Record<string, { x: number; y: number }>,
+    links: (links ?? []).map((l) => ({ id: l.id as string, from: l.from_key as string, to: l.to_key as string, label: (l.label as string | null) ?? null })),
+  };
+}

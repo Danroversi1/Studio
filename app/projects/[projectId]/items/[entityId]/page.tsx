@@ -9,10 +9,11 @@ import { UploadArtwork } from "@/components/upload-artwork";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
 import { parseGoogleLink, slidesEmbedUrl } from "@/lib/google/links";
 import { INTAKE_QUESTIONS, TREATMENT_ATTRIBUTION, parseIntake, isTreatmentRef } from "@/lib/intake";
-import { currentUser, getAiBudget, getCast, getNotebook, getEntityWorkspace, getProjectShell, type VersionRow } from "@/lib/data";
+import { currentUser, getAiBudget, getBoard, getCast, getNotebook, getScreenplay, getEntityWorkspace, getProjectShell, type VersionRow } from "@/lib/data";
 import { CastBox } from "@/components/cast-box";
+import { autoEdges } from "@/lib/board";
 import { parseCast } from "@/lib/cast";
-import { addReference, approveRevision, linkEntities, renameEntity, requestBreakdown, saveRevision, saveSynopsis, setThumbnail, unlinkEntities } from "../../actions";
+import { addReference, approveRevision, renameEntity, requestBreakdown, saveRevision, saveSynopsis, setThumbnail } from "../../actions";
 
 export const maxDuration = 300;
 
@@ -29,11 +30,6 @@ const KIND_HELP = {
   location: "Describe the place: mood, light, era, what happens here.",
 } as const;
 
-const LINK_LABEL: Record<string, [string, string]> = {
-  appears_in: ["appears in", "features"],
-  set_in: ["is set in", "is the setting of"],
-  related_to: ["is related to", "is related to"],
-};
 
 function when(iso: string) {
   return new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
@@ -48,13 +44,17 @@ export default async function ItemWorkspace({
 }) {
   const { projectId, entityId } = await params;
   const { v, error, notice } = await searchParams;
-  const [shell, ws, user, budget, notebook, cast] = await Promise.all([
+  const [shell, ws, user, budget, notebook, cast, board, sp] = await Promise.all([
     getProjectShell(projectId), getEntityWorkspace(projectId, entityId), currentUser(), getAiBudget(projectId),
-    getNotebook(projectId), getCast(projectId),
+    getNotebook(projectId), getCast(projectId), getBoard(projectId), getScreenplay(projectId),
   ]);
   if (!shell || !ws) notFound();
+  const boardAuto = autoEdges({
+    entities: shell.entities.filter((e) => e.kind === "character" || e.kind === "location").map((e) => ({ id: e.id, kind: e.kind as "character" | "location", name: e.name, summary: "" })),
+    script: String(sp?.versions?.[0]?.content?.body ?? ""), showScenes: false,
+  });
   const { caps, entities } = shell;
-  const { entity, versions, assets, artworkByVersion, relationships, references } = ws;
+  const { entity, versions, assets, artworkByVersion, references } = ws;
   const kind = entity.kind;
   const runtime = (shell.project as { runtime?: string | null }).runtime ?? null;
   if ((kind as string) === "screenplay") redirect(`/projects/${projectId}/script`);
@@ -75,7 +75,6 @@ export default async function ItemWorkspace({
   const answers = parseIntake(selected?.content.body ?? "");
   const treatments = isStory ? references.filter((r) => isTreatmentRef(r)) : [];
   const otherRefs = isStory ? references.filter((r) => !isTreatmentRef(r)) : references;
-  const canConnect = caps.can_edit && entities.length > 1;
 
   /* ---------------------------------------------------------------- pieces */
   const versionTag = selected ? (
@@ -168,65 +167,31 @@ export default async function ItemWorkspace({
     </details>
   );
 
-  // Connections appear once there is something to connect; until then, a quiet link.
-  const connected = (relationships.length > 0 || canConnect) && (
-    relationships.length === 0 ? (
-      <details className="panel p-4">
-        <summary className="cursor-pointer list-none text-sm text-accent">+ Connect {isStory ? "characters and locations" : "to the story"}</summary>
-        {connectForm()}
-      </details>
-    ) : (
-      <section className="panel flex flex-col gap-3 p-4" aria-labelledby="related-h">
-        <h3 id="related-h" className="font-medium">Connected to</h3>
-        <ul className="flex flex-col gap-1">
-          {relationships.map((r) => {
-            const outgoing = r.source_entity_id === entityId;
-            const otherId = outgoing ? r.target_entity_id : r.source_entity_id;
-            const [outLabel, inLabel] = LINK_LABEL[r.relationship_type] ?? [r.relationship_type, r.relationship_type];
-            return (
-              <li key={r.id} className="flex items-center justify-between gap-2">
-                <Link href={`${base}/items/${otherId}`} className="flex min-h-11 items-center hover:text-accent">
-                  <span className="help mr-1">{outgoing ? outLabel : inLabel}</span> {entityName.get(otherId) ?? "item"}
-                </Link>
-                {caps.can_edit && (
-                  <form action={unlinkEntities}>
-                    <input type="hidden" name="projectId" value={projectId} />
-                    <input type="hidden" name="entityId" value={entityId} />
-                    <input type="hidden" name="relationshipId" value={r.id} />
-                    <button className="btn px-3" aria-label={`Remove link to ${entityName.get(otherId)}`}>×</button>
-                  </form>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-        {canConnect && <details><summary className="cursor-pointer list-none text-sm text-accent">+ Add a connection</summary>{connectForm()}</details>}
-      </section>
-    )
-  );
-
-  function connectForm() {
-    return (
-      <form action={linkEntities} className="mt-3 flex flex-col gap-2">
-        <input type="hidden" name="projectId" value={projectId} />
-        <input type="hidden" name="entityId" value={entityId} />
-        <label className="sr-only" htmlFor="link">Connection</label>
-        <select id="link" name="link" className="field">
-          {kind === "character" && <option value="out:appears_in">appears in…</option>}
-          {kind === "story" && <option value="in:appears_in">features…</option>}
-          {kind === "story" && <option value="out:set_in">is set in…</option>}
-          {kind === "location" && <option value="in:set_in">is the setting of…</option>}
-          <option value="out:related_to">is related to…</option>
-        </select>
-        <select name="otherId" className="field" aria-label="Item to connect" required>
-          {entities.filter((e) => e.id !== entityId).map((e) => (
-            <option key={e.id} value={e.id}>{e.name} ({e.kind})</option>
+  // Connections live on the board; here, a read-only view of this card's strings.
+  const myKey = `e:${entityId}`;
+  const mine = isStory ? [] : [
+    ...board.links.filter((l) => l.from === myKey || l.to === myKey).map((l) => ({ other: l.from === myKey ? l.to : l.from, label: l.label ?? "connected", hers: true })),
+    ...boardAuto.filter((e) => e.from === myKey || e.to === myKey).map((e) => ({ other: e.from === myKey ? e.to : e.from, label: e.weight > 1 ? `${e.label} (${e.weight} scenes)` : e.label, hers: false })),
+  ];
+  const otherName = (k: string) => k.startsWith("e:") ? (entityName.get(k.slice(2)) ?? "item") : k.startsWith("n:") ? "a note" : "a reference";
+  const connected = !isStory && (
+    <section className="panel flex flex-col gap-2 p-4" aria-labelledby="related-h">
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 id="related-h" className="font-medium">Connections</h3>
+        <Link href={`${base}/connections`} className="text-xs text-accent">Open the board</Link>
+      </div>
+      {mine.length === 0 ? <p className="text-sm text-muted">Nothing connected yet.</p> : (
+        <ul className="flex flex-col">
+          {mine.map((m, i) => (
+            <li key={i} className={`border-t border-line py-1.5 text-sm ${m.hers ? "" : "text-muted"}`}>
+              {m.other.startsWith("e:") ? <Link href={`${base}/items/${m.other.slice(2)}`} className="font-medium hover:text-accent">{otherName(m.other)}</Link> : otherName(m.other)}
+              <span className="text-muted"> · {m.label}</span>
+            </li>
           ))}
-        </select>
-        <SubmitButton pendingText="Linking…">Connect</SubmitButton>
-      </form>
-    );
-  }
+        </ul>
+      )}
+    </section>
+  );
 
   /* ------------------------------------------------- story: guided questions */
   const storyHidden = (skip: string) => (
