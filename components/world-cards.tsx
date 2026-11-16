@@ -4,7 +4,7 @@
 // fails. Suggestions (from the World Builder or from reading her story) show on the card
 // with Accept / Dismiss and never count as decided until she accepts them.
 import { useRouter } from "next/navigation";
-import { Children, useId, useState, useTransition } from "react";
+import { Children, useEffect, useId, useRef, useState, useTransition } from "react";
 import { acceptWorldSuggestion, dismissWorldSuggestion, saveWorldSection, type WorldResult } from "@/app/projects/[projectId]/world-actions";
 import {
   COVERAGE_LABEL, COVERAGES, PLACE_KINDS, PRECISIONS, calculateSpan, cleanValue, composeSentence, guessPrecision, periodsText, placesText,
@@ -250,19 +250,49 @@ function SpanEditor({ ctx, initial, calcText, onDone, onCancel }: { ctx: Ctx; in
 }
 
 function CoverageChoice({ ctx, value }: { ctx: Ctx; value?: Coverage }) {
-  const s = useSaver(ctx);
+  const router = useRouter();
   const name = useId();
+  // Her choice shows at once; it saves right away. If she clicks again while it's saving,
+  // her latest choice is saved next (nothing is silently ignored).
+  const [chosen, setChosen] = useState<Coverage | undefined>(value);
+  const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [error, setError] = useState<string | null>(null);
+  const saving = useRef(false);
+  const next = useRef<Coverage | null>(null);
+  const version = useRef(ctx.version);
+  useEffect(() => { version.current = ctx.version; }, [ctx.version]);
+  useEffect(() => { if (!saving.current && state !== "error") setChosen(value); }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function save(c: Coverage) {
+    if (saving.current) { next.current = c; return; }
+    saving.current = true; setState("saving"); setError(null);
+    let r: WorldResult;
+    try { r = await saveWorldSection({ projectId: ctx.projectId, section: "coverage", value: c, baseVersion: version.current }); }
+    catch { r = { ok: false, error: "That didn't save. Check your connection and try again." }; }
+    if (r.ok && typeof r.version === "number") version.current = r.version;
+    saving.current = false;
+    const queued = next.current; next.current = null;
+    if (queued && queued !== c && r.ok) { void save(queued); return; }
+    if (r.ok) { setState("saved"); router.refresh(); }
+    else { setState("error"); setError(r.error ?? "That didn't save. Try again."); setChosen(value); }
+  }
+
   return (
-    <fieldset className="flex flex-row flex-wrap gap-x-5 gap-y-1.5 border-t border-line pt-3 @lg:border-t-0 @lg:pt-0" disabled={!ctx.canEdit || s.pending}>
-      <legend className="mb-1.5 text-xs text-muted">Do we follow that time as it happens?</legend>
+    <fieldset className="flex flex-row flex-wrap gap-x-5 gap-y-1.5 border-t border-line pt-3 @lg:border-t-0 @lg:pt-0" disabled={!ctx.canEdit}>
+      <legend className="mb-1.5 flex w-full items-baseline justify-between gap-2 text-xs text-muted">
+        <span>Do we follow that time as it happens?</span>
+        <span role="status" aria-live="polite" className={state === "saved" ? "text-text" : ""}>
+          {state === "saving" ? "Saving…" : state === "saved" && chosen ? `Saved ✓` : ""}
+        </span>
+      </legend>
       {COVERAGES.map((c) => (
-        <label key={c} className="flex items-center gap-2 text-sm">
-          <input type="radio" name={name} checked={value === c}
-            onChange={() => s.run(() => saveWorldSection({ projectId: ctx.projectId, section: "coverage", value: c, baseVersion: ctx.version }), "Saved.")} />
+        <label key={c} className="flex cursor-pointer items-center gap-2 text-sm">
+          <input type="radio" name={name} checked={chosen === c}
+            onChange={() => { setChosen(c); void save(c); }} />
           {COVERAGE_LABEL[c]}
         </label>
       ))}
-      <Status msg={s.msg} />
+      {error && <p role="alert" className="w-full text-xs text-danger">{error}</p>}
     </fieldset>
   );
 }
