@@ -13,7 +13,9 @@ import {
   type NoteOp, OFFER_CHOICES_TOOL, type PartnerProposal, type ProjectSnapshot, RECORD_RUNTIME_TOOL, type StoredMessage, SUGGEST_ITEM_TOOL,
   UPDATE_WORLD_TOOL,
   UPDATE_NOTEBOOK_TOOL, isPartnerId, notesFromTool, openingFor, proposalFromTool, renderSnapshot, systemPrompt, toApiMessages,
+  PROPOSE_SHOTS_TOOL, shotsFromTool,
 } from "./partners";
+import { renderStoryboard } from "../storyboard/agent-context";
 import { STORY_BREAKDOWN_MODEL } from "./story-breakdown";
 
 const MODEL = STORY_BREAKDOWN_MODEL;
@@ -102,7 +104,7 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
   let usage: Usage = {};
   let cost = 0;
   try {
-    const { data: run } = await db.from("agent_runs").select("project_id, input_payload").eq("id", runId).single();
+    const { data: run } = await db.from("agent_runs").select("project_id, input_payload, requested_by").eq("id", runId).single();
     if (!run) throw new Error("Run not found.");
     const partner = run.input_payload.agent;
     if (!isPartnerId(partner)) throw new Error("Unknown partner.");
@@ -126,10 +128,22 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
       { type: "text", text: systemPrompt(partner), cache_control: { type: "ephemeral" } },
       { type: "text", text: renderSnapshot(snapshot), cache_control: { type: "ephemeral" } },
     ];
+    // Shot Builder: the storyboard she has open, and the material her shots must quote.
+    const focusId: string | null = partner === "shots" ? (run.input_payload?.focus?.storyboard_id ?? null) : null;
+    let storyboardBlock = "";
+    if (partner === "shots") {
+      storyboardBlock = await renderStoryboard(db, run.project_id, focusId);
+      system.push({ type: "text", text: storyboardBlock });
+    }
+    const herMaterial = partner === "shots"
+      ? [storyboardBlock, snapshot.script?.text ?? "", snapshot.synopsis, ...(history ?? []).filter((m) => m.role === "user").map((m) => String(m.content))].join("\n")
+      : "";
+    const agentShots: Record<string, unknown>[] = [];
 
     const tools = partner === "story" ? [SUGGEST_ITEM_TOOL, RECORD_RUNTIME_TOOL, UPDATE_NOTEBOOK_TOOL]
       : partner === "world" ? [UPDATE_WORLD_TOOL, OFFER_CHOICES_TOOL, RECORD_RUNTIME_TOOL, UPDATE_NOTEBOOK_TOOL]
       : partner === "dialogue" ? [OFFER_CHOICES_TOOL, RECORD_RUNTIME_TOOL, UPDATE_NOTEBOOK_TOOL]
+      : partner === "shots" ? (focusId ? [PROPOSE_SHOTS_TOOL, OFFER_CHOICES_TOOL] : [OFFER_CHOICES_TOOL])
       : [SUGGEST_ITEM_TOOL];
     const notesPartner = partner === "story" || partner === "world" || partner === "dialogue";
     const worldOps: WorldOp[] = [];
@@ -162,7 +176,14 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
           results.push({ type: "tool_result", tool_use_id: b.id, content: (room > 0 ? report : ["Limit for this turn reached."]).join("\n") || "Nothing changed." });
           continue;
         }
-        if ((partner === "world" || partner === "dialogue") && b.name === "offer_choices") {
+        if (partner === "shots" && b.name === "propose_shots") {
+          const { shots, report } = shotsFromTool(b.input, herMaterial);
+          const room = 12 - agentShots.length;
+          agentShots.push(...shots.slice(0, Math.max(0, room)));
+          results.push({ type: "tool_result", tool_use_id: b.id, content: report.join("\n") || "Nothing added.", is_error: !shots.length });
+          continue;
+        }
+        if ((partner === "world" || partner === "dialogue" || partner === "shots") && b.name === "offer_choices") {
           const raw = (b.input as { choices?: unknown[] })?.choices ?? [];
           choices = raw.filter((c): c is string => typeof c === "string").map((c) => c.replace(/[|\[\]\n]/g, " ").trim().slice(0, 60)).filter(Boolean).slice(0, 3);
           results.push({ type: "tool_result", tool_use_id: b.id, content: choices.length ? "Shown under your reply." : "No choices shown." });
@@ -200,9 +221,13 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
 
     let reply = replyParts.join("\n\n");
     if (res?.stop_reason === "max_tokens") reply += "\n\n(I ran out of room there. Ask me to continue.)";
-    if (!reply) reply = proposals.length ? "I've put that in your Suggestions." : worldOps.length ? "I've updated World & Time." : "Sorry, I lost my train of thought. Could you say that again?";
+    if (!reply) reply = agentShots.length ? `I've added ${agentShots.length} proposed ${agentShots.length === 1 ? "shot" : "shots"} to your storyboard.` : proposals.length ? "I've put that in your Suggestions." : worldOps.length ? "I've updated World & Time." : "Sorry, I lost my train of thought. Could you say that again?";
     if (choices.length >= 2) reply += `\n\n[[choices: ${choices.join(" | ")}]]`;
 
+    if (agentShots.length && focusId) {
+      const { error: shotErr } = await db.rpc("storyboard_apply_agent_shots", { p_run: runId, p_sequence: focusId, p_shots: agentShots });
+      if (shotErr) throw new Error(shotErr.message);
+    }
     if (worldOps.length) {
       const { error: worldErr } = await db.rpc("apply_world_notes", { p_run: runId, p_ops: worldOps });
       if (worldErr) throw new Error(worldErr.message);

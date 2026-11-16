@@ -39,9 +39,11 @@ export function splitChoices(text: string): { body: string; choices: string[] } 
   return { body: text.slice(0, m.index).trimEnd(), choices: m[1].split("|").map((c) => c.trim()).filter(Boolean).slice(0, 4) };
 }
 
-export function PartnerChat({ projectId, agent, partnerName, opening, threadId, initial, canTalk, unavailable, prompt, basePath }: {
+export function PartnerChat({ projectId, agent, partnerName, opening, threadId, initial, canTalk, unavailable, prompt, basePath, focus }: {
   projectId: string; agent: string; partnerName: string; opening: string; threadId: string | null;
   initial: ChatMessage[]; canTalk: boolean; unavailable: string | null; prompt?: string;
+  /** What she has open (e.g. a storyboard), sent with each message. */
+  focus?: { storyboard_id: string };
   /** Where this conversation lives (defaults to the partner's own page). */
   basePath?: string;
 }) {
@@ -69,7 +71,7 @@ export function PartnerChat({ projectId, agent, partnerName, opening, threadId, 
       try {
         const r = await fetch("/api/partners/message", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ projectId, agent, threadId, content }),
+          body: JSON.stringify({ projectId, agent, threadId, content, focus: focus ?? null }),
         });
         res = await r.json();
       } catch {

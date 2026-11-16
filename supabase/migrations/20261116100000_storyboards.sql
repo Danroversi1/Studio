@@ -1,0 +1,705 @@
+-- STUDIO — Storyboards.
+--
+-- A storyboard sequence is a project entity (kind 'storyboard'), so uploads and generated
+-- frames are ordinary assets on it. Shots have stable IDs; display order is a separate
+-- position, so reordering never changes identity or triggers generation. Every content
+-- change is a revision; approval records which revision was approved. Generation jobs
+-- snapshot the exact settings (including library presets) they used, keep history, and
+-- never erase a previous successful output. Locked shots are never replaced automatically.
+-- Libraries (lenses, stocks, finishes) are curated, source-linked and versioned.
+begin;
+
+-- ---- Sequences --------------------------------------------------------------------------
+create table if not exists public.storyboard_sequences (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects(id) on delete cascade,
+  entity_id uuid not null references public.entities(id) on delete cascade,
+  title text not null check (length(title) between 1 and 120),
+  brief text not null default '' check (length(brief) <= 6000),
+  entry jsonb not null default '{}'::jsonb,      -- how it started: text / script scenes / images
+  settings jsonb not null default '{}'::jsonb,   -- sequence defaults (style, aspect, format, look)
+  created_by uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  archived_at timestamptz
+);
+create index if not exists storyboard_sequences_project on public.storyboard_sequences (project_id) where archived_at is null;
+
+-- ---- Shots ------------------------------------------------------------------------------
+create table if not exists public.storyboard_shots (
+  id uuid primary key default gen_random_uuid(),
+  sequence_id uuid not null references public.storyboard_sequences(id) on delete cascade,
+  project_id uuid not null references public.projects(id) on delete cascade,
+  position double precision not null,
+  state text not null default 'proposed' check (state in ('proposed', 'approved')),
+  locked boolean not null default false,
+  origin text not null default 'director' check (origin in ('director', 'agent')),
+  revision int not null default 1,
+  content jsonb not null,
+  approved_revision int,
+  approved_content jsonb,
+  frame_asset_id uuid references public.assets(id) on delete set null,   -- storyboard frame shown
+  look_asset_id uuid references public.assets(id) on delete set null,    -- look preview shown
+  review jsonb,                                                          -- why it needs a look
+  notes text not null default '' check (length(notes) <= 4000),          -- director annotations
+  created_by uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  archived_at timestamptz
+);
+create index if not exists storyboard_shots_seq on public.storyboard_shots (sequence_id, position) where archived_at is null;
+
+create table if not exists public.storyboard_shot_revisions (
+  id uuid primary key default gen_random_uuid(),
+  shot_id uuid not null references public.storyboard_shots(id) on delete cascade,
+  project_id uuid not null references public.projects(id) on delete cascade,
+  revision int not null,
+  content jsonb not null,
+  origin text not null check (origin in ('director', 'agent')),
+  created_by uuid,
+  created_at timestamptz not null default now(),
+  unique (shot_id, revision)
+);
+
+-- ---- References with explicit roles -----------------------------------------------------
+create table if not exists public.storyboard_refs (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects(id) on delete cascade,
+  sequence_id uuid not null references public.storyboard_sequences(id) on delete cascade,
+  shot_id uuid references public.storyboard_shots(id) on delete cascade,  -- null: whole sequence
+  asset_id uuid references public.assets(id) on delete set null,
+  entity_id uuid references public.entities(id) on delete set null,
+  url text check (url is null or (length(url) <= 2000 and url ~ '^https://')),
+  title text not null default '' check (length(title) <= 200),
+  role text not null check (role in ('character', 'wardrobe', 'location', 'prop', 'composition', 'lighting', 'drawing_style', 'color_texture')),
+  borrow text not null default '' check (length(borrow) <= 600),
+  ignore text not null default '' check (length(ignore) <= 600),
+  -- accessible: an image Studio holds and can send; text_only: described in words only;
+  -- unverified: a link nobody has checked; inaccessible: could not be opened.
+  access text not null default 'unverified' check (access in ('accessible', 'text_only', 'unverified', 'inaccessible')),
+  attribution text not null default '' check (length(attribution) <= 300),
+  rights_note text not null default '' check (length(rights_note) <= 300),
+  created_by uuid,
+  created_at timestamptz not null default now(),
+  check (asset_id is not null or entity_id is not null or url is not null or length(title) > 0)
+);
+create index if not exists storyboard_refs_seq on public.storyboard_refs (sequence_id);
+
+-- ---- Generation jobs (history; never overwritten) ---------------------------------------
+create table if not exists public.storyboard_jobs (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects(id) on delete cascade,
+  sequence_id uuid not null references public.storyboard_sequences(id) on delete cascade,
+  shot_id uuid not null references public.storyboard_shots(id) on delete cascade,
+  kind text not null check (kind in ('frame', 'variation', 'edit', 'look')),
+  mode text not null check (mode in ('storyboard', 'look')),
+  status text not null default 'queued' check (status in ('queued', 'running', 'succeeded', 'failed', 'cancelled')),
+  provider text not null check (length(provider) <= 40),
+  model text not null check (length(model) <= 80),
+  prompt_version text not null check (length(prompt_version) <= 40),
+  prompt text not null check (length(prompt) <= 12000),
+  params jsonb not null,                  -- snapshot of every setting used (incl. presets)
+  reference_assets jsonb not null default '[]'::jsonb,  -- images actually sent [{asset_id, role}]
+  text_only_refs jsonb not null default '[]'::jsonb,    -- described in words only
+  source_revision int not null,
+  base_asset_id uuid references public.assets(id) on delete set null,   -- for edit / variation
+  output_asset_id uuid references public.assets(id) on delete set null,
+  applied boolean not null default false, -- became the shot's shown image
+  usage jsonb,
+  error text,
+  idempotency_key text not null check (length(idempotency_key) between 8 and 120),
+  requested_by uuid,
+  created_at timestamptz not null default now(),
+  started_at timestamptz,
+  completed_at timestamptz,
+  unique (project_id, idempotency_key)
+);
+create index if not exists storyboard_jobs_shot on public.storyboard_jobs (shot_id, created_at desc);
+
+-- ---- Libraries (curated, versioned) -----------------------------------------------------
+create table if not exists public.storyboard_lens_profiles (
+  id text primary key check (id ~ '^[a-z0-9-]{2,60}$'),
+  manufacturer text not null,
+  model text not null,
+  focal_lengths numeric[] not null default '{}',
+  coverage text not null default '',
+  optical text not null check (optical in ('spherical', 'anamorphic')),
+  squeeze numeric,
+  aperture_spec text not null default '',        -- as published, e.g. 'T2.0' or 'f/1.4'
+  source_url text,
+  verification text not null check (verification in ('manufacturer_spec', 'secondary_source', 'unverified', 'generic')),
+  character_notes text not null default '',      -- editorial, labeled as such in the app
+  production_examples jsonb not null default '[]'::jsonb,  -- kept apart from specs
+  version int not null default 1,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.storyboard_stock_profiles (
+  id text primary key check (id ~ '^[a-z0-9-]{2,60}$'),
+  manufacturer text not null,
+  stock text not null,
+  product_codes text[] not null default '{}',
+  category text not null check (category in ('camera_negative', 'reversal', 'print', 'other')),
+  medium text not null check (medium in ('motion_picture', 'still')),
+  gauges text[] not null default '{}',
+  balance text check (balance in ('daylight', 'tungsten')),
+  ei_daylight numeric,
+  ei_tungsten numeric,
+  exposure_notes text not null default '',
+  documented text not null default '',     -- from the manufacturer's own documents
+  editorial text not null default '',      -- descriptive language, kept separate
+  source_urls text[] not null default '{}',
+  verification text not null check (verification in ('manufacturer_spec', 'secondary_source', 'unverified')),
+  checked_at date,
+  version int not null default 1,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.storyboard_finish_presets (
+  id text primary key check (id ~ '^[a-z0-9-]{2,60}$'),
+  name text not null,
+  stock_id text references public.storyboard_stock_profiles(id),
+  params jsonb not null,                   -- tone, color, grain, halation, bloom, softness
+  provenance text not null,                -- how it was made
+  license text not null,                   -- e.g. original work, not a copied commercial profile
+  label text not null default 'stock-inspired',
+  version int not null default 1,
+  updated_at timestamptz not null default now()
+);
+
+-- ---- Access -----------------------------------------------------------------------------
+do $$ declare t text;
+begin
+  foreach t in array array['storyboard_sequences', 'storyboard_shots', 'storyboard_shot_revisions', 'storyboard_refs', 'storyboard_jobs'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists %I on public.%I', t || '_read', t);
+    execute format('create policy %I on public.%I for select to authenticated using (public.studio_level(project_id) >= 2)', t || '_read', t);
+    execute format('revoke all on public.%I from anon', t);
+    execute format('revoke insert, update, delete, truncate, references, trigger on public.%I from authenticated', t);
+    execute format('grant select on public.%I to authenticated', t);
+  end loop;
+  foreach t in array array['storyboard_lens_profiles', 'storyboard_stock_profiles', 'storyboard_finish_presets'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists %I on public.%I', t || '_read', t);
+    execute format('create policy %I on public.%I for select to authenticated using (true)', t || '_read', t);
+    execute format('revoke all on public.%I from anon', t);
+    execute format('revoke insert, update, delete, truncate, references, trigger on public.%I from authenticated', t);
+    execute format('grant select on public.%I to authenticated', t);
+  end loop;
+end $$;
+
+-- ---- Sequence RPCs ----------------------------------------------------------------------
+create or replace function public.storyboard_create(p_project uuid, p_title text, p_brief text, p_entry jsonb)
+returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare v_uid uuid; v_entity uuid; v_id uuid; v_title text := btrim(coalesce(p_title, ''));
+begin
+  v_uid := public.studio_require(p_project, 3, 'make a storyboard');
+  if length(v_title) not between 1 and 120 then raise exception 'Give the storyboard a title (up to 120 characters).' using errcode = '22023'; end if;
+  if length(coalesce(p_brief, '')) > 6000 then raise exception 'The description is too long.' using errcode = '22023'; end if;
+  if p_entry is not null and (jsonb_typeof(p_entry) <> 'object' or length(p_entry::text) > 20000) then
+    raise exception 'Unexpected starting point.' using errcode = '22023';
+  end if;
+  -- The storyboard is a project entity (so its pictures are ordinary assets on it).
+  insert into public.entities (project_id, kind, name, module_key, created_by)
+  values (p_project, 'storyboard', v_title, 'storyboard', v_uid)
+  returning id into v_entity;
+  insert into public.storyboard_sequences (project_id, entity_id, title, brief, entry, created_by)
+  values (p_project, v_entity, v_title, coalesce(p_brief, ''), coalesce(p_entry, '{}'::jsonb), v_uid)
+  returning id into v_id;
+  perform public.studio_audit(p_project, v_uid, 'user', 'storyboard.created', 'storyboard', v_id, '{}'::jsonb);
+  return v_id;
+end $$;
+
+create or replace function public.storyboard_update(p_sequence uuid, p_title text, p_brief text, p_settings jsonb)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare s public.storyboard_sequences; v_uid uuid;
+begin
+  select * into s from public.storyboard_sequences where id = p_sequence;
+  v_uid := public.studio_require(s.project_id, 3, 'edit a storyboard');
+  if p_title is not null and length(btrim(p_title)) not between 1 and 120 then raise exception 'Titles are 1–120 characters.' using errcode = '22023'; end if;
+  if p_brief is not null and length(p_brief) > 6000 then raise exception 'The description is too long.' using errcode = '22023'; end if;
+  if p_settings is not null and (jsonb_typeof(p_settings) <> 'object' or length(p_settings::text) > 8000) then
+    raise exception 'Unexpected settings.' using errcode = '22023';
+  end if;
+  update public.storyboard_sequences
+     set title = coalesce(nullif(btrim(p_title), ''), title), brief = coalesce(p_brief, brief),
+         settings = coalesce(p_settings, settings), updated_at = now()
+   where id = p_sequence;
+end $$;
+
+create or replace function public.storyboard_archive(p_sequence uuid)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare s public.storyboard_sequences; v_uid uuid;
+begin
+  select * into s from public.storyboard_sequences where id = p_sequence;
+  v_uid := public.studio_require(s.project_id, 3, 'remove a storyboard');
+  update public.storyboard_sequences set archived_at = now(), updated_at = now() where id = p_sequence;
+  perform public.studio_audit(s.project_id, v_uid, 'user', 'storyboard.archived', 'storyboard', p_sequence, '{}'::jsonb);
+end $$;
+
+-- ---- Shot RPCs --------------------------------------------------------------------------
+create or replace function public.storyboard_shot_check(p_content jsonb)
+returns void
+language plpgsql immutable set search_path = '' as $$
+begin
+  if p_content is null or jsonb_typeof(p_content) <> 'object' or length(p_content::text) > 20000 then
+    raise exception 'Unexpected shot details.' using errcode = '22023';
+  end if;
+end $$;
+
+/** Add a shot (p_shot null) at p_position, or save a new revision of an existing shot.
+ *  Editing an approved shot makes it a proposal again; locked shots can't be edited. */
+create or replace function public.storyboard_shot_save(p_sequence uuid, p_shot uuid, p_content jsonb, p_origin text,
+  p_position double precision, p_expected_revision int)
+returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare s public.storyboard_sequences; sh public.storyboard_shots; v_uid uuid; v_id uuid; v_pos double precision;
+begin
+  select * into s from public.storyboard_sequences where id = p_sequence;
+  v_uid := public.studio_require(s.project_id, 3, 'edit the storyboard');
+  if s.archived_at is not null then raise exception 'That storyboard was removed.' using errcode = 'PT404'; end if;
+  perform public.storyboard_shot_check(p_content);
+  if coalesce(p_origin, 'director') not in ('director', 'agent') then raise exception 'Unknown origin.' using errcode = '22023'; end if;
+  if p_shot is null then
+    if (select count(*) from public.storyboard_shots where sequence_id = p_sequence and archived_at is null) >= 200 then
+      raise exception 'A storyboard holds up to 200 shots.' using errcode = '22023';
+    end if;
+    v_pos := coalesce(p_position, (select coalesce(max(position), 0) + 1000 from public.storyboard_shots where sequence_id = p_sequence));
+    insert into public.storyboard_shots (sequence_id, project_id, position, origin, content, created_by)
+    values (p_sequence, s.project_id, v_pos, coalesce(p_origin, 'director'), p_content, v_uid)
+    returning id into v_id;
+    insert into public.storyboard_shot_revisions (shot_id, project_id, revision, content, origin, created_by)
+    values (v_id, s.project_id, 1, p_content, coalesce(p_origin, 'director'), v_uid);
+    return v_id;
+  end if;
+  select * into sh from public.storyboard_shots where id = p_shot and sequence_id = p_sequence for update;
+  if sh.id is null or sh.archived_at is not null then raise exception 'Shot not found.' using errcode = 'PT404'; end if;
+  if sh.locked then raise exception 'This shot is locked. Unlock it to change it.' using errcode = '22023'; end if;
+  if p_expected_revision is not null and p_expected_revision <> sh.revision then
+    raise exception 'This shot changed since you opened it. Reload to see the latest.' using errcode = 'PT409';
+  end if;
+  if sh.content = p_content then return sh.id; end if;
+  update public.storyboard_shots
+     set content = p_content, revision = sh.revision + 1, state = 'proposed', updated_at = now()
+   where id = p_shot;
+  insert into public.storyboard_shot_revisions (shot_id, project_id, revision, content, origin, created_by)
+  values (p_shot, sh.project_id, sh.revision + 1, p_content, coalesce(p_origin, 'director'), v_uid);
+  return p_shot;
+end $$;
+
+create or replace function public.storyboard_shot_move(p_shot uuid, p_position double precision)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare sh public.storyboard_shots; v_uid uuid;
+begin
+  select * into sh from public.storyboard_shots where id = p_shot;
+  v_uid := public.studio_require(sh.project_id, 3, 'reorder the storyboard');
+  if p_position is null or p_position <> p_position then raise exception 'Unexpected position.' using errcode = '22023'; end if;
+  update public.storyboard_shots set position = p_position where id = p_shot;  -- identity, revision and frames unchanged
+end $$;
+
+create or replace function public.storyboard_shot_state(p_shot uuid, p_state text, p_locked boolean)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare sh public.storyboard_shots; v_uid uuid;
+begin
+  select * into sh from public.storyboard_shots where id = p_shot;
+  v_uid := public.studio_require(sh.project_id, 3, 'approve shots');
+  if p_state is not null and p_state not in ('proposed', 'approved') then raise exception 'Unknown state.' using errcode = '22023'; end if;
+  update public.storyboard_shots
+     set state = coalesce(p_state, state),
+         approved_revision = case when p_state = 'approved' then sh.revision else approved_revision end,
+         approved_content = case when p_state = 'approved' then sh.content else approved_content end,
+         locked = coalesce(p_locked, locked), updated_at = now()
+   where id = p_shot;
+  perform public.studio_audit(sh.project_id, v_uid, 'user', 'storyboard.shot_state', 'storyboard_shot', p_shot,
+    jsonb_build_object('state', p_state, 'locked', p_locked));
+end $$;
+
+create or replace function public.storyboard_shot_notes(p_shot uuid, p_notes text)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare sh public.storyboard_shots; v_uid uuid;
+begin
+  select * into sh from public.storyboard_shots where id = p_shot;
+  v_uid := public.studio_require(sh.project_id, 3, 'annotate shots');
+  if length(coalesce(p_notes, '')) > 4000 then raise exception 'Notes are up to 4000 characters.' using errcode = '22023'; end if;
+  update public.storyboard_shots set notes = coalesce(p_notes, ''), updated_at = now() where id = p_shot;
+end $$;
+
+create or replace function public.storyboard_shot_archive(p_shot uuid)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare sh public.storyboard_shots; v_uid uuid;
+begin
+  select * into sh from public.storyboard_shots where id = p_shot;
+  v_uid := public.studio_require(sh.project_id, 3, 'remove shots');
+  if sh.locked then raise exception 'This shot is locked. Unlock it first.' using errcode = '22023'; end if;
+  update public.storyboard_shots set archived_at = now(), updated_at = now() where id = p_shot;
+end $$;
+
+/** Mark a shot for review (what changed upstream), or clear the flag (null). Images stay. */
+create or replace function public.storyboard_shot_review(p_shot uuid, p_review jsonb)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare sh public.storyboard_shots; v_uid uuid;
+begin
+  select * into sh from public.storyboard_shots where id = p_shot;
+  v_uid := public.studio_require(sh.project_id, 3, 'review shots');
+  if p_review is not null and (jsonb_typeof(p_review) <> 'object' or length(p_review::text) > 4000) then
+    raise exception 'Unexpected review note.' using errcode = '22023';
+  end if;
+  update public.storyboard_shots set review = p_review where id = p_shot;
+end $$;
+
+/** Show an earlier result (from this shot's own history) as the frame or the look preview. */
+create or replace function public.storyboard_shot_pick(p_shot uuid, p_slot text, p_asset uuid)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare sh public.storyboard_shots; v_uid uuid;
+begin
+  select * into sh from public.storyboard_shots where id = p_shot;
+  v_uid := public.studio_require(sh.project_id, 3, 'choose frames');
+  if sh.locked then raise exception 'This shot is locked. Unlock it to change its frame.' using errcode = '22023'; end if;
+  if p_slot not in ('frame', 'look') then raise exception 'Unknown slot.' using errcode = '22023'; end if;
+  if p_asset is not null and not exists (
+       select 1 from public.storyboard_jobs j where j.shot_id = p_shot and j.output_asset_id = p_asset and j.status in ('succeeded', 'cancelled')
+       union all
+       select 1 from public.storyboard_refs r where r.sequence_id = sh.sequence_id and r.asset_id = p_asset) then
+    raise exception 'That picture isn''t part of this shot.' using errcode = '22023';
+  end if;
+  if p_slot = 'frame' then update public.storyboard_shots set frame_asset_id = p_asset, updated_at = now() where id = p_shot;
+  else update public.storyboard_shots set look_asset_id = p_asset, updated_at = now() where id = p_shot; end if;
+end $$;
+
+-- ---- Reference RPCs ---------------------------------------------------------------------
+create or replace function public.storyboard_ref_save(p_sequence uuid, p_ref uuid, p_data jsonb)
+returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare s public.storyboard_sequences; v_uid uuid; v_id uuid; v_shot uuid; v_asset uuid; v_entity uuid; v_access text;
+begin
+  select * into s from public.storyboard_sequences where id = p_sequence;
+  v_uid := public.studio_require(s.project_id, 3, 'add references');
+  if p_data is null or jsonb_typeof(p_data) <> 'object' then raise exception 'Unexpected reference.' using errcode = '22023'; end if;
+  v_shot := nullif(p_data ->> 'shot_id', '')::uuid;
+  v_asset := nullif(p_data ->> 'asset_id', '')::uuid;
+  v_entity := nullif(p_data ->> 'entity_id', '')::uuid;
+  if v_shot is not null and not exists (select 1 from public.storyboard_shots where id = v_shot and sequence_id = p_sequence) then
+    raise exception 'Shot not found.' using errcode = 'PT404';
+  end if;
+  if v_asset is not null and not exists (select 1 from public.assets where id = v_asset and project_id = s.project_id and upload_status = 'ready') then
+    raise exception 'That picture isn''t in this film.' using errcode = '22023';
+  end if;
+  if v_entity is not null and not exists (select 1 from public.entities where id = v_entity and project_id = s.project_id) then
+    raise exception 'That item isn''t in this film.' using errcode = '22023';
+  end if;
+  -- Access is decided here, not by the browser: a stored image is accessible; a bare link
+  -- is unverified until someone imports it; anything else is described in words only.
+  v_access := case when v_asset is not null then 'accessible'
+                   when p_data ->> 'url' is not null then case when p_data ->> 'access' = 'inaccessible' then 'inaccessible' else 'unverified' end
+                   else 'text_only' end;
+  if p_ref is null then
+    insert into public.storyboard_refs (project_id, sequence_id, shot_id, asset_id, entity_id, url, title, role, borrow, ignore, access, attribution, rights_note, created_by)
+    values (s.project_id, p_sequence, v_shot, v_asset, v_entity, nullif(p_data ->> 'url', ''), coalesce(p_data ->> 'title', ''),
+            p_data ->> 'role', coalesce(p_data ->> 'borrow', ''), coalesce(p_data ->> 'ignore', ''), v_access,
+            coalesce(p_data ->> 'attribution', ''), coalesce(p_data ->> 'rights_note', ''), v_uid)
+    returning id into v_id;
+  else
+    update public.storyboard_refs
+       set shot_id = v_shot, title = coalesce(p_data ->> 'title', title), role = coalesce(p_data ->> 'role', role),
+           borrow = coalesce(p_data ->> 'borrow', borrow), ignore = coalesce(p_data ->> 'ignore', ignore),
+           attribution = coalesce(p_data ->> 'attribution', attribution), rights_note = coalesce(p_data ->> 'rights_note', rights_note)
+     where id = p_ref and sequence_id = p_sequence returning id into v_id;
+    if v_id is null then raise exception 'Reference not found.' using errcode = 'PT404'; end if;
+  end if;
+  return v_id;
+end $$;
+
+create or replace function public.storyboard_ref_remove(p_ref uuid)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare r public.storyboard_refs; v_uid uuid;
+begin
+  select * into r from public.storyboard_refs where id = p_ref;
+  v_uid := public.studio_require(r.project_id, 3, 'remove references');
+  delete from public.storyboard_refs where id = p_ref;
+end $$;
+
+-- ---- Job RPCs ---------------------------------------------------------------------------
+/** Request a generation. The same idempotency key returns the same job (no duplicate). */
+create or replace function public.storyboard_job_request(p_shot uuid, p_kind text, p_mode text, p_provider text, p_model text,
+  p_prompt_version text, p_prompt text, p_params jsonb, p_reference_assets jsonb, p_text_only_refs jsonb,
+  p_base_asset uuid, p_idempotency_key text)
+returns table (job_id uuid, existing boolean)
+language plpgsql security definer set search_path = '' as $$
+declare sh public.storyboard_shots; v_uid uuid; v_id uuid;
+begin
+  select * into sh from public.storyboard_shots where id = p_shot;
+  v_uid := public.studio_require(sh.project_id, 3, 'generate frames');
+  if sh.archived_at is not null then raise exception 'Shot not found.' using errcode = 'PT404'; end if;
+  select j.id into v_id from public.storyboard_jobs j where j.project_id = sh.project_id and j.idempotency_key = p_idempotency_key;
+  if v_id is not null then return query select v_id, true; return; end if;
+  if (select count(*) from public.storyboard_jobs j where j.project_id = sh.project_id and j.status in ('queued', 'running')
+        and j.created_at > now() - interval '10 minutes') >= 6 then
+    raise exception 'Several frames are already being made. Wait for them to finish.' using errcode = '22023';
+  end if;
+  if jsonb_typeof(coalesce(p_params, 'null'::jsonb)) <> 'object' or length(p_params::text) > 30000 then
+    raise exception 'Unexpected settings.' using errcode = '22023';
+  end if;
+  if jsonb_typeof(coalesce(p_reference_assets, '[]'::jsonb)) <> 'array' or jsonb_array_length(coalesce(p_reference_assets, '[]'::jsonb)) > 16 then
+    raise exception 'Up to 16 reference images can be sent.' using errcode = '22023';
+  end if;
+  if exists (select 1 from jsonb_array_elements(coalesce(p_reference_assets, '[]'::jsonb)) x
+              where not exists (select 1 from public.assets a where a.id = (x ->> 'asset_id')::uuid and a.project_id = sh.project_id and a.upload_status = 'ready')) then
+    raise exception 'A reference image isn''t available.' using errcode = '22023';
+  end if;
+  if p_base_asset is not null and not exists (select 1 from public.assets a where a.id = p_base_asset and a.project_id = sh.project_id and a.upload_status = 'ready') then
+    raise exception 'The frame to edit isn''t available.' using errcode = '22023';
+  end if;
+  insert into public.storyboard_jobs (project_id, sequence_id, shot_id, kind, mode, provider, model, prompt_version, prompt, params,
+                                      reference_assets, text_only_refs, source_revision, base_asset_id, idempotency_key, requested_by)
+  values (sh.project_id, sh.sequence_id, p_shot, p_kind, p_mode, p_provider, p_model, p_prompt_version, p_prompt, p_params,
+          coalesce(p_reference_assets, '[]'::jsonb), coalesce(p_text_only_refs, '[]'::jsonb), sh.revision, p_base_asset, p_idempotency_key, v_uid)
+  returning id into v_id;
+  perform public.studio_audit(sh.project_id, v_uid, 'user', 'storyboard.job_requested', 'storyboard_job', v_id,
+    jsonb_build_object('kind', p_kind, 'mode', p_mode, 'model', p_model));
+  return query select v_id, false;
+end $$;
+
+-- SERVICE ROLE ONLY: claim a queued job.
+create or replace function public.storyboard_job_start(p_job uuid)
+returns boolean
+language plpgsql security definer set search_path = '' as $$
+declare v boolean;
+begin
+  update public.storyboard_jobs set status = 'running', started_at = now() where id = p_job and status = 'queued' returning true into v;
+  return coalesce(v, false);
+end $$;
+
+-- SERVICE ROLE ONLY: record a result. It becomes the shown image unless the shot is locked,
+-- the job was a variation, or the job was cancelled; it is always kept in history.
+create or replace function public.storyboard_job_complete(p_job uuid, p_asset uuid, p_usage jsonb, p_model text)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare j public.storyboard_jobs; sh public.storyboard_shots; v_apply boolean;
+begin
+  select * into j from public.storyboard_jobs where id = p_job for update;
+  if j.id is null then raise exception 'Job not found.' using errcode = 'PT404'; end if;
+  if j.status not in ('running', 'cancelled') then raise exception 'Job is %, not running.', j.status using errcode = 'PT409'; end if;
+  select * into sh from public.storyboard_shots where id = j.shot_id for update;
+  update public.assets set origin = 'generated',
+         metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object('storyboard_job_id', j.id, 'shot_id', j.shot_id, 'mode', j.mode)
+   where id = p_asset and project_id = j.project_id;
+  v_apply := j.status = 'running' and not sh.locked and j.kind <> 'variation';
+  update public.storyboard_jobs
+     set status = case when j.status = 'cancelled' then 'cancelled' else 'succeeded' end, output_asset_id = p_asset,
+         usage = p_usage, model = coalesce(left(p_model, 80), model), applied = v_apply, completed_at = now()
+   where id = p_job;
+  if v_apply then
+    if j.mode = 'look' then update public.storyboard_shots set look_asset_id = p_asset, updated_at = now() where id = j.shot_id;
+    else update public.storyboard_shots set frame_asset_id = p_asset, updated_at = now() where id = j.shot_id; end if;
+  end if;
+end $$;
+
+-- SERVICE ROLE ONLY. A failure never touches the shot's current image.
+create or replace function public.storyboard_job_fail(p_job uuid, p_error text, p_usage jsonb)
+returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  update public.storyboard_jobs set status = case when status = 'cancelled' then 'cancelled' else 'failed' end,
+         error = left(coalesce(p_error, 'Failed.'), 1000), usage = coalesce(p_usage, usage), completed_at = now()
+   where id = p_job and status in ('queued', 'running', 'cancelled');
+end $$;
+
+create or replace function public.storyboard_job_cancel(p_job uuid)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare j public.storyboard_jobs; v_uid uuid;
+begin
+  select * into j from public.storyboard_jobs where id = p_job;
+  v_uid := public.studio_require(j.project_id, 3, 'cancel generation');
+  update public.storyboard_jobs set status = 'cancelled', error = coalesce(error, 'Cancelled.'), completed_at = coalesce(completed_at, now())
+   where id = p_job and status in ('queued', 'running');
+end $$;
+
+-- ---- Grants -----------------------------------------------------------------------------
+do $$ declare f text;
+begin
+  foreach f in array array[
+    'storyboard_create(uuid, text, text, jsonb)', 'storyboard_update(uuid, text, text, jsonb)', 'storyboard_archive(uuid)',
+    'storyboard_shot_save(uuid, uuid, jsonb, text, double precision, int)', 'storyboard_shot_move(uuid, double precision)',
+    'storyboard_shot_state(uuid, text, boolean)', 'storyboard_shot_notes(uuid, text)', 'storyboard_shot_archive(uuid)',
+    'storyboard_shot_review(uuid, jsonb)', 'storyboard_shot_pick(uuid, text, uuid)',
+    'storyboard_ref_save(uuid, uuid, jsonb)', 'storyboard_ref_remove(uuid)',
+    'storyboard_job_request(uuid, text, text, text, text, text, text, jsonb, jsonb, jsonb, uuid, text)', 'storyboard_job_cancel(uuid)'] loop
+    execute format('revoke all on function public.%s from public, anon', f);
+    execute format('grant execute on function public.%s to authenticated', f);
+  end loop;
+  foreach f in array array['storyboard_job_start(uuid)', 'storyboard_job_complete(uuid, uuid, jsonb, text)', 'storyboard_job_fail(uuid, text, jsonb)'] loop
+    execute format('revoke all on function public.%s from public, anon, authenticated', f);
+    execute format('grant execute on function public.%s to service_role', f);
+  end loop;
+  execute 'revoke all on function public.storyboard_shot_check(jsonb) from public, anon';
+end $$;
+
+-- ---- Library seed (curated; verified fields cite their source) --------------------------
+insert into public.storyboard_stock_profiles (id, manufacturer, stock, product_codes, category, medium, gauges, balance, ei_daylight, ei_tungsten,
+  exposure_notes, documented, editorial, source_urls, verification, checked_at) values
+('kodak-vision3-50d', 'Kodak', 'VISION3 50D', '{5203,7203}', 'camera_negative', 'motion_picture', '{35mm (5203),16mm (7203)}', 'daylight', 50, 12,
+ 'Daylight (5500K) EI 50; tungsten EI 12 with WRATTEN 2 No. 80A filter.',
+ 'Daylight-balanced color negative camera film (5500K). Kodak describes measured MTF as high. Process ECN-2.',
+ 'Editorial: often chosen for bright exteriors where very fine grain is wanted.',
+ '{https://www.kodak.com/content/pdfs/motion/KODAK-VISION3-50D-5203-7203-brochure.pdf,https://www.kodak.com/en/motion/products/camera-films/}', 'manufacturer_spec', '2026-11-16'),
+('kodak-vision3-250d', 'Kodak', 'VISION3 250D', '{5207,7207}', 'camera_negative', 'motion_picture', '{35mm (5207),16mm (7207)}', 'daylight', 250, 64,
+ 'Daylight (5500K) EI 250; tungsten EI 64 with WRATTEN 2 No. 80A filter.',
+ 'Daylight-balanced color negative camera film (5500K). Kodak describes the measured granularity as exceptionally low. Process ECN-2.',
+ 'Editorial: a versatile daylight stock for exteriors and mixed daylight interiors.',
+ '{https://www.kodak.com/content/pdfs/KODAK-VISION3-250D-5207-7207-brochure.pdf,https://www.kodak.com/en/motion/products/camera-films/}', 'manufacturer_spec', '2026-11-16'),
+('kodak-vision3-200t', 'Kodak', 'VISION3 200T', '{5213,7213}', 'camera_negative', 'motion_picture', '{35mm (5213),16mm (7213)}', 'tungsten', 125, 200,
+ 'Tungsten (3200K) EI 200; daylight EI 125 with WRATTEN 2 No. 85 filter.',
+ 'Tungsten-balanced color negative camera film (3200K). Kodak: image structure of a 100-speed film with 200-speed versatility. Process ECN-2.',
+ 'Editorial: often used for lit interiors.',
+ '{https://www.kodak.com/content/pdfs/motion/KODAK-VISION3-200T-5213-7213-brochure.pdf,https://www.kodak.com/en/motion/products/camera-films/}', 'manufacturer_spec', '2026-11-16'),
+('kodak-vision3-500t', 'Kodak', 'VISION3 500T', '{5219,7219}', 'camera_negative', 'motion_picture', '{35mm (5219),16mm (7219)}', 'tungsten', 320, 500,
+ 'Tungsten (3200K) EI 500; daylight EI 320 with WRATTEN 2 No. 85 filter.',
+ 'Tungsten-balanced color negative camera film (3200K). Kodak describes the measured granularity as exceptionally low. Process ECN-2.',
+ 'Editorial: a common choice for night and low-light work.',
+ '{https://www.kodak.com/content/products-brochures/motion-picture/KODAK-VISION3-500T-5219-7219-brochure.pdf,https://www.kodak.com/en/motion/products/camera-films/}', 'manufacturer_spec', '2026-11-16')
+on conflict (id) do nothing;
+
+insert into public.storyboard_lens_profiles (id, manufacturer, model, focal_lengths, coverage, optical, squeeze, aperture_spec, source_url, verification, character_notes) values
+('generic-spherical-prime', 'Generic', 'Spherical prime set', '{18,25,32,40,50,75,100}', 'Super 35', 'spherical', null, '', null, 'generic',
+ 'Editorial: a neutral starting point. Lens character here is a description for the image model, not a measured profile.'),
+('generic-anamorphic-2x', 'Generic', '2× anamorphic prime set', '{35,40,50,75,100}', 'Super 35 (4-perf, 2× squeeze)', 'anamorphic', 2, '', null, 'generic',
+ 'Editorial: horizontal flares and oval out-of-focus highlights are typical of many 2× anamorphics; the image model only approximates them.'),
+('generic-zoom', 'Generic', 'Cinema zoom', '{24,290}', 'Super 35', 'spherical', null, '', null, 'generic',
+ 'Editorial: a zoom range for experiments; the image model does not reproduce a specific zoom.')
+on conflict (id) do nothing;
+
+insert into public.storyboard_finish_presets (id, name, stock_id, params, provenance, license, label) values
+('none', 'No finish', null, '{"tone":{"contrast":0,"toe":0,"shoulder":0},"color":{"temperature":0,"tint":0,"saturation":1},"grain":{"amount":0},"halation":{"amount":0},"bloom":{"amount":0},"softness":{"amount":0}}',
+ 'Identity: the generated image unchanged.', 'Original (Studio)', 'none'),
+('daylight-fine', 'Daylight, fine grain (inspired by 50D/250D)', 'kodak-vision3-250d',
+ '{"tone":{"contrast":0.12,"toe":0.06,"shoulder":0.10},"color":{"temperature":0.04,"tint":0,"saturation":0.95},"grain":{"amount":0.035,"size_um":7,"chroma":0.15},"halation":{"amount":0},"bloom":{"amount":0.04},"softness":{"amount":0}}',
+ 'Hand-tuned by Studio from general descriptions in Kodak documentation; not measured against film.', 'Original (Studio) — not a copied commercial profile', 'stock-inspired'),
+('tungsten-night', 'Tungsten night (inspired by 500T)', 'kodak-vision3-500t',
+ '{"tone":{"contrast":0.10,"toe":0.10,"shoulder":0.14},"color":{"temperature":-0.06,"tint":0.01,"saturation":0.9},"grain":{"amount":0.06,"size_um":9,"chroma":0.25},"halation":{"amount":0.25,"radius_px_at_2k":6,"threshold":0.82},"bloom":{"amount":0.06},"softness":{"amount":0}}',
+ 'Hand-tuned by Studio from general descriptions in Kodak documentation; not measured against film.', 'Original (Studio) — not a copied commercial profile', 'stock-inspired'),
+('interior-warm', 'Warm interior (inspired by 200T)', 'kodak-vision3-200t',
+ '{"tone":{"contrast":0.08,"toe":0.08,"shoulder":0.10},"color":{"temperature":0.08,"tint":0.01,"saturation":0.92},"grain":{"amount":0.045,"size_um":8,"chroma":0.2},"halation":{"amount":0.12,"radius_px_at_2k":5,"threshold":0.85},"bloom":{"amount":0.03},"softness":{"amount":0}}',
+ 'Hand-tuned by Studio from general descriptions in Kodak documentation; not measured against film.', 'Original (Studio) — not a copied commercial profile', 'stock-inspired')
+on conflict (id) do nothing;
+
+-- ---- Shot Builder (a creative partner) --------------------------------------------------
+alter table public.agent_threads drop constraint if exists agent_threads_agent_check;
+alter table public.agent_threads add constraint agent_threads_agent_check check (agent in ('story', 'design', 'world', 'dialogue', 'shots'));
+
+create or replace function public.start_agent_thread(p_project uuid, p_agent text)
+returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare v_uid uuid; v_id uuid;
+begin
+  v_uid := public.studio_require(p_project, 3, 'talk with the creative partners');
+  if p_agent not in ('story', 'design', 'world', 'dialogue', 'shots') then
+    raise exception 'Unknown partner.' using errcode = '22023';
+  end if;
+  insert into public.agent_threads (project_id, agent, created_by) values (p_project, p_agent, v_uid)
+  returning id into v_id;
+  perform public.studio_audit(p_project, v_uid, 'user', 'agent_thread.started', 'agent_thread', v_id,
+    jsonb_build_object('agent', p_agent));
+  return v_id;
+end $$;
+
+/** A message to a partner. p_focus says what she has open (e.g. a storyboard). */
+create or replace function public.post_agent_message(p_thread uuid, p_content text, p_focus jsonb)
+returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare v_uid uuid; t public.agent_threads; v_text text := btrim(coalesce(p_content, ''));
+        v_story uuid; v_msg uuid; v_run uuid; v_focus jsonb;
+begin
+  select * into t from public.agent_threads where id = p_thread;
+  v_uid := public.studio_require(t.project_id, 3, 'talk with the creative partners');
+  if length(v_text) = 0 then
+    raise exception 'Write a message first.' using errcode = '22023';
+  end if;
+  if length(v_text) > 6000 then
+    raise exception 'That message is too long (6,000 characters at most).' using errcode = '22023';
+  end if;
+  if exists (select 1 from public.agent_runs r
+              where r.project_id = t.project_id and r.task_type = 'conversation_turn'
+                and r.status in ('queued', 'running') and r.created_at > now() - interval '5 minutes'
+                and r.input_payload ->> 'thread_id' = p_thread::text) then
+    raise exception 'Your partner is still answering. Wait for the reply, then send your next message.' using errcode = 'PT409';
+  end if;
+  if (select count(*) from public.agent_runs r where r.project_id = t.project_id
+        and r.task_type = 'conversation_turn' and r.created_at > now() - interval '1 day') >= 300 then
+    raise exception 'That''s a lot of conversation for one day. Your partners will be back tomorrow.' using errcode = 'PT402';
+  end if;
+  if public.studio_ai_budget_usd(t.project_id) - public.studio_ai_spent_month_usd(t.project_id) < 0.25 then
+    raise exception 'The team has used this month''s AI budget. Ask your Executive Producer.' using errcode = 'PT402';
+  end if;
+  -- Only a storyboard of this film can be the focus.
+  if p_focus is not null and p_focus ->> 'storyboard_id' is not null
+     and exists (select 1 from public.storyboard_sequences s where s.id = (p_focus ->> 'storyboard_id')::uuid and s.project_id = t.project_id) then
+    v_focus := jsonb_build_object('storyboard_id', p_focus ->> 'storyboard_id');
+  end if;
+
+  select id into v_story from public.entities where project_id = t.project_id and kind = 'story' order by created_at limit 1;
+  insert into public.agent_messages (project_id, thread_id, role, content, author_id)
+  values (t.project_id, t.id, 'user', v_text, v_uid) returning id into v_msg;
+  insert into public.agent_runs (project_id, domain, status, task_type, input_payload, model_provider, prompt_version, requested_by)
+  values (t.project_id, case t.agent when 'design' then 'production_designer' when 'shots' then 'cinematography' else 'writer' end::public.agent_domain,
+          'queued', 'conversation_turn',
+          jsonb_strip_nulls(jsonb_build_object('thread_id', t.id, 'agent', t.agent, 'message_id', v_msg, 'entity_id', v_story, 'focus', v_focus)),
+          'anthropic', case t.agent when 'story' then 'story-partner-v2.0' when 'world' then 'world-builder-v1.0'
+                                    when 'dialogue' then 'dialogue-partner-v1.0' when 'shots' then 'shot-builder-v1.0' else 'design-partner-v1.0' end, v_uid)
+  returning id into v_run;
+  update public.agent_threads
+     set last_message_at = now(), title = coalesce(title, left(regexp_replace(v_text, '\s+', ' ', 'g'), 80))
+   where id = t.id;
+  return v_run;
+end $$;
+
+create or replace function public.post_agent_message(p_thread uuid, p_content text)
+returns uuid
+language sql security definer set search_path = '' as $$
+  select public.post_agent_message(p_thread, p_content, null::jsonb);
+$$;
+
+-- SERVICE ROLE ONLY: the Shot Builder's proposed shots join the storyboard she has open,
+-- marked as proposals from the agent. The app has already checked that each shot's story
+-- text quotes her own words.
+create or replace function public.storyboard_apply_agent_shots(p_run uuid, p_sequence uuid, p_shots jsonb)
+returns int
+language plpgsql security definer set search_path = '' as $$
+declare r public.agent_runs; s public.storyboard_sequences; x jsonb; v_pos double precision; v_id uuid; n int := 0;
+begin
+  select * into r from public.agent_runs where id = p_run;
+  if r.id is null or r.status <> 'running' then raise exception 'Run is not running.' using errcode = 'PT409'; end if;
+  select * into s from public.storyboard_sequences where id = p_sequence;
+  if s.id is null or s.project_id <> r.project_id or s.archived_at is not null then raise exception 'Storyboard not found.' using errcode = 'PT404'; end if;
+  if jsonb_typeof(p_shots) <> 'array' or jsonb_array_length(p_shots) > 12 then raise exception 'Up to 12 shots at a time.' using errcode = '22023'; end if;
+  select coalesce(max(position), 0) into v_pos from public.storyboard_shots where sequence_id = p_sequence;
+  for x in select * from jsonb_array_elements(p_shots) loop
+    perform public.storyboard_shot_check(x);
+    v_pos := v_pos + 1000;
+    insert into public.storyboard_shots (sequence_id, project_id, position, origin, content, created_by)
+    values (p_sequence, s.project_id, v_pos, 'agent', x, r.requested_by) returning id into v_id;
+    insert into public.storyboard_shot_revisions (shot_id, project_id, revision, content, origin, created_by)
+    values (v_id, s.project_id, 1, x, 'agent', r.requested_by);
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+
+revoke all on function public.post_agent_message(uuid, text, jsonb) from public, anon;
+grant execute on function public.post_agent_message(uuid, text, jsonb) to authenticated;
+revoke all on function public.post_agent_message(uuid, text) from public, anon;
+grant execute on function public.post_agent_message(uuid, text) to authenticated;
+revoke all on function public.storyboard_apply_agent_shots(uuid, uuid, jsonb) from public, anon, authenticated;
+grant execute on function public.storyboard_apply_agent_shots(uuid, uuid, jsonb) to service_role;
+
+commit;

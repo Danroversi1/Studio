@@ -79,3 +79,9 @@ export function Wordmark({ size = "md" }: { size?: "md" | "lg" }) {
 export const IconGlobe = ({ className }: P) => (
   <svg {...base(className)}><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.5 2.3 3.5 5.3 3.5 8.5s-1 6.2-3.5 8.5c-2.5-2.3-3.5-5.3-3.5-8.5s1-6.2 3.5-8.5z" /></svg>
 );
+export const IconFrames = ({ className }: P) => (
+  <svg {...base(className)}><rect x="3" y="5" width="8" height="6" /><rect x="13" y="5" width="8" height="6" /><rect x="3" y="13" width="8" height="6" /><rect x="13" y="13" width="8" height="6" /></svg>
+);
+export const IconCamera = ({ className }: P) => (
+  <svg {...base(className)}><rect x="3" y="7" width="13" height="10" /><path d="m16 11 5-3v8l-5-3" /></svg>
+);

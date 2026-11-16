@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconBook, IconGlobe, IconLink, IconCharacter, IconChat, IconImage, IconPalette, IconScript, IconLocation, IconOverview, IconSettings, IconSparkle, IconStory } from "./icons";
+import { IconBook, IconCamera, IconFrames, IconGlobe, IconLink, IconCharacter, IconChat, IconImage, IconPalette, IconScript, IconLocation, IconOverview, IconSettings, IconSparkle, IconStory } from "./icons";
 
 export interface NavEntity { id: string; name: string; approved: boolean }
 
@@ -59,6 +59,7 @@ export function SidebarNav({ projectId, storyId, characters, locations, pendingS
         <Item href={`${base}/connections`} active={path === `${base}/connections`} icon={<IconLink />}>Connections</Item>
         <Item href={`${base}/treatment`} active={path === `${base}/treatment`} icon={<IconBook />}>Treatment</Item>
         <Item href={`${base}/script`} active={path === `${base}/script`} icon={<IconScript />}>Script desk</Item>
+        <Item href={`${base}/storyboards`} active={path.startsWith(`${base}/storyboards`)} icon={<IconFrames />}>Storyboards</Item>
         {showImport && (
           <Item href={`${base}/references`} active={path === `${base}/references` || path === `${base}/import`} icon={<IconImage />}>References</Item>
         )}
@@ -74,6 +75,7 @@ export function SidebarNav({ projectId, storyId, characters, locations, pendingS
           <Item href={`${base}/partners/story`} active={path === `${base}/partners/story`} icon={<IconChat />}>Storybuilder</Item>
           <Item href={`${base}/partners/world`} active={path === `${base}/partners/world`} icon={<IconGlobe />}>World Builder</Item>
           <Item href={`${base}/partners/dialogue`} active={path === `${base}/partners/dialogue`} icon={<IconScript />}>Dialogue partner</Item>
+          <Item href={`${base}/partners/shots`} active={path === `${base}/partners/shots`} icon={<IconCamera />}>Shot Builder</Item>
           <Item href={`${base}/partners/design`} active={path === `${base}/partners/design`} icon={<IconPalette />}>Design partner</Item>
         </div>
       )}

@@ -304,7 +304,7 @@ export async function deleteProject(fd: FormData) {
  * previous reply has finished; the reply is produced here and recorded by the service role.
  */
 export async function sendPartnerMessage(input: {
-  projectId: string; agent: string; threadId: string | null; content: string;
+  projectId: string; agent: string; threadId: string | null; content: string; focus?: { storyboard_id?: string } | null;
 }): Promise<{ threadId?: string; error?: string; unsent?: boolean }> {
   if (!aiConfigured()) return { error: "The AI team isn't set up yet. Ask your Executive Producer.", unsent: true };
   if (!isPartnerId(input?.agent)) return { error: "Unknown partner.", unsent: true };
@@ -315,7 +315,7 @@ export async function sendPartnerMessage(input: {
     if (error) return { error: friendlyError(error).message, unsent: true };
     threadId = data as string;
   }
-  const { data: runId, error } = await sb.rpc("post_agent_message", { p_thread: threadId, p_content: input.content });
+  const { data: runId, error } = await sb.rpc("post_agent_message", { p_thread: threadId, p_content: input.content, p_focus: input.focus ?? null });
   if (error) return { threadId, error: friendlyError(error).message, unsent: true };
   const failure = await runPartnerTurn(runId as string);
   revalidatePath(`/projects/${input.projectId}`, "layout");

@@ -8,6 +8,17 @@ export interface ChangeRound { at: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeRound[] = [
   {
+    at: "2026-11-16T09:00:00Z",
+    title: "Storyboards + Shot Builder",
+    items: [
+      { text: "New Storyboards desk: Create Your Frame from text, script scenes and/or images; shot list · frame · settings panel; reorder, approve, lock, annotate.", href: `${J}/storyboards` },
+      { text: "Shot Builder partner: one question at a time; proposed shots must quote her own words (no invented plot) and arrive marked as proposals." },
+      { text: "Generation via OpenAI GPT Image (gpt-image-2) once OPENAI_API_KEY is set; frames, variations, edits and Look Previews; every result kept in history; locked shots never replaced." },
+      { text: "Camera & lens: calculated field of view, framing distance and depth of field (labeled creative guidance); Kodak VISION3 50D/250D/200T/500T from Kodak's documents; original stock-inspired finishes with resolution-scaled grain." },
+      { text: "Script changes flag affected shots for review without touching images; PDF (print) and JSON shot-list exports." },
+    ],
+  },
+  {
     at: "2026-11-16T07:20:00Z",
     title: "Thumbnail picker sees new slides right away",
     items: [
