@@ -11,6 +11,9 @@ import { friendlyError, withMessage } from "@/lib/errors";
 import { parseCast } from "@/lib/cast";
 import { between, sortByOrder } from "@/lib/notebook-order";
 import { runScenePlan } from "@/lib/agents/run-scene-plan";
+import { runCastScan } from "@/lib/agents/run-cast-scan";
+import { castSummary, newPeople, speakers, type ScriptPerson } from "@/lib/script-cast";
+import { createHash } from "node:crypto";
 import { PARTS, blocksFor, insertScenesInOrder, parseBreakdown, titleCase, uncoveredBeats, type Beat, type Part } from "@/lib/scene-plan";
 import { TREATMENT_ATTRIBUTION, TREATMENT_NOTES, composeIntake } from "@/lib/intake";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -344,9 +347,11 @@ export async function saveScreenplay(fd: FormData) {
   });
   if (error) redirect(withMessage(scriptPath(projectId), "error", friendlyError(error).message));
   const newPlaces = await syncLocationsFromScript(sb, projectId, s(fd, "body"));
+  const newPeople = await addScriptPeople(sb, projectId, speakers(s(fd, "body")));
   revalidatePath(`/projects/${projectId}`, "layout");
+  const added = [newPlaces.length ? `${joinNames(newPlaces)} to Locations` : "", newPeople.length ? `${joinNames(newPeople)} to Characters` : ""].filter(Boolean);
   redirect(withMessage(`${scriptPath(projectId)}?v=${data}`, "notice",
-    newPlaces.length ? `Saved. Added ${joinNames(newPlaces)} to Locations.` : "Saved as a new revision. Earlier revisions are unchanged."));
+    added.length ? `Saved. Added ${added.join(", and ")}.` : "Saved as a new revision. Earlier revisions are unchanged."));
 }
 
 export async function approveScreenplay(fd: FormData) {
@@ -518,6 +523,48 @@ async function syncLocationsFromScript(sb: Sb, projectId: string, body: string):
   return added;
 }
 
+/** Characters the script calls out (speakers, or people the reader found) who aren't in the
+ *  cast yet become Characters. Ones she removed are never added back. */
+async function addScriptPeople(sb: Sb, projectId: string, people: ScriptPerson[]): Promise<string[]> {
+  if (!people.length) return [];
+  const { data: existing } = await sb.from("entities").select("name").eq("project_id", projectId).eq("kind", "character");
+  const fresh = newPeople((existing ?? []).map((e) => String(e.name)), people);
+  const added: string[] = [];
+  for (const p of fresh) {
+    const { data: id, error } = await sb.rpc("create_entity", { p_project: projectId, p_kind: "character", p_name: p.name });
+    if (error || !id) continue;
+    await sb.rpc("create_revision", {
+      p_entity: id, p_content: { summary: castSummary(p), notes: "" },
+      p_change_summary: "From your script", p_parent_version: null, p_base_version: null, p_asset_ids: [], p_status: "submitted",
+    });
+    added.push(p.name);
+  }
+  return added;
+}
+
+/** Reads the latest script for characters it calls out (once per version of the script). */
+export async function scanScriptCast(input: { projectId: string }): Promise<{ added: string[] }> {
+  const projectId = input.projectId;
+  const sb = await supabaseServer();
+  const { data: sp } = await sb.from("entities").select("id").eq("project_id", projectId).eq("kind", "screenplay").order("created_at").limit(1).maybeSingle();
+  if (!sp) return { added: [] };
+  const { data: v } = await sb.from("versions").select("content").eq("entity_id", sp.id).order("version_number", { ascending: false }).limit(1).maybeSingle();
+  const body = String(v?.content?.body ?? "");
+  if (!body.trim()) return { added: [] };
+  const added = await addScriptPeople(sb, projectId, speakers(body));
+  if (aiConfigured()) {
+    const hash = createHash("sha256").update(body).digest("hex");
+    const { data: runId } = await sb.rpc("request_cast_scan", { p_project: projectId, p_hash: hash });
+    if (runId) {
+      const { data: ents } = await sb.from("entities").select("name").eq("project_id", projectId).eq("kind", "character");
+      const people = await runCastScan(String(runId), { script: body, cast: (ents ?? []).map((e) => String(e.name)) });
+      if (people?.length) added.push(...await addScriptPeople(sb, projectId, people));
+    }
+  }
+  if (added.length) revalidatePath(`/projects/${projectId}`, "layout");
+  return { added };
+}
+
 /** Lays out a scene in the script for each outline beat that doesn't have one yet. */
 async function planScenes(projectId: string): Promise<number> {
   if (!aiConfigured()) return 0;
@@ -571,6 +618,7 @@ async function planScenes(projectId: string): Promise<number> {
   });
   if (e2) return 0;
   await syncLocationsFromScript(sb, projectId, next);
+  await addScriptPeople(sb, projectId, speakers(next));
   revalidatePath(`/projects/${projectId}`, "layout");
   return blocks.length;
 }

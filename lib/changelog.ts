@@ -8,6 +8,15 @@ export interface ChangeRound { at: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeRound[] = [
   {
+    at: "2026-11-16T05:00:00Z",
+    title: "Characters the script calls out join the cast",
+    items: [
+      { text: "When the script changes, a reader picks out people it singles out who aren't in the cast yet (e.g. the president, the man in the aisle, the kid on the plane) and adds them to Characters with what the script shows about them, marked \"Not described yet\".", href: `${J}/script` },
+      { text: "New speaking parts (a name above a line of dialogue) are added the moment the script is saved." },
+      { text: "Crowds and groups aren't added, and a character she removes is never added back." },
+    ],
+  },
+  {
     at: "2026-11-16T04:10:00Z",
     title: "Thumbnails are crops of the treatment",
     items: [

@@ -8,6 +8,7 @@ import { getCast, getCastOriginals, getNotebook, getProjectShell, getScreenplay,
 import { WorldLine } from "@/components/world-line";
 import { BreakdownPanel } from "@/components/breakdown-panel";
 import { ScenePlanAuto } from "@/components/scene-plan-auto";
+import { CastScanAuto } from "@/components/cast-scan-auto";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
 import { PARTS, uncoveredBeats, type Part } from "@/lib/scene-plan";
 
@@ -65,6 +66,7 @@ export default async function ScriptPage({
       <Flash error={error} notice={notice} />
 
       <ScenePlanAuto projectId={projectId} pending={pendingBeats} />
+      {caps.can_edit && latestBody.trim() && <CastScanAuto key={versions[0]?.id} projectId={projectId} />}
 
       <details className="panel p-4" open>
         <summary className="cursor-pointer list-none font-semibold">Cast ({cast.length}) <span className="text-xs font-normal text-muted">: who they are, while you write</span></summary>
