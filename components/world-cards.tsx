@@ -72,7 +72,7 @@ function Card({ title, big, small, source, children, editing, onEdit, canEdit, f
     <section className="panel @container relative flex flex-col gap-3 p-5" aria-label={title}>
       <span className="absolute top-0 left-0 size-2 bg-brand" aria-hidden />
       {/* Wide card: name and value on the left, details and choices on the right. Narrow card: stacked. */}
-      <div className={editing || !hasSide ? "flex flex-col gap-3" : "grid grid-cols-1 gap-4 @xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] @xl:items-start"}>
+      <div className={editing || !hasSide ? "flex flex-col gap-3" : "grid grid-cols-1 gap-4 @lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] @lg:items-start"}>
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex items-start justify-between gap-2">
             <h2 className="eyebrow text-text">{title}</h2>
@@ -253,7 +253,7 @@ function CoverageChoice({ ctx, value }: { ctx: Ctx; value?: Coverage }) {
   const s = useSaver(ctx);
   const name = useId();
   return (
-    <fieldset className="flex flex-row flex-wrap gap-x-5 gap-y-1.5 border-t border-line pt-3 @xl:border-t-0 @xl:pt-0" disabled={!ctx.canEdit || s.pending}>
+    <fieldset className="flex flex-row flex-wrap gap-x-5 gap-y-1.5 border-t border-line pt-3 @lg:border-t-0 @lg:pt-0" disabled={!ctx.canEdit || s.pending}>
       <legend className="mb-1.5 text-xs text-muted">Do we follow that time as it happens?</legend>
       {COVERAGES.map((c) => (
         <label key={c} className="flex items-center gap-2 text-sm">
