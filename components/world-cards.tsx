@@ -4,7 +4,7 @@
 // fails. Suggestions (from the World Builder or from reading her story) show on the card
 // with Accept / Dismiss and never count as decided until she accepts them.
 import { useRouter } from "next/navigation";
-import { useId, useState, useTransition } from "react";
+import { Children, useId, useState, useTransition } from "react";
 import { acceptWorldSuggestion, dismissWorldSuggestion, saveWorldSection, type WorldResult } from "@/app/projects/[projectId]/world-actions";
 import {
   COVERAGE_LABEL, COVERAGES, PLACE_KINDS, PRECISIONS, calculateSpan, cleanValue, composeSentence, guessPrecision, periodsText, placesText,
@@ -67,23 +67,29 @@ function Card({ title, big, small, source, children, editing, onEdit, canEdit, f
   /** Shown above the editor when the card is still empty. */
   prompt?: string;
 }) {
+  const hasSide = Children.toArray(children).length > 0;
   return (
-    <section className="panel @container relative flex min-h-56 flex-col gap-3 p-5" aria-label={title}>
+    <section className="panel @container relative flex flex-col gap-3 p-5" aria-label={title}>
       <span className="absolute top-0 left-0 size-2 bg-brand" aria-hidden />
-      <div className="flex items-start justify-between gap-2">
-        <h2 className="eyebrow text-text">{title}</h2>
-        {canEdit && !editing && <button type="button" className="text-xs text-accent underline-offset-2 hover:underline" onClick={onEdit}>Edit<span className="sr-only"> {title.toLowerCase()}</span></button>}
-      </div>
-      {editing && prompt && <p className="text-sm">{prompt}</p>}
-      {!editing && (
-        <div className="flex flex-col gap-1">
-          <p className={`display leading-tight ${big.length > 28 ? "text-xl" : "text-3xl"} ${big === "Not decided" ? "text-muted" : ""}`}>{big}</p>
-          {small && <p className="text-sm text-muted">{small}</p>}
-          {source && <p className="text-[11px] tracking-[0.1em] text-muted uppercase">{source}</p>}
-          {flag && <p className="mt-1 border-l-2 border-brand pl-2 text-xs">{flag}</p>}
+      {/* Wide card: name and value on the left, details and choices on the right. Narrow card: stacked. */}
+      <div className={editing || !hasSide ? "flex flex-col gap-3" : "grid grid-cols-1 gap-4 @xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] @xl:items-start"}>
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="flex items-start justify-between gap-2">
+            <h2 className="eyebrow text-text">{title}</h2>
+            {canEdit && !editing && <button type="button" className="text-xs text-accent underline-offset-2 hover:underline" onClick={onEdit}>Edit<span className="sr-only"> {title.toLowerCase()}</span></button>}
+          </div>
+          {editing && prompt && <p className="text-sm">{prompt}</p>}
+          {!editing && (
+            <div className="flex flex-col gap-1">
+              <p className={`display leading-tight break-words hyphens-auto ${big.length > 28 ? "text-xl" : big.length > 12 ? "text-2xl" : "text-3xl"} ${big === "Not decided" ? "text-muted" : ""}`}>{big}</p>
+              {small && <p className="text-sm text-muted">{small}</p>}
+              {source && <p className="text-[11px] tracking-[0.1em] text-muted uppercase">{source}</p>}
+              {flag && <p className="mt-1 border-l-2 border-brand pl-2 text-xs">{flag}</p>}
+            </div>
+          )}
         </div>
-      )}
-      {children}
+        {hasSide && <div className="flex min-w-0 flex-col gap-3">{children}</div>}
+      </div>
     </section>
   );
 }
@@ -247,8 +253,8 @@ function CoverageChoice({ ctx, value }: { ctx: Ctx; value?: Coverage }) {
   const s = useSaver(ctx);
   const name = useId();
   return (
-    <fieldset className="flex flex-col gap-1.5 border-t border-line pt-3" disabled={!ctx.canEdit || s.pending}>
-      <legend className="mb-1 text-xs text-muted">Do we follow that time as it happens?</legend>
+    <fieldset className="flex flex-row flex-wrap gap-x-5 gap-y-1.5 border-t border-line pt-3 @xl:border-t-0 @xl:pt-0" disabled={!ctx.canEdit || s.pending}>
+      <legend className="mb-1.5 text-xs text-muted">Do we follow that time as it happens?</legend>
       {COVERAGES.map((c) => (
         <label key={c} className="flex items-center gap-2 text-sm">
           <input type="radio" name={name} checked={value === c}
@@ -333,8 +339,8 @@ export function WorldCards({ projectId, world, canEdit, locations }: {
     : calc ? "Calculated from your dates" : "";
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div className="@container flex flex-col gap-4">
+      <div className="grid grid-cols-1 gap-4 @6xl:grid-cols-3">
         <Card title="Where" big={whereBig} small={whereSmall} source={c.where ? SOURCE_LABEL[c.where.source] : undefined}
           editing={isOpen("where", !!where)} onEdit={() => setEditing("where")} canEdit={canEdit} prompt={!where ? "Where do you imagine your story happening?" : undefined}>
           {isOpen("where", !!where) && <WhereEditor ctx={ctx} initial={where} locations={locations} onDone={close} onCancel={cancelFor(!!where)} />}

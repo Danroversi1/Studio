@@ -52,7 +52,7 @@ export default async function WorldPage({ params, searchParams }: {
   const autoRead = caps.can_edit && !unavailable && isEmptyWorld(world) && !!(storyText.trim() || shell.project.description);
 
   return (
-    <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_26rem]">
+    <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_22rem] 2xl:grid-cols-[minmax(0,1fr)_26rem]">
       <div className="flex min-w-0 flex-col gap-5">
         <header className="flex flex-col gap-2">
           <p className="eyebrow">{shell.project.name}</p>
