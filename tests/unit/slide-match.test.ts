@@ -22,3 +22,10 @@ test("punctuation, case and articles don't matter", () => {
 test("no partial-word matches", () => {
   assert.deepEqual(slidesFor([{ id: "x", text: "Johnnycake recipes" }], "Johnny", "character"), []);
 });
+test("possessives and stray dots don't matter", () => {
+  const d = [{ id: "a", text: "Locations / President office" }, { id: "b", text: "Locations / Mr X. Hideout" }, { id: "c", text: "Locations / Marie\u2019s Apartment" }];
+  assert.deepEqual(slidesFor(d, "President's Office", "location"), [1]);
+  assert.deepEqual(slidesFor(d, "Mr. X's Hideout", "location"), [2]);
+  assert.deepEqual(slidesFor(d, "Marie's Apartment", "location"), [3]);
+  assert.deepEqual(slidesFor([{ id: "p", text: "Casting / President" }], "The President", "character"), [1]);
+});

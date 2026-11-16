@@ -3,7 +3,9 @@
 // matching: no AI. Pure (unit-tested).
 export interface SlideInfo { id: string; text: string }
 
-const norm = (s: string) => ` ${s.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim()} `;
+// "President's Office" = "President office"; "Mr. X's Hideout" = "Mr X. Hideout".
+const norm = (s: string) => ` ${s.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/['\u2019]s\b/g, "")
+  .replace(/[^a-z0-9]+/g, " ").trim()} `;
 const strip = (n: string) => n.replace(/^\s*(the|a|an)\s+/i, "");
 
 const LABELS: Record<"character" | "location", string[]> = {
