@@ -580,19 +580,22 @@ function LensForm({ projectId, lens, onCancel, onSaved, onMessage }: { projectId
   });
   const [busy, setBusy] = useState(false);
   const [filled, setFilled] = useState<string | null>(null);
+  // Values the link filled in: those can be refilled by a later link; anything she typed is hers.
+  const auto = useRef<{ name?: string; focals?: string; maxAperture?: string }>({});
   const set = (p: Partial<typeof v>) => setV((x) => ({ ...x, ...p }));
-  // Paste a link → fill what the link itself says (name, focal length, aperture, type).
-  // Only the link text is read; fields she already typed are left alone.
+  // Paste a link (or leave the field) → fill what the link itself says (name, focal length,
+  // aperture, type). Only the link text is read; nothing is fetched.
   const fromLink = (url: string) => {
     const l = lensFromLink(url);
     if (!l) { setFilled(url.trim() && /lensaddiction/i.test(url) ? "This link doesn't name a lens. Type the details below (open the page to see them)." : null); return; }
     setV((x) => {
       const next = { ...x, sourceUrl: url };
       const got: string[] = [];
-      if (!x.name.trim()) { next.name = l.name; got.push("name"); }
-      if (!x.focals.trim() && l.focalLengths.length) { next.focals = l.focalLengths.join(", "); next.zoom = l.zoom; got.push(l.zoom ? "zoom range" : "focal length"); }
-      if (!x.maxAperture.trim() && l.maxAperture) { next.maxAperture = l.maxAperture; got.push("aperture"); }
-      if (l.optical === "anamorphic" && x.optical === "spherical") { next.optical = "anamorphic"; next.squeeze = String(l.squeeze ?? 2); got.push("anamorphic squeeze"); }
+      const free = (k: "name" | "focals" | "maxAperture") => !x[k].trim() || x[k] === auto.current[k];
+      if (free("name")) { next.name = l.name; auto.current.name = l.name; got.push("name"); }
+      if (free("focals") && l.focalLengths.length) { next.focals = l.focalLengths.join(", "); next.zoom = l.zoom; auto.current.focals = next.focals; got.push(l.zoom ? "zoom range" : "focal length"); }
+      if (free("maxAperture") && l.maxAperture) { next.maxAperture = l.maxAperture; auto.current.maxAperture = l.maxAperture; got.push("aperture"); }
+      if (l.optical === "anamorphic") { next.optical = "anamorphic"; next.squeeze = String(l.squeeze ?? 2); got.push("anamorphic squeeze"); }
       setFilled(got.length ? `Filled from the link: ${got.join(", ")}. Check them, then add the film and camera.` : null);
       return next;
     });
@@ -616,7 +619,7 @@ function LensForm({ projectId, lens, onCancel, onSaved, onMessage }: { projectId
       <p className="font-medium text-sm">{lens ? "Edit lens" : "Add a lens"}</p>
       <label className="flex flex-col gap-1"><span className="label">Link (Lens Addiction page)</span>
         <input className={field} type="url" inputMode="url" placeholder="https://www.lensaddiction.net/…" value={v.sourceUrl}
-          onChange={(e) => { const url = e.target.value; set({ sourceUrl: url }); if (/[?&](lensModel|search)=/i.test(url)) fromLink(url); }}
+          onChange={(e) => set({ sourceUrl: e.target.value })}
           onPaste={(e) => { const url = e.clipboardData.getData("text"); if (url) { e.preventDefault(); set({ sourceUrl: url.trim() }); fromLink(url.trim()); } }}
           onBlur={(e) => fromLink(e.target.value)} /></label>
       {filled && <p className="border-l-2 border-brand pl-2 text-[11px]">{filled}</p>}
