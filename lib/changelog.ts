@@ -11,8 +11,8 @@ export const CHANGELOG: ChangeRound[] = [
     at: "2026-11-16T13:00:00Z",
     title: "Lens shelf (with Lens Addiction)",
     items: [
-      { text: "Paste a Lens Addiction lens link and the lens name, focal length, aperture and anamorphic squeeze fill in from the link itself (the page isn't opened); film and camera stay yours to add.", href: `${J}/storyboards?panel=camera` },
-      { text: "Camera tab → Lens shelf: browse Lens Addiction, then add a lens with its link, focal lengths, spherical/anamorphic, the film you saw it in and what you like. STUDIO keeps your notes and the link only; “Open on Lens Addiction” goes back to the page.", href: `${J}/storyboards` },
+      { text: "Paste a Lens Addiction lens link and the lens name, focal length, aperture and anamorphic squeeze fill in from the link itself (the page isn't opened); the movie/video and camera stay yours to add.", href: `${J}/storyboards?panel=camera` },
+      { text: "Camera tab → Lens shelf: browse Lens Addiction, then add a lens with its link, focal lengths, spherical/anamorphic, the movie or video it was used on and what you like. STUDIO keeps your notes and the link only; “Open on Lens Addiction” goes back to the page.", href: `${J}/storyboards` },
       { text: "Click a focal length to use that lens for a frame: field of view, depth of field and how far the camera stands for the shot size fill in. The lens name shows on the printed storyboard, with a credit link." },
     ],
   },

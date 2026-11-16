@@ -544,7 +544,7 @@ function LensShelf({ projectId, lenses, frames, current, currentFocal, canEdit, 
               )}
               {open === l.id && (
                 <div className="mt-2 flex flex-col gap-1">
-                  {l.seenIn && <p><span className="text-muted">Seen in:</span> {l.seenIn}{l.camera ? ` · ${l.camera}` : ""}</p>}
+                  {l.seenIn && <p><span className="text-muted">Shot on this lens:</span> {l.seenIn}{l.camera ? ` · ${l.camera}` : ""}</p>}
                   {!l.seenIn && l.camera && <p><span className="text-muted">Camera:</span> {l.camera}</p>}
                   {l.maxAperture && <p><span className="text-muted">Widest aperture:</span> {l.maxAperture}</p>}
                   {l.note && <p><span className="text-muted">What I like:</span> {l.note}</p>}
@@ -596,7 +596,7 @@ function LensForm({ projectId, lens, onCancel, onSaved, onMessage }: { projectId
       if (free("focals") && l.focalLengths.length) { next.focals = l.focalLengths.join(", "); next.zoom = l.zoom; auto.current.focals = next.focals; got.push(l.zoom ? "zoom range" : "focal length"); }
       if (free("maxAperture") && l.maxAperture) { next.maxAperture = l.maxAperture; auto.current.maxAperture = l.maxAperture; got.push("aperture"); }
       if (l.optical === "anamorphic") { next.optical = "anamorphic"; next.squeeze = String(l.squeeze ?? 2); got.push("anamorphic squeeze"); }
-      setFilled(got.length ? `Filled from the link: ${got.join(", ")}. Check them, then add the film and camera.` : null);
+      setFilled(got.length ? `Filled from the link: ${got.join(", ")}. Check them, then add the movie or video it was used on, and the camera.` : null);
       return next;
     });
   };
@@ -641,8 +641,8 @@ function LensForm({ projectId, lens, onCancel, onSaved, onMessage }: { projectId
         )}
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <label className="flex flex-col gap-1"><span className="label">Seen in (film)</span>
-          <input className={field} placeholder="e.g. Another Round" value={v.seenIn} maxLength={200} onChange={(e) => set({ seenIn: e.target.value })} /></label>
+        <label className="flex flex-col gap-1"><span className="label">Shot on this lens (movie, video…)</span>
+          <input className={field} placeholder="e.g. the movie Another Round" value={v.seenIn} maxLength={200} onChange={(e) => set({ seenIn: e.target.value })} /></label>
         <label className="flex flex-col gap-1"><span className="label">Camera</span>
           <input className={field} placeholder="e.g. ARRI Alexa Mini" value={v.camera} maxLength={120} onChange={(e) => set({ camera: e.target.value })} /></label>
       </div>
