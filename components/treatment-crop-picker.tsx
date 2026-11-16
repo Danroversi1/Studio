@@ -11,6 +11,9 @@ import { slidesFor, type SlideInfo } from "@/lib/slide-match";
 import { SLIDE_ASPECT, slideEmbedUrl, windowOf, type ThumbCrop } from "@/lib/thumb";
 import { ThumbView } from "./thumb-view";
 
+/** A slide's label on one line: "Casting /\nMarie" → "Casting / Marie". */
+const labelOf = (t?: string) => (t ?? "").split("\n").slice(0, 2).join(" ").replace(/\s+/g, " ").trim();
+
 export function TreatmentCropPicker({ projectId, entityId, entityName, entityKind, fileId, initial, slides, onDone }: {
   projectId: string; entityId: string; entityName: string; entityKind: "character" | "location"; fileId: string;
   initial: ThumbCrop | null;
@@ -168,8 +171,8 @@ export function TreatmentCropPicker({ projectId, entityId, entityName, entityKin
             {matches.slice(0, 8).map((n) => (
               <button key={n} type="button" onClick={() => go(n)} aria-pressed={n === slide}
                 className={`btn min-h-8 px-2 text-xs ${n === slide ? "border-brand" : ""}`}
-                title={deck?.[n - 1]?.text.split("\n")[0] ?? ""}>
-                {n}{deck?.[n - 1] ? ` · ${deck[n - 1].text.split("\n")[0].slice(0, 28)}` : ""}
+                title={labelOf(deck?.[n - 1]?.text)}>
+                {n}{deck?.[n - 1] ? ` · ${labelOf(deck[n - 1].text).slice(0, 34)}` : ""}
               </button>
             ))}
           </>
