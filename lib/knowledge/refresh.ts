@@ -86,7 +86,8 @@ export async function refreshFeed(sourceId: string, force = false): Promise<Refr
 /** Feeds that are due, oldest first (optionally for one film). Bounded by count and time. */
 export async function refreshDue(opts: { projectId?: string; limit?: number; budgetMs?: number } = {}): Promise<{ checked: number; ok: number; failed: number }> {
   const db = supabaseService();
-  let q = db.from("knowledge_sources").select("id").eq("kind", "feed").is("archived_at", null).is("disconnected_at", null)
+  // Feeds of deleted films are never refreshed.
+  let q = db.from("knowledge_sources").select("id, projects!inner(status)").neq("projects.status", "deleted").eq("kind", "feed").is("archived_at", null).is("disconnected_at", null)
     .eq("paused", false).lte("next_refresh_at", new Date().toISOString()).order("next_refresh_at", { ascending: true }).limit(opts.limit ?? 25);
   if (opts.projectId) q = q.eq("project_id", opts.projectId);
   const { data } = await q;

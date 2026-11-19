@@ -238,7 +238,8 @@ function Proposal({ projectId, canEdit, aiReady, scene, p, pinned, scriptVersion
   function accept(mode: "all" | "adopt") {
     if (scriptDirty()) { s.setMsg({ kind: "error", text: "You have unsaved changes in the script above. Save or undo them first, so nothing is lost." }); return; }
     const chosen = mode === "all" ? els : els.filter((_, i) => picked.has(i));
-    const f = (p.result?.new_facts ?? []).filter((_, i) => facts.has(i));
+    // Adopting a few lines doesn't establish the whole draft's facts: send them only on full accept.
+    const f = mode === "all" ? (p.result?.new_facts ?? []).filter((_, i) => facts.has(i)) : [];
     s.run(() => acceptDialogue({ projectId, proposalId: p.id, mode, elements: chosen, facts: f, expectedScriptVersionId: scriptVersionId }));
   }
 
@@ -329,7 +330,7 @@ function Proposal({ projectId, canEdit, aiReady, scene, p, pinned, scriptVersion
       )}
       {r.new_facts.length > 0 && editable && (
         <fieldset className="flex flex-col gap-1 text-sm">
-          <legend className="text-[11px] font-semibold tracking-[0.08em] text-muted uppercase">This draft would establish (sent to the Story desk as ideas to confirm, if ticked)</legend>
+          <legend className="text-[11px] font-semibold tracking-[0.08em] text-muted uppercase">If you accept the whole draft, it would establish (ticked ones go to the Story desk as ideas to confirm)</legend>
           {r.new_facts.map((f, i) => (
             <label key={i} className="flex items-start gap-2">
               <input type="checkbox" className="mt-1" checked={facts.has(i)} onChange={() => setFacts((x) => { const n = new Set(x); if (n.has(i)) n.delete(i); else n.add(i); return n; })} />
