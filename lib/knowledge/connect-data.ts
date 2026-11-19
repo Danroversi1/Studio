@@ -38,7 +38,7 @@ export async function getConnectContext(projectId: string) {
   const sb = await supabaseServer();
   const [chars, cols, links, ctx, beats, script] = await Promise.all([
     sb.from("entities").select("id, name, metadata").eq("project_id", projectId).eq("kind", "character").is("archived_at", null).neq("status", "archived").order("name"),
-    sb.from("knowledge_collections").select("id, name, description").eq("project_id", projectId).is("archived_at", null).order("name"),
+    sb.from("knowledge_collections").select("id, name, description, kind, character_id").eq("project_id", projectId).is("archived_at", null).order("name"),
     sb.from("character_knowledge").select("id, character_id, collection_id, purpose, temporal, scope_terms, from_beat, note, updated_at").eq("project_id", projectId).is("archived_at", null),
     sb.from("scene_contexts").select("scene_key, beat_id, story_date, story_date_note, objectives, runtime_seconds, tone, pinned_snapshot_id, version").eq("project_id", projectId),
     outlineBeats(sb, projectId),
@@ -47,17 +47,30 @@ export async function getConnectContext(projectId: string) {
   const colIds = (cols.data ?? []).map((c) => c.id);
   const { data: inCols } = colIds.length ? await sb.rpc("kb_collection_items", { p_project: projectId, p_collections: colIds }) : { data: [] };
   const counts: Record<string, number> = {};
-  for (const r of (inCols ?? []) as { collection_id: string }[]) counts[r.collection_id] = (counts[r.collection_id] ?? 0) + 1;
+  const colsOf = new Map<string, string[]>();
+  for (const r of (inCols ?? []) as { item_id: string; collection_id: string }[]) {
+    counts[r.collection_id] = (counts[r.collection_id] ?? 0) + 1;
+    colsOf.set(r.item_id, [...(colsOf.get(r.item_id) ?? []), r.collection_id]);
+  }
+  // The Knowledge Base as a list (newest first), so she can give a piece of it to a character here.
+  const { data: itemRows } = await sb.from("knowledge_items").select("id, title, url, published_at, retrieved_at, knowledge_sources!inner(archived_at)")
+    .eq("project_id", projectId).is("archived_at", null).is("knowledge_sources.archived_at", null)
+    .order("retrieved_at", { ascending: false }).limit(400);
+  const library: LibraryItem[] = ((itemRows ?? []) as unknown as { id: string; title: string; url: string | null; published_at: string | null; retrieved_at: string }[])
+    .map((i) => ({ id: i.id, title: i.title, url: i.url, date: i.published_at ?? i.retrieved_at, collections: colsOf.get(i.id) ?? [] }));
   const scenes = splitScenes(script.body).map((s) => ({ key: s.key, heading: s.heading, beatId: s.beatId, characters: s.characters }));
   return {
     characters: byRole(((chars.data ?? []) as { id: string; name: string; metadata: Record<string, unknown> | null }[]).map((c) => ({ id: c.id, name: c.name, role: roleOf(c.metadata) })),
       countAppearances(script.body, ((chars.data ?? []) as { name: string }[]).map((c) => c.name))),
-    collections: ((cols.data ?? []) as { id: string; name: string; description: string | null }[]).map((c) => ({ ...c, count: counts[c.id] ?? 0 })),
+    collections: ((cols.data ?? []) as { id: string; name: string; description: string | null; kind: string; character_id: string | null }[]).map((c) => ({ ...c, count: counts[c.id] ?? 0 })),
+    library,
     links: (links.data ?? []) as KnowledgeLink[],
     contexts: (ctx.data ?? []) as SceneContext[],
     beats, scenes,
   };
 }
+
+export interface LibraryItem { id: string; title: string; url: string | null; date: string; collections: string[] }
 
 export interface PreviewItem { id: string; title: string; url: string | null; published_at: string | null; source: string; use: Use; reason: string }
 

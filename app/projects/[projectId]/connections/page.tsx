@@ -32,7 +32,7 @@ export default async function ConnectionsPage({ params }: { params: Promise<{ pr
       <ConnectionsDesk projectId={projectId} canEdit={!!shell.caps.can_edit} links={board.links}
         input={{ entities, references, notes: board.notes, positions: board.positions, script, base: `/projects/${projectId}` }}
         characters={kc.characters} collections={kc.collections} knowledge={kc.links} beats={kc.beats}
-        scenes={kc.scenes.map((x) => ({ key: x.key, heading: x.heading }))} contexts={kc.contexts} />
+        scenes={kc.scenes.map((x) => ({ key: x.key, heading: x.heading }))} contexts={kc.contexts} library={kc.library} />
     </div>
   );
 }
