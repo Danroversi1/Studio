@@ -10,6 +10,8 @@ import { SubmitButton } from "@/components/ui";
 import { WorldCards } from "@/components/world-cards";
 import { WorldDeeper } from "@/components/world-deeper";
 import { WorldReadAuto } from "@/components/world-read-auto";
+import { KnowledgeBase } from "@/components/knowledge/knowledge-base";
+import { getKnowledge } from "@/lib/knowledge/data";
 import { PARTNERS, openingFor } from "@/lib/agents/partners";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
 import { getAiBudget, getAllReferences, getLatestVersions, getNotebook, getPartnerThreads, getProjectShell, getThreadMessages, getWorld } from "@/lib/data";
@@ -31,9 +33,9 @@ export default async function WorldPage({ params, searchParams }: {
   const caps = shell.caps;
   const base = `/projects/${projectId}/world`;
 
-  const [world, threads, budget, notebook, refs, latest] = await Promise.all([
+  const [world, threads, budget, notebook, refs, latest, kb] = await Promise.all([
     getWorld(projectId), getPartnerThreads(projectId, "world"), getAiBudget(projectId), getNotebook(projectId),
-    getAllReferences(projectId), getLatestVersions(projectId),
+    getAllReferences(projectId), getLatestVersions(projectId), getKnowledge(projectId),
   ]);
   const current = fresh ? null : (threads.find((t) => t.id === thread) ?? threads[0] ?? null);
   const messages = current ? await getThreadMessages(projectId, current.id) : [];
@@ -97,6 +99,16 @@ export default async function WorldPage({ params, searchParams }: {
             </ul>
           </section>
         )}
+
+        <section id="world-knowledge" className="flex scroll-mt-6 flex-col gap-3" aria-labelledby="wk-h">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line pb-2">
+            <h2 id="wk-h" className="display text-2xl">World knowledge base</h2>
+            <Link className="text-sm text-accent" href={`/projects/${projectId}/knowledge?world=1`}>Also in the Knowledge Base →</Link>
+          </div>
+          <KnowledgeBase projectId={projectId} canEdit={!!caps.can_edit} sources={kb.sources} items={kb.items}
+            collections={kb.collections} members={kb.members} references={kb.references} used={kb.usedByCharacters}
+            characters={kb.characters} selectedCharacter={null} impressions={kb.impressions} aiReady={aiConfigured()} worldOpen worldOnly />
+        </section>
 
         <WorldDeeper projectId={projectId} version={world.version} value={world.confirmed.deeper?.value ?? {}} canEdit={!!caps.can_edit}
           locationCount={locations.length} hasScript={hasScript} />

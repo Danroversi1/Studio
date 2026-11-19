@@ -435,6 +435,18 @@ function CharacterStrip({ projectId, canEdit, characters, collections, counts, s
   );
 }
 
+function WorldSetUp({ projectId }: { projectId: string }) {
+  const s = useRun();
+  return (
+    <section className="panel flex flex-wrap items-center justify-between gap-3 p-4">
+      <p className="max-w-2xl text-sm text-muted">News, events and how people react: the world your characters live in, and what their impressions come from.</p>
+      <button type="button" className="btn-primary min-h-9 text-xs" disabled={s.pending}
+        onClick={() => s.run(() => worldSetUp({ projectId, connectAll: false }), "World is ready.")}>{s.pending ? "Setting up…" : "Set up World"}</button>
+      <Status msg={s.msg} />
+    </section>
+  );
+}
+
 function CharacterPanel({ projectId, canEdit, character, collections, counts }: {
   projectId: string; canEdit: boolean; character: KCharacter; collections: KCollection[]; counts: Record<string, number>;
 }) {
@@ -574,11 +586,13 @@ function ItemRow({ projectId, item, source, collections, members, canEdit, imp }
   );
 }
 
-export function KnowledgeBase({ projectId, canEdit, sources, items, collections, members, references, used, characters, selectedCharacter, impressions, aiReady, worldOpen }: {
+export function KnowledgeBase({ projectId, canEdit, sources, items, collections, members, references, used, characters, selectedCharacter, impressions, aiReady, worldOpen, worldOnly = false }: {
   projectId: string; canEdit: boolean; sources: KSource[]; items: KItem[]; collections: KCollection[]; members: KMember[];
   references: { id: string; title: string | null; source_url: string | null; source_domain: string | null }[]; used: Record<string, number>;
   characters: KCharacter[]; selectedCharacter: string | null;
   impressions: Impression[]; aiReady: boolean; worldOpen: boolean;
+  /** Only the World knowledge base (shown on the World & Time desk); same data, same controls. */
+  worldOnly?: boolean;
 }) {
   const router = useRouter();
   const [active, setActive] = useState<string | null>(null);
@@ -600,7 +614,7 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
   }, [items, members]);
   const itemCounts = useMemo(() => items.reduce<Record<string, number>>((m, i) => ({ ...m, [i.source_id]: (m[i.source_id] ?? 0) + 1 }), {}), [items]);
   const world = collections.find((c) => c.kind === "world") ?? null;
-  const inWorld = worldOpen && !!world;
+  const inWorld = (worldOpen || worldOnly) && !!world;
   const char = inWorld ? null : characters.find((c) => c.id === selectedCharacter) ?? null;
   const own = char ? collections.find((c) => c.character_id === char.id) ?? null : null;
   const charCols = useMemo(() => (inWorld && world ? [world.id] : char ? [...new Set([...char.links.map((l) => l.collection_id), ...(own ? [own.id] : [])])] : null), [char, own, inWorld, world]);
@@ -619,10 +633,12 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
   }, [items, byId, kind, active, members, q, charCols]);
   const preset = useMemo(() => (inWorld && world ? [world.id] : own ? [own.id] : active ? [active] : []), [active, own, inWorld, world]);
 
+  if (worldOnly && !world) return canEdit ? <WorldSetUp projectId={projectId} /> : <p className="text-sm text-muted">The World knowledge base isn&apos;t set up yet.</p>;
+
   return (
     <div className="flex flex-col gap-6">
-      <CharacterStrip projectId={projectId} canEdit={canEdit} characters={characters} collections={collections} counts={counts} selected={char?.id ?? null}
-        world={world} worldOpen={inWorld} />
+      {!worldOnly && <CharacterStrip projectId={projectId} canEdit={canEdit} characters={characters} collections={collections} counts={counts} selected={char?.id ?? null}
+        world={world} worldOpen={inWorld} />}
       {inWorld && world && <WorldPanel projectId={projectId} canEdit={canEdit} characters={characters} world={world} sources={sources} counts={itemCounts} />}
       {char && <CharacterPanel projectId={projectId} canEdit={canEdit} character={char} collections={collections} counts={counts} />}
       {canEdit && <AddResearch key={inWorld ? "world" : own?.id ?? "all"} projectId={projectId} collections={collections} references={references} preset={preset} />}
