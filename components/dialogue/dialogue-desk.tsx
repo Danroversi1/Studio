@@ -69,15 +69,31 @@ export function DialogueDesk({ projectId, canEdit, aiReady, provider, scenes, co
     return () => clearInterval(t);
   }, [busy, canEdit, aiReady, projectId, proposals, router]);
 
+  // Clicking a scene in her script (pages or editor) opens it here.
+  const deskRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const { heading, nth } = (e as CustomEvent<{ heading: string; nth: number }>).detail;
+      const same = scenes.filter((x) => x.heading.trim().toUpperCase() === heading.trim().toUpperCase());
+      const sc = same[nth] ?? same[0];
+      if (!sc) return;
+      setOpen(sc.key);
+      requestAnimationFrame(() => document.getElementById(`scene-${sc.key}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    };
+    window.addEventListener("studio:open-scene", onOpen);
+    return () => window.removeEventListener("studio:open-scene", onOpen);
+  }, [scenes]);
+
   const latest = (key: string) => proposals.find((p) => p.scene_key === key);
   if (!scenes.length) return null;
   return (
-    <section className="panel flex flex-col gap-4 p-4" aria-labelledby="dlg-h">
+    <section ref={deskRef} id="develop-scenes" className="panel flex scroll-mt-6 flex-col gap-4 p-4" aria-labelledby="dlg-h">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h2 id="dlg-h" className="display text-lg">Scenes &amp; proposed dialogue</h2>
+          <h2 id="dlg-h" className="display text-lg">Develop scenes</h2>
           <p className="max-w-2xl text-xs text-muted">
-            Develop Dialogue drafts a scene from your outline beat, your characters and the research they may draw on. It&apos;s a proposal: your script only changes when you accept.
+            Click a scene, here or in your script, to develop it: Develop scene drafts its action and dialogue from your outline beat, your characters and the research they may draw on.
+            It&apos;s a proposal: your script only changes when you accept.
           </p>
           <p className="text-[11px] text-muted">Drafting and the script partner use {provider}. Nothing switches to another model on its own.</p>
         </div>
@@ -95,7 +111,7 @@ export function DialogueDesk({ projectId, canEdit, aiReady, provider, scenes, co
             )}
             <span className="max-w-64 text-right text-[11px] text-muted">
               {settings.auto_draft ? (settings.paused ? "Paused: saved beats don't queue drafts." : "When you save a substantially changed outline beat, its scenes get a new proposal. Feed updates never trigger drafts.")
-                : "Off: drafts only when you press Develop Dialogue."}</span>
+                : "Off: drafts only when you press Develop scene."}</span>
           </div>
         )}
       </div>
@@ -106,7 +122,7 @@ export function DialogueDesk({ projectId, canEdit, aiReady, provider, scenes, co
           const p = latest(sc.key);
           const ctx = contexts.find((c) => c.scene_key === sc.key);
           return (
-            <li key={sc.key} className="flex flex-col">
+            <li key={sc.key} id={`scene-${sc.key}`} className={`flex scroll-mt-6 flex-col ${open === sc.key ? "bg-panel-2" : ""}`}>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-sm">
                 <button type="button" className="min-w-0 flex-1 text-left" aria-expanded={open === sc.key} onClick={() => setOpen(open === sc.key ? null : sc.key)}>
                   <span className="font-semibold">{i + 1}. {sc.heading}</span>
@@ -122,7 +138,7 @@ export function DialogueDesk({ projectId, canEdit, aiReady, provider, scenes, co
                 {canEdit && aiReady && (
                   <button type="button" className="btn min-h-8 text-xs" disabled={s.pending || p?.status === "queued" || p?.status === "drafting"}
                     onClick={() => { if (scriptDirty()) { s.setMsg({ kind: "error", text: "Save your script changes first, so the draft starts from them." }); return; } setOpen(sc.key); s.run(() => developDialogue({ projectId, sceneKey: sc.key }), "Draft ready below."); }}>
-                    {s.pending && open === sc.key ? "Drafting…" : "Develop Dialogue"}</button>
+                    {s.pending && open === sc.key ? "Drafting…" : p ? "Develop again" : "Develop scene"}</button>
                 )}
               </div>
               {open === sc.key && (
@@ -268,7 +284,7 @@ function Proposal({ projectId, canEdit, aiReady, scene, p, pinned, scriptVersion
         <Badge s={p.status} /> {p.trigger === "auto" ? "Auto-draft" : p.trigger === "revision" ? "Revision" : "On demand"} · {when(p.finished_at ?? p.created_at)}
         {p.director_note && <span>· Your note: &ldquo;{p.director_note}&rdquo;</span>}
       </p>
-      {p.stale.outline && <p className="text-xs text-warn">The outline beat changed after this draft. Develop Dialogue again to draft from the new beat. This draft stays as it is.</p>}
+      {p.stale.outline && <p className="text-xs text-warn">The outline beat changed after this draft. Develop the scene again to draft from the new beat. This draft stays as it is.</p>}
       {p.stale.scene && <p className="text-xs text-warn">The scene in your script changed after this draft. Compare carefully: accepting replaces the scene&apos;s dialogue.</p>}
       {(r.warnings ?? []).map((w, i) => <p key={i} className="text-xs text-warn">{w}</p>)}
 

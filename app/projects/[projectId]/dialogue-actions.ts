@@ -17,7 +17,7 @@ export type DR = { ok: true; id?: string; note?: string } | { ok: false; error: 
 const fail = (e: { code?: string; message?: string } | null): DR => ({ ok: false, error: friendlyError(e).message });
 const touch = (projectId: string) => { revalidatePath(`/projects/${projectId}/script`); revalidatePath(`/projects/${projectId}`, "layout"); };
 
-/** Develop Dialogue (on demand), or Request a revision (with her note). */
+/** Develop scene (on demand), or Request a revision (with her note). */
 export async function developDialogue(input: { projectId: string; sceneKey: string; directorNote?: string; parentId?: string }): Promise<DR> {
   if (!aiConfigured()) return { ok: false, error: "Dialogue drafting isn't set up on this server." };
   const sb = await supabaseServer();

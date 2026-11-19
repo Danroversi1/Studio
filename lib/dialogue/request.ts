@@ -13,7 +13,7 @@ import { titleCase } from "../scene-plan";
 import { supabaseServer } from "../supabase/server";
 import { currentDialogue, sceneFrame, sceneSignature, splitScenes } from "./scenes";
 
-export const WORKFLOW_VERSION = "scene-dialogue-v2";
+export const WORKFLOW_VERSION = "scene-develop-v3";
 type Sb = Awaited<ReturnType<typeof supabaseServer>>;
 
 export interface ResearchRef { item_id: string; version: number; title: string; source: string; date: string | null; excerpt: string; use: Use; reason: string; collection: string }
