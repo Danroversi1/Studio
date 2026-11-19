@@ -8,8 +8,9 @@ import { getKnowledge } from "@/lib/knowledge/data";
 
 export const maxDuration = 60;
 
-export default async function KnowledgePage({ params }: { params: Promise<{ projectId: string }> }) {
+export default async function KnowledgePage({ params, searchParams }: { params: Promise<{ projectId: string }>; searchParams: Promise<{ character?: string }> }) {
   const { projectId } = await params;
+  const { character } = await searchParams;
   const shell = await getProjectShell(projectId);
   if (!shell || !shell.caps.member) notFound();
   if (!shell.caps.can_review) notFound();
@@ -26,7 +27,8 @@ export default async function KnowledgePage({ params }: { params: Promise<{ proj
         <p className="text-sm"><Link className="text-accent" href={`/projects/${projectId}/connections`}>Give characters access to a collection on the Connections desk →</Link></p>
       </header>
       <KnowledgeBase projectId={projectId} canEdit={!!shell.caps.can_edit} sources={kb.sources} items={kb.items}
-        collections={kb.collections} members={kb.members} references={kb.references} used={kb.usedByCharacters} />
+        collections={kb.collections} members={kb.members} references={kb.references} used={kb.usedByCharacters}
+        characters={kb.characters} selectedCharacter={kb.characters.some((c) => c.id === character) ? character! : null} />
     </div>
   );
 }

@@ -1,14 +1,18 @@
 "use client";
 // The Knowledge Base: her film's research library and updating sources. Plain data work
 // (no model calls). Research here is research, not story fact.
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   kbAddFeed, kbAddNote, kbAnnotateItem, kbArchive, kbCollectionArchive, kbCollectionMember, kbCollectionSave, kbDocumentOwner,
-  kbFeedUpdate, kbImportReference, kbPreviewFeed, kbRefreshDueOnOpen, kbRefreshNow, kbSaveDocument, kbSaveLink, type FeedPreview,
+  kbCharacterCollection, kbFeedUpdate, kbImportReference, kbPreviewFeed, kbRefreshDueOnOpen, kbRefreshNow, kbSaveDocument, kbSaveLink, type FeedPreview,
 } from "@/app/projects/[projectId]/knowledge-actions";
 import { ADAPTERS } from "@/lib/knowledge/adapters";
-import { collectionsOf, type KCollection, type KItem, type KMember, type KSource } from "@/lib/knowledge/types";
+import { collectionsOf, type KCharacter, type KCollection, type KItem, type KMember, type KSource } from "@/lib/knowledge/types";
+import { saveKnowledgeLink } from "@/app/projects/[projectId]/connect-actions";
+import { PURPOSE_LABEL, TEMPORAL_LABEL, type Purpose, type Temporal } from "@/lib/knowledge/eligibility";
+import { ThumbView } from "@/components/thumb-view";
 import { docTypeOf, extractText, uploadDocument } from "@/lib/knowledge/documents";
 import { CONTENT_STATUS, KIND_LABEL, REFRESH_CHOICES, STATUS, VERIFICATION, ago, feedState } from "@/lib/knowledge/labels";
 
@@ -338,6 +342,109 @@ function SourceCollections({ projectId, sourceId, collections, members }: { proj
   );
 }
 
+// ---- Characters ----------------------------------------------------------------------------
+function CharacterStrip({ projectId, canEdit, characters, collections, counts, selected }: {
+  projectId: string; canEdit: boolean; characters: KCharacter[]; collections: KCollection[]; counts: Record<string, number>; selected: string | null;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  async function open(c: KCharacter) {
+    setErr(null);
+    if (selected === c.id) { router.push("?", { scroll: false }); return; }
+    if (canEdit && !collections.some((x) => x.character_id === c.id)) {
+      setBusy(c.id);
+      const r = await kbCharacterCollection({ projectId, characterId: c.id }).catch(() => ({ ok: false as const, error: "That didn't open. Try again." }));
+      setBusy(null);
+      if (!r.ok) { setErr(r.error); return; }
+    }
+    router.push(`?character=${c.id}`, { scroll: false });
+    router.refresh();
+  }
+  return (
+    <section className="panel flex flex-col gap-3 p-4" aria-labelledby="chars-h">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="chars-h" className="display text-lg">Characters</h2>
+        <p className="text-xs text-muted">Open a character to see and add the research they can draw on.</p>
+      </div>
+      {characters.length ? (
+        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          {characters.map((c) => {
+            const own = collections.find((x) => x.character_id === c.id);
+            const n = new Set(c.links.map((l) => l.collection_id)).size;
+            const items = c.links.reduce((sum, l) => sum + (counts[l.collection_id] ?? 0), 0);
+            return (
+              <li key={c.id}>
+                <button type="button" aria-pressed={selected === c.id} disabled={busy === c.id} onClick={() => void open(c)}
+                  className={`flex w-full items-center gap-2 border p-2 text-left transition-colors ${selected === c.id ? "border-text bg-text text-panel-2" : "border-line bg-panel-2 hover:border-text"}`}>
+                  <span className="h-12 w-12 shrink-0 overflow-hidden bg-line/60">
+                    {c.thumb ? <ThumbView source={c.thumb} alt="" className="size-full" />
+                      : <svg viewBox="0 0 24 24" className="size-full p-2 text-muted" aria-hidden><circle cx="12" cy="8" r="4" fill="currentColor" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="currentColor" /></svg>}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold uppercase">{busy === c.id ? "Opening…" : c.name}</span>
+                    <span className={`block text-[11px] ${selected === c.id ? "text-panel-2/80" : "text-muted"}`}>
+                      {n ? `${items} item${items === 1 ? "" : "s"} · ${n} collection${n === 1 ? "" : "s"}` : own ? "Not connected" : "No research yet"}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : <p className="text-sm text-muted">No characters yet. Add them in your Story&apos;s Cast.</p>}
+      {err && <p role="alert" className="text-xs text-danger">{err}</p>}
+    </section>
+  );
+}
+
+function CharacterPanel({ projectId, canEdit, character, collections, counts }: {
+  projectId: string; canEdit: boolean; character: KCharacter; collections: KCollection[]; counts: Record<string, number>;
+}) {
+  const s = useRun();
+  const own = collections.find((x) => x.character_id === character.id);
+  const ownLinked = !!own && character.links.some((l) => l.collection_id === own.id);
+  return (
+    <section className="panel flex flex-col gap-3 border-text p-4" aria-labelledby="char-h">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h2 id="char-h" className="display text-2xl leading-none">{character.name}&apos;s knowledge</h2>
+          <p className="max-w-2xl text-sm text-muted">
+            Research you add here goes into {character.name}&apos;s own collection. It&apos;s what {character.name} could draw on in scenes,
+            within the time rules. What {character.name} knows for certain lives on their character page.
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1 text-xs">
+          <Link href={`/projects/${projectId}/items/${character.id}`} className="text-accent">Open {character.name}&apos;s character page →</Link>
+          <Link href={`/projects/${projectId}/connections`} className="text-accent">Change how {character.name} uses it (Connections) →</Link>
+          <Link href="?" scroll={false} className="text-muted underline">← All research</Link>
+        </div>
+      </div>
+      {own && !ownLinked && (
+        <p className="flex flex-wrap items-center gap-2 border border-warn bg-warn-soft/50 p-2 text-xs">
+          {own.name} isn&apos;t connected to {character.name} right now, so they won&apos;t draw on it.
+          {canEdit && <button type="button" className="btn min-h-7 text-[11px]" disabled={s.pending}
+            onClick={() => s.run(() => saveKnowledgeLink({ projectId, linkId: null, data: { character_id: character.id, collection_id: own.id, purpose: "profession", temporal: "background" } }), "Reconnected.")}>Reconnect</button>}
+        </p>
+      )}
+      {character.links.length > 0 && (
+        <ul className="flex flex-col gap-1 text-sm">
+          {character.links.map((l) => {
+            const c = collections.find((x) => x.id === l.collection_id);
+            return (
+              <li key={l.collection_id}>
+                <b>{c?.name ?? "Collection"}</b>{c?.character_id === character.id ? <span className="text-xs text-muted"> (their own)</span> : null}
+                <span className="text-muted"> · {counts[l.collection_id] ?? 0} items · {PURPOSE_LABEL[l.purpose as Purpose]} · {TEMPORAL_LABEL[l.temporal as Temporal].split(":")[0]}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <Status msg={s.msg} />
+    </section>
+  );
+}
+
 // ---- Library ------------------------------------------------------------------------------
 function ItemRow({ projectId, item, source, collections, members, canEdit }: { projectId: string; item: KItem; source: KSource; collections: KCollection[]; members: KMember[]; canEdit: boolean }) {
   const s = useRun();
@@ -418,9 +525,10 @@ function ItemRow({ projectId, item, source, collections, members, canEdit }: { p
   );
 }
 
-export function KnowledgeBase({ projectId, canEdit, sources, items, collections, members, references, used }: {
+export function KnowledgeBase({ projectId, canEdit, sources, items, collections, members, references, used, characters, selectedCharacter }: {
   projectId: string; canEdit: boolean; sources: KSource[]; items: KItem[]; collections: KCollection[]; members: KMember[];
   references: { id: string; title: string | null; source_url: string | null; source_domain: string | null }[]; used: Record<string, number>;
+  characters: KCharacter[]; selectedCharacter: string | null;
 }) {
   const router = useRouter();
   const [active, setActive] = useState<string | null>(null);
@@ -441,27 +549,33 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
     return m;
   }, [items, members]);
   const itemCounts = useMemo(() => items.reduce<Record<string, number>>((m, i) => ({ ...m, [i.source_id]: (m[i.source_id] ?? 0) + 1 }), {}), [items]);
+  const char = characters.find((c) => c.id === selectedCharacter) ?? null;
+  const own = char ? collections.find((c) => c.character_id === char.id) ?? null : null;
+  const charCols = useMemo(() => (char ? [...new Set([...char.links.map((l) => l.collection_id), ...(own ? [own.id] : [])])] : null), [char, own]);
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return items.filter((i) => {
       const src = byId.get(i.source_id);
       if (!src) return false;
       if (kind && src.kind !== kind) return false;
-      if (active && !collectionsOf(i, members).includes(active)) return false;
+      if (charCols && !collectionsOf(i, members).some((c) => charCols.includes(c))) return false;
+      if (!charCols && active && !collectionsOf(i, members).includes(active)) return false;
       if (needle && !`${i.title}\n${i.content}\n${i.director_note ?? ""}\n${src.title}`.toLowerCase().includes(needle)) return false;
       return true;
     }).slice(0, 200);
-  }, [items, byId, kind, active, members, q]);
-  const preset = useMemo(() => (active ? [active] : []), [active]);
+  }, [items, byId, kind, active, members, q, charCols]);
+  const preset = useMemo(() => (own ? [own.id] : active ? [active] : []), [active, own]);
 
   return (
     <div className="flex flex-col gap-6">
-      {canEdit && <AddResearch projectId={projectId} collections={collections} references={references} preset={preset} />}
-      {(canEdit || collections.length > 0) && <Collections projectId={projectId} collections={collections} counts={counts} used={used} active={active} onActive={setActive} />}
-      <Feeds projectId={projectId} feeds={sources.filter((s) => s.kind === "feed")} collections={collections} members={members} itemCounts={itemCounts} />
+      <CharacterStrip projectId={projectId} canEdit={canEdit} characters={characters} collections={collections} counts={counts} selected={char?.id ?? null} />
+      {char && <CharacterPanel projectId={projectId} canEdit={canEdit} character={char} collections={collections} counts={counts} />}
+      {canEdit && <AddResearch key={own?.id ?? "all"} projectId={projectId} collections={collections} references={references} preset={preset} />}
+      {!char && (canEdit || collections.length > 0) && <Collections projectId={projectId} collections={collections} counts={counts} used={used} active={active} onActive={setActive} />}
+      {!char && <Feeds projectId={projectId} feeds={sources.filter((s) => s.kind === "feed")} collections={collections} members={members} itemCounts={itemCounts} />}
       <section className="panel flex flex-col gap-3 p-4" aria-labelledby="lib-h">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="lib-h" className="display text-lg">Library {active ? `· ${collections.find((c) => c.id === active)?.name}` : ""}</h2>
+          <h2 id="lib-h" className="display text-lg">{char ? `What ${char.name} can draw on` : `Library ${active ? `· ${collections.find((c) => c.id === active)?.name}` : ""}`}</h2>
           <div className="flex flex-wrap gap-2">
             <input className="field min-h-9 w-56 text-sm" placeholder="Search your research" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search" />
             <select className="field min-h-9 w-auto text-sm" value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Kind">
@@ -474,7 +588,7 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
           <ul className="flex flex-col divide-y divide-line">
             {shown.map((i) => <ItemRow key={i.id} projectId={projectId} item={i} source={byId.get(i.source_id)!} collections={collections} members={members} canEdit={canEdit} />)}
           </ul>
-        ) : <p className="text-sm text-muted">{items.length ? "Nothing matches." : "Nothing here yet. Add a note, a link, a document or an updating source."}</p>}
+        ) : <p className="text-sm text-muted">{char ? `Nothing for ${char.name} yet. Add research above, or connect a collection on the Connections desk.` : items.length ? "Nothing matches." : "Nothing here yet. Add a note, a link, a document or an updating source."}</p>}
         {items.length > 200 && shown.length === 200 && <p className="text-xs text-muted">Showing the first 200. Search or pick a collection to narrow it down.</p>}
       </section>
     </div>

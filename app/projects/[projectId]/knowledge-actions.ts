@@ -194,3 +194,12 @@ export async function kbCollectionMember(input: { projectId: string; collectionI
   touch(input.projectId);
   return { ok: true };
 }
+
+/** A character's own knowledge collection (made and connected to them on first use). */
+export async function kbCharacterCollection(input: { projectId: string; characterId: string }): Promise<R> {
+  const sb = await supabaseServer();
+  const { data, error } = await sb.rpc("kb_character_collection", { p_project: input.projectId, p_character: input.characterId });
+  if (error) return fail(error);
+  touch(input.projectId);
+  return { ok: true, id: data as string };
+}
