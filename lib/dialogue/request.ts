@@ -45,7 +45,7 @@ export async function buildRequest(sb: Sb, projectId: string, sceneKey: string, 
   const [beats, { data: ctx }, { data: chars }, { data: project }, { data: notes }, { data: world }, { data: board }] = await Promise.all([
     outlineBeats(sb, projectId),
     sb.from("scene_contexts").select("story_date, story_date_note, objectives, runtime_seconds, tone, pinned_snapshot_id").eq("project_id", projectId).eq("scene_key", sceneKey).maybeSingle(),
-    sb.from("entities").select("id, name").eq("project_id", projectId).eq("kind", "character").is("archived_at", null),
+    sb.from("entities").select("id, name").eq("project_id", projectId).eq("kind", "character").is("archived_at", null).neq("status", "archived"),
     sb.from("projects").select("runtime:settings->>runtime").eq("id", projectId).single(),
     sb.from("story_notebook").select("kind, body, status").eq("project_id", projectId).eq("kind", "decision").neq("status", "archived").limit(40),
     sb.from("story_world").select("data, version").eq("project_id", projectId).maybeSingle(),

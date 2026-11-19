@@ -21,7 +21,7 @@ export async function getKnowledge(projectId: string) {
     sb.from("research_references").select("id, title, source_url, source_domain, created_at").eq("project_id", projectId).order("created_at", { ascending: false }).limit(200),
     sb.from("character_knowledge").select("collection_id, character_id, purpose, temporal").eq("project_id", projectId).is("archived_at", null),
   ]);
-  const { data: chars } = await sb.from("entities").select("id, name, metadata").eq("project_id", projectId).eq("kind", "character").is("archived_at", null).order("name");
+  const { data: chars } = await sb.from("entities").select("id, name, metadata").eq("project_id", projectId).eq("kind", "character").is("archived_at", null).neq("status", "archived").order("name");
   const linkRows = (links.data ?? []) as { collection_id: string; character_id: string; purpose: string; temporal: string }[];
   const characters: KCharacter[] = ((chars ?? []) as { id: string; name: string; metadata: Record<string, unknown> | null }[]).map((c) => ({
     id: c.id, name: c.name, thumb: thumbOf(c.metadata),

@@ -54,7 +54,7 @@ export async function getDialogueDesk(projectId: string) {
     sb.from("dialogue_proposals").select("id, scene_key, status, trigger, parent_id, director_note, created_at, finished_at, decided_at, error, snapshot_id, result, provenance, reviews, flags")
       .eq("project_id", projectId).order("created_at", { ascending: false }).limit(120),
     sb.from("dialogue_settings").select("auto_draft, paused").eq("project_id", projectId).maybeSingle(),
-    sb.from("entities").select("id, name").eq("project_id", projectId).eq("kind", "character").is("archived_at", null).order("name"),
+    sb.from("entities").select("id, name").eq("project_id", projectId).eq("kind", "character").is("archived_at", null).neq("status", "archived").order("name"),
   ]);
   const scenes = splitScenes(script.body);
   const sigByKey = new Map(scenes.map((s) => [s.key, hash(sceneSignature(s))]));

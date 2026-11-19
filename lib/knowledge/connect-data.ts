@@ -35,7 +35,7 @@ export async function latestScript(sb: Sb, projectId: string) {
 export async function getConnectContext(projectId: string) {
   const sb = await supabaseServer();
   const [chars, cols, links, ctx, beats, script] = await Promise.all([
-    sb.from("entities").select("id, name").eq("project_id", projectId).eq("kind", "character").is("archived_at", null).order("name"),
+    sb.from("entities").select("id, name").eq("project_id", projectId).eq("kind", "character").is("archived_at", null).neq("status", "archived").order("name"),
     sb.from("knowledge_collections").select("id, name, description").eq("project_id", projectId).is("archived_at", null).order("name"),
     sb.from("character_knowledge").select("id, character_id, collection_id, purpose, temporal, scope_terms, from_beat, note, updated_at").eq("project_id", projectId).is("archived_at", null),
     sb.from("scene_contexts").select("scene_key, beat_id, story_date, story_date_note, objectives, runtime_seconds, tone, pinned_snapshot_id, version").eq("project_id", projectId),
