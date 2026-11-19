@@ -13,7 +13,7 @@ const SCHEMA = {
   properties: {
     reply: { type: "string" },
     proposals: {
-      type: "array", maxItems: 3,
+      type: "array",
       items: {
         type: "object", additionalProperties: false, required: ["field", "text", "why"],
         properties: { field: { type: "string", enum: FIELDS.map((f) => f.key) }, text: { type: "string" }, why: { type: "string" } },

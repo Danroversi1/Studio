@@ -17,7 +17,7 @@ const SCHEMA = {
   type: "object", additionalProperties: false, required: ["elements", "assumptions", "open_choices", "new_facts", "note"],
   properties: {
     elements: {
-      type: "array", maxItems: 40,
+      type: "array",
       items: {
         type: "object", additionalProperties: false, required: ["type", "speaker", "parenthetical", "text", "basis", "item_ids"],
         properties: {
@@ -158,7 +158,7 @@ const CHECK_SCHEMA = {
   type: "object", additionalProperties: false, required: ["summary", "conflicts"],
   properties: {
     summary: { type: "string" },
-    conflicts: { type: "array", maxItems: 6, items: { type: "object", additionalProperties: false, required: ["line", "item_id", "explanation"], properties: { line: { type: "string" }, item_id: { type: "string" }, explanation: { type: "string" } } } },
+    conflicts: { type: "array", items: { type: "object", additionalProperties: false, required: ["line", "item_id", "explanation"], properties: { line: { type: "string" }, item_id: { type: "string" }, explanation: { type: "string" } } } },
   },
 } as const;
 const CHECK_SYSTEM = `Compare an ACCEPTED dialogue scene with newer research items. List only real conflicts: a line that states or relies on something the newer material contradicts or changes. For each, quote the line, give the item id, and explain in one or two sentences. Don't suggest rewrites; she decides. If nothing conflicts, say so in the summary and return no conflicts. Fiction may differ from reality on purpose: note it, don't treat it as an error.
