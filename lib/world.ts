@@ -257,7 +257,7 @@ export function renderWorld(w: World): string {
   const c = w.confirmed, p = w.proposals;
   const line = (label: string, conf: string, prop: string) =>
     `${label}: ${conf || "(not decided)"}${prop ? ` | suggestion she hasn't accepted: ${prop}` : ""}`;
-  const where = (v?: WhereValue) => v ? (v.undecided ? "not decided" : `${v.places.map((x) => `${x.name} (${x.kind}${x.scale ? `, ${x.scale}` : ""}${x.within ? `, inside ${x.within}` : ""})`).join("; ")}${v.note ? ` — ${v.note}` : ""}`) : "";
+  const where = (v?: WhereValue) => v ? (v.undecided ? "not decided" : `${v.places.map((x) => x.name).join("; ")}${v.note ? ` — ${v.note}` : ""}`) : "";
   const when = (v?: WhenValue) => v ? (v.undecided ? "not decided" : `${v.periods.map((x) => `${x.label} [${x.precision}]`).join("; ")}${v.note ? ` — ${v.note}` : ""}`) : "";
   const span = (v?: SpanValue) => v ? (v.basis === "undecided" ? "not decided" : `${v.text}${v.unusual ? " (time works differently for some)" : ""}`) : "";
   const calc = calculateSpan(c.when?.value);

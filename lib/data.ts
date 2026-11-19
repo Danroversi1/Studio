@@ -1,4 +1,4 @@
-import { isTreatmentRef } from "./intake";
+import { isTreatmentRef, parseIntake } from "./intake";
 import { supabaseServer } from "./supabase/server";
 
 export type Kind = "story" | "character" | "location";
@@ -54,7 +54,27 @@ export async function listProjects() {
     .neq("status", "deleted")
     .order("created_at", { ascending: true });
   if (error) throw error;
-  return data;
+  // The card shows her current synopsis from the Story desk (her own words), falling back
+  // to the one-line idea she typed when she created the film.
+  const ids = (data ?? []).map((p) => p.id);
+  const ideas = new Map<string, string>();
+  if (ids.length) {
+    const { data: stories } = await sb.from("entities").select("id, project_id").in("project_id", ids).eq("kind", "story").is("archived_at", null);
+    const storyIds = (stories ?? []).map((s) => s.id);
+    if (storyIds.length) {
+      const { data: vs } = await sb.from("versions").select("entity_id, version_number, content")
+        .in("entity_id", storyIds).order("version_number", { ascending: false });
+      const seen = new Set<string>();
+      const projOf = new Map((stories ?? []).map((s) => [s.id, s.project_id]));
+      for (const v of vs ?? []) {
+        if (seen.has(v.entity_id)) continue;
+        seen.add(v.entity_id);
+        const idea = parseIntake(String((v.content as Record<string, unknown>)?.body ?? "")).idea.replace(/\s+/g, " ").trim();
+        if (idea) ideas.set(projOf.get(v.entity_id)!, idea.length > 280 ? `${idea.slice(0, 277).trimEnd()}…` : idea);
+      }
+    }
+  }
+  return (data ?? []).map((p) => ({ ...p, description: ideas.get(p.id) ?? p.description }));
 }
 
 export async function getProjectShell(projectId: string) {

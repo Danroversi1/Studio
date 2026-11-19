@@ -7,11 +7,10 @@ import { useRouter } from "next/navigation";
 import { Children, useEffect, useId, useRef, useState, useTransition } from "react";
 import { acceptWorldSuggestion, dismissWorldSuggestion, saveWorldSection, type WorldResult } from "@/app/projects/[projectId]/world-actions";
 import {
-  COVERAGE_LABEL, COVERAGES, PLACE_KINDS, PRECISIONS, calculateSpan, cleanValue, composeSentence, guessPrecision, periodsText, placesText,
+  COVERAGE_LABEL, COVERAGES, PRECISIONS, calculateSpan, cleanValue, composeSentence, guessPrecision, periodsText, placesText,
   spanConflict, type Coverage, type Period, type Place, type Precision, type Section, type SpanValue, type WhenValue, type WhereValue, type World,
 } from "@/lib/world";
 
-const KIND_LABEL: Record<Place["kind"], string> = { real: "Real place", invented: "Invented", mixed: "Real + invented", unknown: "Not sure" };
 const PRECISION_LABEL: Record<Precision, string> = {
   exact: "Exact date", year: "Year", approximate: "Approximate", era: "Era", relative: "Relative (“ten years later”)", invented: "Invented calendar", undecided: "Not decided",
 };
@@ -124,32 +123,16 @@ function WhereEditor({ ctx, initial, locations, onDone, onCancel }: { ctx: Ctx; 
             <label className="label" htmlFor={`${id}-n${i}`}>Place {places.length > 1 ? i + 1 : ""}</label>
             <input id={`${id}-n${i}`} className="field" value={p.name} maxLength={120} placeholder="Los Angeles, a lighthouse, the planet Zarn…"
               onChange={(e) => set(i, { name: e.target.value })} />
-            <div className="grid grid-cols-1 gap-2 @sm:grid-cols-2">
-              <label className="text-xs text-muted">Kind
-                <select className="field mt-1" value={p.kind} onChange={(e) => set(i, { kind: e.target.value as Place["kind"] })}>
-                  {PLACE_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
-                </select>
-              </label>
-              <label className="text-xs text-muted">Size (optional)
-                <input className="field mt-1" value={p.scale ?? ""} maxLength={60} placeholder="a room, a city, a planet" onChange={(e) => set(i, { scale: e.target.value })} />
-              </label>
-              {places.length > 1 && (
-                <label className="text-xs text-muted">Inside (optional)
-                  <select className="field mt-1" value={p.within ?? ""} onChange={(e) => set(i, { within: e.target.value || undefined })}>
-                    <option value="">—</option>
-                    {places.filter((o, j) => j !== i && o.name.trim()).map((o) => <option key={o.name} value={o.name}>{o.name}</option>)}
-                  </select>
-                </label>
-              )}
-              {locations.length > 0 && (
+            {locations.length > 0 && (
+              <div className="grid grid-cols-1 gap-2 @sm:grid-cols-2">
                 <label className="text-xs text-muted">Same as a Location (optional)
                   <select className="field mt-1" value={p.location_id ?? ""} onChange={(e) => set(i, { location_id: e.target.value || undefined })}>
                     <option value="">—</option>
                     {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
                   </select>
                 </label>
-              )}
-            </div>
+              </div>
+            )}
             {places.length > 1 && (
               <button type="button" className="self-start text-xs text-muted underline" onClick={() => setPlaces((xs) => xs.filter((_, j) => j !== i))}>Remove this place</button>
             )}
@@ -360,7 +343,7 @@ export function WorldCards({ projectId, world, canEdit, locations }: {
   const cancelFor = (has: boolean) => (has ? close : undefined);
 
   const whereBig = where ? (where.undecided ? "Not decided" : placesText(where)) : "Not decided";
-  const whereSmall = where && !where.undecided ? (where.note || (where.places.length > 1 ? `${where.places.length} places` : KIND_LABEL[where.places[0]?.kind ?? "unknown"])) : "";
+  const whereSmall = where && !where.undecided ? (where.note || (where.places.length > 1 ? `${where.places.length} places` : "")) : "";
   const whenBig = when ? (when.undecided ? "Not decided" : periodsText(when)) : "Not decided";
   const whenSmall = when && !when.undecided ? (when.note || (when.periods.length === 1 ? PRECISION_LABEL[when.periods[0].precision] : `${when.periods.length} story periods`)) : "";
   const spanBig = span && span.basis === "creator" ? span.text : calc ? calc.text : "Not decided";
