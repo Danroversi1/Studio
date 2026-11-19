@@ -13,7 +13,10 @@ import { collectionsOf, type KCharacter, type KCollection, type KItem, type KMem
 import { saveKnowledgeLink } from "@/app/projects/[projectId]/connect-actions";
 import { PURPOSE_LABEL, TEMPORAL_LABEL, type Purpose, type Temporal } from "@/lib/knowledge/eligibility";
 import { ThumbView } from "@/components/thumb-view";
-import { ItemImpressions, WorldCard, WorldPanel } from "./world";
+import { ItemImpressions, WorldPanel } from "./world";
+import { worldSetUp } from "@/app/projects/[projectId]/knowledge-actions";
+import { setCharacterRole } from "@/app/projects/[projectId]/character-actions";
+import { ROLES, ROLE_LABEL } from "@/lib/characters/roles";
 import type { Impression } from "@/lib/knowledge/types";
 import { kbItemPin } from "@/app/projects/[projectId]/knowledge-actions";
 import { docTypeOf, extractText, uploadDocument } from "@/lib/knowledge/documents";
@@ -346,8 +349,9 @@ function SourceCollections({ projectId, sourceId, collections, members }: { proj
 }
 
 // ---- Characters ----------------------------------------------------------------------------
-function CharacterStrip({ projectId, canEdit, characters, collections, counts, selected }: {
+function CharacterStrip({ projectId, canEdit, characters, collections, counts, selected, world, worldOpen }: {
   projectId: string; canEdit: boolean; characters: KCharacter[]; collections: KCollection[]; counts: Record<string, number>; selected: string | null;
+  world: KCollection | null; worldOpen: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -364,40 +368,85 @@ function CharacterStrip({ projectId, canEdit, characters, collections, counts, s
     router.push(`?character=${c.id}`, { scroll: false });
     router.refresh();
   }
+  async function openWorld() {
+    setErr(null);
+    if (worldOpen) { router.push("?", { scroll: false }); return; }
+    if (!world && canEdit) {
+      setBusy("world");
+      const r = await worldSetUp({ projectId, connectAll: false }).catch(() => ({ ok: false as const, error: "That didn't open. Try again." }));
+      setBusy(null);
+      if (!r.ok) { setErr(r.error); return; }
+    }
+    router.push("?world=1", { scroll: false });
+    router.refresh();
+  }
+  const tile = (on: boolean) => `flex w-full items-center gap-2 border p-2 text-left transition-colors ${on ? "border-text bg-text text-panel-2" : "border-line bg-panel-2 hover:border-text"}`;
+  const sub = (on: boolean) => `block text-[11px] ${on ? "text-panel-2/80" : "text-muted"}`;
+  const worldItems = world ? counts[world.id] ?? 0 : 0;
+  const worldReach = world ? characters.filter((c) => c.links.some((l) => l.collection_id === world.id)).length : 0;
   return (
     <section className="panel flex flex-col gap-3 p-4" aria-labelledby="chars-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="chars-h" className="display text-lg">Characters</h2>
-        <p className="text-xs text-muted">Open a character to see and add the research they can draw on.</p>
+        <h2 id="chars-h" className="display text-lg">Knowledge for</h2>
+        <p className="text-xs text-muted">The World everyone lives in, then each character. Open one to see and add what they can draw on.</p>
       </div>
-      {characters.length ? (
-        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-          {characters.map((c) => {
-            const own = collections.find((x) => x.character_id === c.id);
-            const n = new Set(c.links.map((l) => l.collection_id)).size;
-            const items = c.links.reduce((sum, l) => sum + (counts[l.collection_id] ?? 0), 0);
-            return (
-              <li key={c.id}>
-                <button type="button" aria-pressed={selected === c.id} disabled={busy === c.id} onClick={() => void open(c)}
-                  className={`flex w-full items-center gap-2 border p-2 text-left transition-colors ${selected === c.id ? "border-text bg-text text-panel-2" : "border-line bg-panel-2 hover:border-text"}`}>
-                  <span className="h-12 w-12 shrink-0 overflow-hidden bg-line/60">
-                    {c.thumb ? <ThumbView source={c.thumb} alt="" className="size-full" />
-                      : <svg viewBox="0 0 24 24" className="size-full p-2 text-muted" aria-hidden><circle cx="12" cy="8" r="4" fill="currentColor" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="currentColor" /></svg>}
+      <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {(world || canEdit) && (
+          <li>
+            <button type="button" aria-pressed={worldOpen} disabled={busy === "world"} onClick={() => void openWorld()} className={tile(worldOpen)}>
+              <span className={`grid h-12 w-12 shrink-0 place-items-center ${worldOpen ? "bg-panel-2 text-text" : "bg-text text-panel-2"}`} aria-hidden>
+                <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18" /></svg>
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold uppercase">{busy === "world" ? "Opening…" : "World"}</span>
+                <span className={sub(worldOpen)}>{world ? `${worldItems} item${worldItems === 1 ? "" : "s"} · ${worldReach} of ${characters.length} characters` : "News and reactions"}</span>
+              </span>
+            </button>
+          </li>
+        )}
+        {characters.map((c) => {
+          const own = collections.find((x) => x.character_id === c.id);
+          const n = new Set(c.links.map((l) => l.collection_id)).size;
+          const items = c.links.reduce((sum, l) => sum + (counts[l.collection_id] ?? 0), 0);
+          const on = selected === c.id;
+          return (
+            <li key={c.id}>
+              <button type="button" aria-pressed={on} disabled={busy === c.id} onClick={() => void open(c)} className={tile(on)}>
+                <span className="h-12 w-12 shrink-0 overflow-hidden bg-line/60">
+                  {c.thumb ? <ThumbView source={c.thumb} alt="" className="size-full" />
+                    : <svg viewBox="0 0 24 24" className="size-full p-2 text-muted" aria-hidden><circle cx="12" cy="8" r="4" fill="currentColor" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="currentColor" /></svg>}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold uppercase">{busy === c.id ? "Opening…" : c.name}</span>
+                  <span className={`${sub(on)} font-medium`}>{c.role ? ROLE_LABEL[c.role] : "Role not set"}</span>
+                  <span className={sub(on)}>
+                    {n ? `${items} item${items === 1 ? "" : "s"} · ${n} collection${n === 1 ? "" : "s"}` : own ? "Not connected" : "No research yet"}
                   </span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold uppercase">{busy === c.id ? "Opening…" : c.name}</span>
-                    <span className={`block text-[11px] ${selected === c.id ? "text-panel-2/80" : "text-muted"}`}>
-                      {n ? `${items} item${items === 1 ? "" : "s"} · ${n} collection${n === 1 ? "" : "s"}` : own ? "Not connected" : "No research yet"}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      ) : <p className="text-sm text-muted">No characters yet. Add them in your Story&apos;s Cast.</p>}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {!characters.length && <p className="text-sm text-muted">No characters yet. Add them in your Story&apos;s Cast.</p>}
       {err && <p role="alert" className="text-xs text-danger">{err}</p>}
     </section>
+  );
+}
+
+/** Her choice of the character's role; it sets the order of character menus. */
+function RolePicker({ projectId, character }: { projectId: string; character: KCharacter }) {
+  const s = useRun();
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs" role="group" aria-label={`${character.name}'s role`}>
+      <span className="text-muted">Role:</span>
+      {ROLES.map((r) => (
+        <button key={r} type="button" aria-pressed={character.role === r} disabled={s.pending}
+          className={`border px-2 py-1 font-semibold uppercase ${character.role === r ? "border-text bg-text text-panel-2" : "border-line hover:border-text"}`}
+          onClick={() => s.run(() => setCharacterRole({ projectId, entityId: character.id, role: character.role === r ? null : r }))}>{ROLE_LABEL[r]}</button>
+      ))}
+      <Status msg={s.msg} />
+    </div>
   );
 }
 
@@ -416,6 +465,7 @@ function CharacterPanel({ projectId, canEdit, character, collections, counts }: 
             Research you add here goes into {character.name}&apos;s own collection. It&apos;s what {character.name} could draw on in scenes,
             within the time rules. What {character.name} knows for certain lives on their character page.
           </p>
+          {canEdit ? <RolePicker projectId={projectId} character={character} /> : character.role && <p className="text-xs text-muted">Role: {ROLE_LABEL[character.role]}</p>}
         </div>
         <div className="flex flex-col items-end gap-1 text-xs">
           <Link href={`/projects/${projectId}/items/${character.id}`} className="text-accent">Open {character.name}&apos;s character page →</Link>
@@ -586,10 +636,9 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
 
   return (
     <div className="flex flex-col gap-6">
-      <WorldCard projectId={projectId} canEdit={canEdit} world={world} items={world ? counts[world.id] ?? 0 : 0} open={inWorld}
-        connected={world ? characters.filter((c) => c.links.some((l) => l.collection_id === world.id)).length : 0} total={characters.length} />
+      <CharacterStrip projectId={projectId} canEdit={canEdit} characters={characters} collections={collections} counts={counts} selected={char?.id ?? null}
+        world={world} worldOpen={inWorld} />
       {inWorld && world && <WorldPanel projectId={projectId} canEdit={canEdit} characters={characters} world={world} sources={sources} counts={itemCounts} />}
-      {!inWorld && <CharacterStrip projectId={projectId} canEdit={canEdit} characters={characters} collections={collections} counts={counts} selected={char?.id ?? null} />}
       {char && <CharacterPanel projectId={projectId} canEdit={canEdit} character={char} collections={collections} counts={counts} />}
       {canEdit && <AddResearch key={inWorld ? "world" : own?.id ?? "all"} projectId={projectId} collections={collections} references={references} preset={preset} />}
       {!char && !inWorld && (canEdit || collections.length > 0) && <Collections projectId={projectId} collections={collections} counts={counts} used={used} active={active} onActive={setActive} />}

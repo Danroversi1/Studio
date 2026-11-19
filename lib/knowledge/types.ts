@@ -19,6 +19,6 @@ export function collectionsOf(item: Pick<KItem, "id" | "source_id">, members: KM
   return [...new Set(members.filter((m) => m.source_id === item.source_id || m.item_id === item.id).map((m) => m.collection_id))];
 }
 
-export interface KCharacter { id: string; name: string; thumb: import("../thumb").ThumbSource; links: { collection_id: string; purpose: string; temporal: string }[] }
+export interface KCharacter { id: string; name: string; role: import("../characters/roles").CastRole | null; thumb: import("../thumb").ThumbSource; links: { collection_id: string; purpose: string; temporal: string }[] }
 
 export interface Impression { id: string; character_id: string; item_id: string; item_version: number; text: string; status: "proposed" | "accepted" | "dismissed"; created_at: string }

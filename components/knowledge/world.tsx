@@ -29,34 +29,6 @@ const Status = ({ msg }: { msg: { kind: "ok" | "error"; text: string } | null })
   msg ? <p role={msg.kind === "error" ? "alert" : "status"} className={`text-xs ${msg.kind === "error" ? "text-danger" : "text-muted"}`}>{msg.text}</p> : null;
 
 /** The World card at the top of the Knowledge Base. */
-export function WorldCard({ projectId, canEdit, world, items, connected, total, open }: {
-  projectId: string; canEdit: boolean; world: KCollection | null; items: number; connected: number; total: number; open: boolean;
-}) {
-  const router = useRouter();
-  const s = useRun();
-  return (
-    <section className={`panel flex flex-wrap items-center justify-between gap-3 p-4 ${open ? "border-text" : ""}`}>
-      <div className="flex items-center gap-3">
-        <span className="grid size-12 shrink-0 place-items-center bg-text text-panel-2" aria-hidden>
-          <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18" /></svg>
-        </span>
-        <div>
-          <h2 className="display text-xl leading-none">World</h2>
-          <p className="text-xs text-muted">{world ? `${items} item${items === 1 ? "" : "s"} · connected to ${connected} of ${total} characters` : "The world outside your story: news, events and how people react."}</p>
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        {open ? <Link href="?" scroll={false} className="btn min-h-9 text-xs">← All research</Link> : (
-          <button type="button" className="btn-primary min-h-9 text-xs" disabled={s.pending}
-            onClick={() => world || !canEdit ? router.push("?world=1", { scroll: false }) : s.run(() => worldSetUp({ projectId, connectAll: false }), "World is ready.", () => router.push("?world=1", { scroll: false }))}>
-            {s.pending ? "Setting up…" : "Open World"}</button>
-        )}
-      </div>
-      <Status msg={s.msg} />
-    </section>
-  );
-}
-
 /** World view: what it is, who it reaches, and what she follows (free, once a day). */
 export function WorldPanel({ projectId, canEdit, characters, world, sources, counts }: {
   projectId: string; canEdit: boolean; characters: KCharacter[]; world: KCollection; sources: KSource[]; counts: Record<string, number>;

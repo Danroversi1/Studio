@@ -60,3 +60,12 @@ export async function talkAboutCharacter(input: { projectId: string; entityId: s
   if ("error" in r) return { ok: false, error: r.error };
   return { ok: true, reply: r.reply };
 }
+
+/** Her choice of the character's role (orders character menus). No model. */
+export async function setCharacterRole(input: { projectId: string; entityId: string; role: string | null }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("set_character_role", { p_entity: input.entityId, p_role: input.role });
+  if (error) return { ok: false, error: friendlyError(error).message };
+  revalidatePath(`/projects/${input.projectId}`, "layout");
+  return { ok: true };
+}
