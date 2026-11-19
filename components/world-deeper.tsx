@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { saveWorldSection } from "@/app/projects/[projectId]/world-actions";
-import { DEEPER_KEYS, DEEPER_LABEL, type DeeperValue } from "@/lib/world";
+import { DEEPER_LABEL, SHOWN_DEEPER, type DeeperValue } from "@/lib/world";
 
 export function WorldDeeper({ projectId, version, value, canEdit, locationCount, hasScript }: {
   projectId: string; version: number; value: DeeperValue; canEdit: boolean; locationCount: number; hasScript: boolean;
@@ -13,14 +13,14 @@ export function WorldDeeper({ projectId, version, value, canEdit, locationCount,
   const [draft, setDraft] = useState<DeeperValue>(value);
   const [msg, setMsg] = useState<{ error: boolean; text: string } | null>(null);
   const [pending, start] = useTransition();
-  const dirty = DEEPER_KEYS.some((k) => (draft[k] ?? "") !== (value[k] ?? ""));
-  const filled = DEEPER_KEYS.filter((k) => value[k]).length;
+  const dirty = SHOWN_DEEPER.some((k) => (draft[k] ?? "") !== (value[k] ?? ""));
+  const filled = SHOWN_DEEPER.filter((k) => value[k]).length;
   return (
     <details className="panel group p-5" open={filled > 0 ? undefined : false}>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
         <span>
           <span className="eyebrow block text-text">Explore deeper</span>
-          <span className="text-sm text-muted">Places, chronology &amp; world rules{filled ? ` · ${filled} written` : " · optional"}</span>
+          <span className="text-sm text-muted">Chronology &amp; world rules{filled ? ` · ${filled} written` : " · optional"}</span>
         </span>
         <span aria-hidden className="text-accent group-open:rotate-90">›</span>
       </summary>
@@ -42,7 +42,7 @@ export function WorldDeeper({ projectId, version, value, canEdit, locationCount,
             } catch { setMsg({ error: true, text: "That didn't save. Your text is still here; try again." }); }
           });
         }}>
-          {DEEPER_KEYS.map((k) => (
+          {SHOWN_DEEPER.map((k) => (
             <label key={k} className="flex flex-col gap-1 text-sm">
               <span className="font-medium">{DEEPER_LABEL[k].label}</span>
               <span className="text-xs text-muted">{DEEPER_LABEL[k].help}</span>

@@ -59,6 +59,9 @@ export const COVERAGE_LABEL: Record<Coverage, string> = {
 export interface SummaryValue { text: string }
 export const DEEPER_KEYS = ["places", "chronology", "scene_timing", "travel", "rules", "time_behavior", "presentation_order"] as const;
 export type DeeperKey = (typeof DEEPER_KEYS)[number];
+/** The deeper details shown and offered (the Director removed the rest; anything already
+ *  written in them is kept in the saved world but no longer shown or sent to partners). */
+export const SHOWN_DEEPER: readonly DeeperKey[] = ["chronology", "rules"];
 export const DEEPER_LABEL: Record<DeeperKey, { label: string; help: string }> = {
   places: { label: "Places and how they connect", help: "Which places sit inside others, what's near, what's far." },
   chronology: { label: "Chronology", help: "What happens when, in story order." },
@@ -261,7 +264,7 @@ export function renderWorld(w: World): string {
   const when = (v?: WhenValue) => v ? (v.undecided ? "not decided" : `${v.periods.map((x) => `${x.label} [${x.precision}]`).join("; ")}${v.note ? ` — ${v.note}` : ""}`) : "";
   const span = (v?: SpanValue) => v ? (v.basis === "undecided" ? "not decided" : `${v.text}${v.unusual ? " (time works differently for some)" : ""}`) : "";
   const calc = calculateSpan(c.when?.value);
-  const deeper = c.deeper?.value ? DEEPER_KEYS.filter((k) => c.deeper!.value[k]).map((k) => `  ${DEEPER_LABEL[k].label}: ${c.deeper!.value[k]!.slice(0, 600)}`).join("\n") : "";
+  const deeper = c.deeper?.value ? SHOWN_DEEPER.filter((k) => c.deeper!.value[k]).map((k) => `  ${DEEPER_LABEL[k].label}: ${c.deeper!.value[k]!.slice(0, 600)}`).join("\n") : "";
   return [
     line("Where", where(c.where?.value), where(p.where?.value as WhereValue | undefined)),
     line("When", when(c.when?.value), when(p.when?.value as WhenValue | undefined)),

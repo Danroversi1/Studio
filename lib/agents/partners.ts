@@ -8,7 +8,7 @@ import { STORY_PROCESS_SPEC } from "./specs/story-process";
 import { runtimeInfo } from "../runtime";
 import { parseScript } from "../screenplay";
 import { normalizeForMatch } from "./story-breakdown";
-import { COVERAGES, DEEPER_KEYS, PLACE_KINDS, PRECISIONS, renderWorld, type World } from "../world";
+import { COVERAGES, PLACE_KINDS, SHOWN_DEEPER, PRECISIONS, renderWorld, type World } from "../world";
 
 export type PartnerId = "story" | "design" | "world" | "dialogue" | "shots";
 export const PARTNER_IDS: PartnerId[] = ["story", "design", "world", "dialogue", "shots"];
@@ -43,7 +43,6 @@ WHAT WORLD & TIME MEANS (keep these separate; never mix them up)
 - When: one or more story periods (calendar years or dates, approximate eras, relative descriptions, invented calendars, or not decided). Keep her original words.
 - Time span: time between the earliest and latest story events. A five-minute film can span ten years.
 - Coverage: whether we follow that span as it happens, visit a few important moments, a bit of both, or not decided. Two periods ten years apart do not mean every year in between appears.
-- Presentation order: the order the audience discovers events (a deeper detail).
 
 HOW YOU TALK WITH HER
 - Speak clearly and respectfully. Keep ordinary replies brief (about 40–120 words). Ask ONE focused question at a time.
@@ -500,7 +499,7 @@ export const UPDATE_WORLD_TOOL = {
             span: { type: "object", additionalProperties: false, properties: { text: { type: "string" }, unusual: { type: "boolean" }, undecided: { type: "boolean" } } },
             coverage: { type: "string", enum: [...COVERAGES] },
             summary: { type: "string", description: "One sentence, only from confirmed facts" },
-            deeper: { type: "object", additionalProperties: false, properties: Object.fromEntries(DEEPER_KEYS.map((k) => [k, { type: "string" }])) },
+            deeper: { type: "object", additionalProperties: false, properties: Object.fromEntries(SHOWN_DEEPER.map((k) => [k, { type: "string" }])) },
             her_words: { type: "string", description: "Her exact words from her latest message, when this is her decision" },
             why: { type: "string", description: "For a suggestion: one short reason" },
           },
