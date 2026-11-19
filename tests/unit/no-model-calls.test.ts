@@ -37,6 +37,9 @@ const ROUTINE = [
   // manual). Feed collection is deterministic and must never reach a model or dialogue.
   "app/projects/[projectId]/knowledge-actions.ts", "app/projects/[projectId]/knowledge/page.tsx", "components/knowledge/knowledge-base.tsx",
   "app/api/cron/knowledge/route.ts", "lib/knowledge/refresh.ts", "lib/knowledge/data.ts", "lib/knowledge/eligibility.ts",
+  // Connecting collections to characters, previewing what they could draw on, scene time.
+  "app/projects/[projectId]/connect-actions.ts", "components/connections-desk.tsx", "components/knowledge/knowledge-connections.tsx",
+  "lib/knowledge/connect-data.ts", "app/projects/[projectId]/connections/page.tsx",
 ];
 
 function resolveImport(from: string, spec: string): string | null {

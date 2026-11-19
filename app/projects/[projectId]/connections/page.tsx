@@ -1,6 +1,7 @@
 // CONNECTIONS: every part of the story on one board.
 import { notFound } from "next/navigation";
-import { ConnectionsBoard } from "@/components/connections-board";
+import { ConnectionsDesk } from "@/components/connections-desk";
+import { getConnectContext } from "@/lib/knowledge/connect-data";
 import { Empty } from "@/components/flash";
 import { thumbOf } from "@/lib/thumb";
 import { getAllReferences, getBoard, getLatestVersions, getProjectShell, getScreenplay } from "@/lib/data";
@@ -10,7 +11,7 @@ export default async function ConnectionsPage({ params }: { params: Promise<{ pr
   const shell = await getProjectShell(projectId);
   if (!shell || !shell.caps.member) notFound();
   if (!shell.caps.can_review) return <Empty title="The board is for the creative team">You can read the approved versions of this film.</Empty>;
-  const [latest, refs, board, sp] = await Promise.all([getLatestVersions(projectId), getAllReferences(projectId), getBoard(projectId), getScreenplay(projectId)]);
+  const [latest, refs, board, sp, kc] = await Promise.all([getLatestVersions(projectId), getAllReferences(projectId), getBoard(projectId), getScreenplay(projectId), getConnectContext(projectId)]);
   const entities = shell.entities
     .filter((e) => e.kind === "character" || e.kind === "location")
     .map((e) => ({
@@ -26,10 +27,12 @@ export default async function ConnectionsPage({ params }: { params: Promise<{ pr
       <header className="flex flex-col gap-2">
         <p className="eyebrow">{shell.project.name}</p>
         <h1 className="display text-4xl leading-none sm:text-5xl">Connections</h1>
-        <p className="max-w-2xl text-muted">Everything in your story on one board. Pin it, string it, name it.</p>
+        <p className="max-w-2xl text-muted">Everything in your story on one board. Pin it, string it, name it, and choose what research each character can draw on.</p>
       </header>
-      <ConnectionsBoard projectId={projectId} canEdit={!!shell.caps.can_edit} links={board.links}
-        input={{ entities, references, notes: board.notes, positions: board.positions, script, base: `/projects/${projectId}` }} />
+      <ConnectionsDesk projectId={projectId} canEdit={!!shell.caps.can_edit} links={board.links}
+        input={{ entities, references, notes: board.notes, positions: board.positions, script, base: `/projects/${projectId}` }}
+        characters={kc.characters} collections={kc.collections} knowledge={kc.links} beats={kc.beats}
+        scenes={kc.scenes.map((x) => ({ key: x.key, heading: x.heading }))} contexts={kc.contexts} />
     </div>
   );
 }

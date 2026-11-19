@@ -1,3 +1,5 @@
+import { CharacterAgent } from "@/components/characters/character-agent";
+import { getCharacterAgent } from "@/lib/characters/data";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Empty, Flash } from "@/components/flash";
@@ -52,6 +54,7 @@ export default async function ItemWorkspace({
     getProjectShell(projectId), getEntityWorkspace(projectId, entityId), currentUser(), getAiBudget(projectId),
     getNotebook(projectId), getCast(projectId), getBoard(projectId), getScreenplay(projectId),
   ]);
+  const agent = ws?.entity.kind === "character" ? await getCharacterAgent(projectId, entityId) : null;
   const storyEntity = shell?.entities.find((e) => e.kind === "story");
   const storyRefs = storyEntity ? await getStoryReferences(projectId, storyEntity.id) : [];
   if (!shell || !ws) notFound();
@@ -440,6 +443,11 @@ export default async function ItemWorkspace({
 
           {isStory && <OutlineBox projectId={projectId} items={notebook.filter((n) => ["beginning", "middle", "ending"].includes(n.kind))}
             runtime={runtime} canEdit={!!caps.can_edit} back={`${base}/items/${entityId}`} />}
+
+          {kind === "character" && agent && (
+            <CharacterAgent projectId={projectId} entityId={entityId} name={entity.name} canEdit={!!caps.can_edit} aiReady={aiConfigured()}
+              profile={agent.profile} links={agent.links} turns={agent.turns} />
+          )}
 
           {!isStory && (
             <section className="panel flex flex-col gap-4 p-5" aria-labelledby="artwork-h">

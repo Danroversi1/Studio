@@ -12,10 +12,13 @@ import { CARD_H, CARD_W, autoEdges, buildNodes, stringPath, type BoardInput, typ
 
 type View = { x: number; y: number; k: number };
 const NOTE_BG: Record<string, string> = { yellow: "#f6d867", green: "#9fd67a", pink: "#f4a9c0", blue: "#9cc7f0" };
-const KIND_LABEL: Record<BoardNode["kind"], string> = { character: "Character", location: "Location", reference: "Reference", note: "Note", scene: "Scene" };
+const KIND_LABEL: Record<BoardNode["kind"], string> = { character: "Character", location: "Location", reference: "Reference", note: "Note", scene: "Scene", collection: "Collection" };
+export interface KnowledgeString { id: string; from: string; to: string; label: string }
 
-export function ConnectionsBoard({ projectId, input, links: initialLinks, canEdit }: {
+export function ConnectionsBoard({ projectId, input, links: initialLinks, canEdit, knowledge = [], onKnowledgePair, onKnowledgeSelect }: {
   projectId: string; input: Omit<BoardInput, "showScenes">; links: BoardLink[]; canEdit: boolean;
+  /** Knowledge collection → character connections (blue strings), managed below the board. */
+  knowledge?: KnowledgeString[]; onKnowledgePair?: (characterKey: string, collectionKey: string) => void; onKnowledgeSelect?: (id: string) => void;
 }) {
   const router = useRouter();
   const [showScenes, setShowScenes] = useState(false);
@@ -99,10 +102,18 @@ export function ConnectionsBoard({ projectId, input, links: initialLinks, canEdi
       const d = drag.current;
       drag.current = null;
       const p = pos[d.key] ?? byKey.get(d.key);
-      if (d.moved && p) run(() => boardMove({ projectId, moves: [{ key: d.key, x: p.x, y: p.y }] }));
+      if (d.moved && p && !d.key.startsWith("k:")) run(() => boardMove({ projectId, moves: [{ key: d.key, x: p.x, y: p.y }] }));
     } else if (pull) {
       const target = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest("[data-key]")?.getAttribute("data-key");
-      if (target && target !== pull.from && !target.startsWith("s:")) {
+      const isK = (k: string) => k.startsWith("k:");
+      if (target && target !== pull.from && (isK(target) || isK(pull.from))) {
+        // A string to a collection is a knowledge connection: it opens the editor below.
+        const kind = (k: string) => byKey.get(k)?.kind;
+        const ch = kind(pull.from) === "character" ? pull.from : kind(target) === "character" ? target : null;
+        const col = isK(pull.from) ? pull.from : target;
+        if (ch && isK(col)) onKnowledgePair?.(ch, col);
+        else setMsg("Collections connect to characters. Drag from a character's pin to a collection.");
+      } else if (target && target !== pull.from && !target.startsWith("s:")) {
         setPending({ from: pull.from, to: target });
         setLabelText(links.find((l) => (l.from === pull.from && l.to === target) || (l.to === pull.from && l.from === target))?.label ?? "");
       }
@@ -165,6 +176,7 @@ export function ConnectionsBoard({ projectId, input, links: initialLinks, canEdi
       <p className="text-xs text-muted">
         <span className="mr-3"><span className="mr-1 inline-block h-0.5 w-6 bg-brand align-middle" /> your strings</span>
         <span className="mr-3"><span className="mr-1 inline-block h-0 w-6 border-t border-dashed border-muted align-middle" /> from the script</span>
+        {knowledge.length > 0 && <span className="mr-3"><span className="mr-1 inline-block h-0.5 w-6 bg-[#2f6fd6] align-middle" /> knowledge</span>}
         {canEdit && <>Drag a card to move it. Drag from a card&apos;s pin to another card to connect them. Ctrl + scroll to zoom.</>}
       </p>
       {msg && <p role="alert" className="text-sm text-danger">{msg}</p>}
@@ -182,7 +194,7 @@ export function ConnectionsBoard({ projectId, input, links: initialLinks, canEdi
               {n.kind !== "scene" && (
                 <span role="button" tabIndex={-1} aria-label={`Connect ${n.title || "note"}`} title="Drag to another card to connect"
                   onPointerDown={(e) => onPinDown(e, n)}
-                  className={`absolute top-1 left-1/2 z-10 size-3.5 -translate-x-1/2 rounded-full border border-black/30 shadow ${canEdit ? "cursor-crosshair" : ""} ${n.kind === "location" ? "bg-sky-500" : "bg-brand"}`} />
+                  className={`absolute top-1 left-1/2 z-10 size-3.5 -translate-x-1/2 rounded-full border border-black/30 shadow ${canEdit ? "cursor-crosshair" : ""} ${n.kind === "location" ? "bg-sky-500" : n.kind === "collection" ? "bg-[#2f6fd6]" : "bg-brand"}`} />
               )}
               {n.kind === "note" ? (
                 <p className="line-clamp-5 px-3 pt-5 font-serif text-sm leading-snug text-black">{n.body}</p>
@@ -231,6 +243,23 @@ export function ConnectionsBoard({ projectId, input, links: initialLinks, canEdi
                         onPointerDown={(e) => { e.stopPropagation(); setSelected(l.id); setLabelText(l.label ?? ""); }}>{l.label}</span>
                     </foreignObject>
                   )}
+                </g>
+              );
+            })}
+            {knowledge.map((k) => {
+              const a = byKey.get(k.from), b = byKey.get(k.to);
+              if (!a || !b) return null;
+              const pa = pin(a), pb = pin(b);
+              const { d, mid } = stringPath(pa.x, pa.y, pb.x, pb.y);
+              return (
+                <g key={k.id}>
+                  <path d={d} fill="none" stroke="#2f6fd6" strokeWidth={2} strokeDasharray="1 0" opacity={0.85} />
+                  <path d={d} fill="none" stroke="transparent" strokeWidth={14} className="pointer-events-auto cursor-pointer"
+                    onPointerDown={(e) => { e.stopPropagation(); onKnowledgeSelect?.(k.id); }}><title>{`${name(k.from)} — ${k.label} — ${name(k.to)}`}</title></path>
+                  <foreignObject x={mid.x - 80} y={mid.y - 12} width={160} height={26} className="overflow-visible">
+                    <span className="pointer-events-auto block cursor-pointer truncate bg-panel-2 px-1.5 py-0.5 text-center text-[11px] text-[#2f6fd6] shadow"
+                      onPointerDown={(e) => { e.stopPropagation(); onKnowledgeSelect?.(k.id); }}>{k.label}</span>
+                  </foreignObject>
                 </g>
               );
             })}
@@ -325,7 +354,7 @@ export function ConnectionsBoard({ projectId, input, links: initialLinks, canEdi
           }}>
             {(["from", "to"] as const).map((k) => (
               <select key={k} name={k} className="field" aria-label={k === "from" ? "First card" : "Second card"} required>
-                {nodes.filter((n) => n.kind !== "scene").map((n) => <option key={n.key} value={n.key}>{n.title || `Note: ${n.body.slice(0, 30)}`}</option>)}
+                {nodes.filter((n) => n.kind !== "scene" && n.kind !== "collection").map((n) => <option key={n.key} value={n.key}>{n.title || `Note: ${n.body.slice(0, 30)}`}</option>)}
               </select>
             ))}
             <input name="label" className="field" maxLength={200} placeholder="What connects them? (optional)" aria-label="Connection label" />

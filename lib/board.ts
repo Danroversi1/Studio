@@ -4,7 +4,7 @@
 import { parseBreakdown, titleCase } from "./scene-plan";
 import type { ThumbSource } from "./thumb";
 
-export type NodeKind = "character" | "location" | "reference" | "note" | "scene";
+export type NodeKind = "character" | "location" | "reference" | "note" | "scene" | "collection";
 export interface BoardNode {
   key: string; kind: NodeKind; title: string; body: string;
   x: number; y: number; href?: string; imageAssetId?: string | null; thumb?: ThumbSource; color?: string;
@@ -22,6 +22,8 @@ export interface BoardInput {
   positions: Record<string, { x: number; y: number }>;
   script: string;
   showScenes: boolean;
+  /** Knowledge collections (cards placed automatically, below the cast). */
+  collections?: { id: string; name: string; count: number }[];
   base: string;
 }
 
@@ -37,6 +39,8 @@ export function buildNodes(inp: BoardInput): BoardNode[] {
   locs.forEach((e, i) => out.push({ key: `e:${e.id}`, kind: "location", title: e.name, body: e.summary, href: `${inp.base}/items/${e.id}`, thumb: e.thumb ?? null, ...place(`e:${e.id}`, i, inp.showScenes ? 3 : 2) }));
   inp.references.filter((r) => r.previewAssetId).slice(0, 24).forEach((r, i) =>
     out.push({ key: `r:${r.id}`, kind: "reference", title: r.title || "Reference", body: r.credit, href: `${inp.base}/references`, imageAssetId: r.previewAssetId, ...place(`r:${r.id}`, Math.max(chars.length, locs.length) + 1 + (i % 2), Math.floor(i / 2)) }));
+  (inp.collections ?? []).forEach((c, i) => out.push({ key: `k:${c.id}`, kind: "collection", title: c.name, body: `${c.count} item${c.count === 1 ? "" : "s"} · Knowledge Base`,
+    href: `${inp.base}/knowledge`, ...place(`k:${c.id}`, i, inp.showScenes ? 5 : 4) }));
   inp.notes.forEach((n, i) => out.push({ key: `n:${n.id}`, kind: "note", title: "", body: n.body, color: n.color, ...place(`n:${n.id}`, i, inp.showScenes ? 4 : 3) }));
   if (inp.showScenes) {
     parseBreakdown(inp.script).forEach((s) => out.push({
