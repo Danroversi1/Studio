@@ -8,6 +8,7 @@ import { detectSource, normalizeUrl } from "@/lib/knowledge/adapters";
 import { FetchError, fetchPublic } from "@/lib/knowledge/fetch";
 import { readLinkMeta } from "@/lib/knowledge/link-meta";
 import { identifyFeed, refreshDue, refreshFeed } from "@/lib/knowledge/refresh";
+import { buildWatchFeeds } from "@/lib/knowledge/watch";
 import { supabaseServer } from "@/lib/supabase/server";
 
 type R = { ok: true; id?: string; note?: string } | { ok: false; error: string };
@@ -202,4 +203,56 @@ export async function kbCharacterCollection(input: { projectId: string; characte
   if (error) return fail(error);
   touch(input.projectId);
   return { ok: true, id: data as string };
+}
+
+// ---- World (free; no model) ----------------------------------------------------------------
+export async function worldSetUp(input: { projectId: string; connectAll: boolean }): Promise<R> {
+  const sb = await supabaseServer();
+  const { data, error } = await sb.rpc("kb_world_collection", { p_project: input.projectId, p_connect_all: input.connectAll });
+  if (error) return fail(error);
+  const row = (data as { collection_id: string; connected: number }[])[0];
+  touch(input.projectId);
+  return { ok: true, id: row.collection_id, note: row.connected ? `Connected to ${row.connected} character${row.connected === 1 ? "" : "s"}.` : undefined };
+}
+
+/** Follow something in the world with free sources; checked once a day. */
+export async function kbWorldWatchAdd(input: { projectId: string; query: string; news: boolean; reactions: boolean }): Promise<R> {
+  const feeds = buildWatchFeeds(input.query, { news: input.news, reactions: input.reactions });
+  if (!feeds.length) return { ok: false, error: input.news || input.reactions ? "Type a few words to follow." : "Choose news, reactions or both." };
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("kb_world_watch_add", { p_project: input.projectId, p_query: input.query.trim(), p_feeds: feeds });
+  if (error) return fail(error);
+  const { data: rows } = await sb.from("knowledge_sources").select("id").eq("project_id", input.projectId).eq("watch_query", input.query.trim()).is("archived_at", null);
+  let found = 0; const problems: string[] = [];
+  for (const [i, r] of (rows ?? []).entries()) {
+    if (i > 0) await new Promise((res) => setTimeout(res, 5_500)); // free sources ask us to pace requests
+    const out = await refreshFeed(String(r.id), true);
+    if (out.ok) found += out.added ?? 0; else if (out.error) problems.push(out.error);
+  }
+  touch(input.projectId);
+  return { ok: true, note: `Following. ${found} item${found === 1 ? "" : "s"} found${problems.length ? `; ${problems[0]}` : ""}. Checked again once a day.` };
+}
+
+export async function kbWorldWatchRemove(input: { projectId: string; query: string }): Promise<R> {
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("kb_world_watch_remove", { p_project: input.projectId, p_query: input.query });
+  if (error) return fail(error);
+  touch(input.projectId);
+  return { ok: true, note: "Stopped following. Items you kept are still in World." };
+}
+
+export async function kbItemPin(input: { projectId: string; itemId: string; pinned: boolean }): Promise<R> {
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("kb_item_pin", { p_project: input.projectId, p_item: input.itemId, p_pinned: input.pinned });
+  if (error) return fail(error);
+  touch(input.projectId);
+  return { ok: true, note: input.pinned ? "Kept: it won't be trimmed." : "No longer kept." };
+}
+
+export async function decideImpression(input: { projectId: string; impressionId: string; accept: boolean; text?: string }): Promise<R> {
+  const sb = await supabaseServer();
+  const { error } = await sb.rpc("impression_decide", { p_project: input.projectId, p_impression: input.impressionId, p_accept: input.accept, p_text: input.text ?? null });
+  if (error) return fail(error);
+  touch(input.projectId);
+  return { ok: true, note: input.accept ? "Accepted. It will color this character's dialogue." : "Dismissed." };
 }

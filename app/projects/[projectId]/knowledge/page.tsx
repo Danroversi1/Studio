@@ -7,7 +7,7 @@ import { getProjectShell } from "@/lib/data";
 import { getKnowledge } from "@/lib/knowledge/data";
 import { aiConfigured } from "@/lib/ai/configured";
 
-export const maxDuration = 300;
+export const maxDuration = 120;
 
 export default async function KnowledgePage({ params, searchParams }: { params: Promise<{ projectId: string }>; searchParams: Promise<{ character?: string; world?: string }> }) {
   const { projectId } = await params;
@@ -30,7 +30,7 @@ export default async function KnowledgePage({ params, searchParams }: { params: 
       <KnowledgeBase projectId={projectId} canEdit={!!shell.caps.can_edit} sources={kb.sources} items={kb.items}
         collections={kb.collections} members={kb.members} references={kb.references} used={kb.usedByCharacters}
         characters={kb.characters} selectedCharacter={kb.characters.some((c) => c.id === character) ? character! : null}
-        searches={kb.searches} impressions={kb.impressions} aiReady={aiConfigured()} worldOpen={world === "1"} />
+        impressions={kb.impressions} aiReady={aiConfigured()} worldOpen={world === "1"} />
     </div>
   );
 }

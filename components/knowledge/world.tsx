@@ -1,11 +1,15 @@
 "use client";
-// World knowledge base: the world outside the story, gathered with a prompt window (web
-// search, cloud model) or added by hand, and the characters' impressions of it (qualia).
+// World knowledge base: the world outside the story, followed with FREE public sources (no
+// model, no tokens; checked once a day) or added by hand, and the characters' impressions
+// of it (qualia; the only model use, and only when she asks).
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { decideImpression, formImpression, worldKeep, worldSearch, worldSetUp } from "@/app/projects/[projectId]/world-kb-actions";
-import type { Impression, KCharacter, KCollection, WorldSearch } from "@/lib/knowledge/types";
+import { decideImpression, kbRefreshNow, kbWorldWatchAdd, kbWorldWatchRemove, worldSetUp } from "@/app/projects/[projectId]/knowledge-actions";
+import { formImpression } from "@/app/projects/[projectId]/world-kb-actions";
+import { ago, feedState } from "@/lib/knowledge/labels";
+import { WATCH_LIMIT } from "@/lib/knowledge/watch";
+import type { Impression, KCharacter, KCollection, KSource } from "@/lib/knowledge/types";
 
 type Res = { ok: true; id?: string; note?: string } | { ok: false; error: string };
 function useRun() {
@@ -23,8 +27,6 @@ function useRun() {
 }
 const Status = ({ msg }: { msg: { kind: "ok" | "error"; text: string } | null }) =>
   msg ? <p role={msg.kind === "error" ? "alert" : "status"} className={`text-xs ${msg.kind === "error" ? "text-danger" : "text-muted"}`}>{msg.text}</p> : null;
-const KIND = { news: "News", reaction: "Reaction", background: "Background" } as const;
-const when = (iso: string) => new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 
 /** The World card at the top of the Knowledge Base. */
 export function WorldCard({ projectId, canEdit, world, items, connected, total, open }: {
@@ -55,17 +57,17 @@ export function WorldCard({ projectId, canEdit, world, items, connected, total, 
   );
 }
 
-/** World view: what it is, who it reaches, and the prompt window. */
-export function WorldPanel({ projectId, canEdit, aiReady, characters, world, searches }: {
-  projectId: string; canEdit: boolean; aiReady: boolean; characters: KCharacter[]; world: KCollection; searches: WorldSearch[];
+/** World view: what it is, who it reaches, and what she follows (free, once a day). */
+export function WorldPanel({ projectId, canEdit, characters, world, sources, counts }: {
+  projectId: string; canEdit: boolean; characters: KCharacter[]; world: KCollection; sources: KSource[]; counts: Record<string, number>;
 }) {
   const s = useRun();
-  const [prompt, setPrompt] = useState("");
-  const [focus, setFocus] = useState("both");
-  const [period, setPeriod] = useState("month");
-  const [openSearch, setOpenSearch] = useState<string | null>(searches[0]?.id ?? null);
+  const [query, setQuery] = useState("");
+  const [news, setNews] = useState(true);
+  const [reactions, setReactions] = useState(true);
   const connected = characters.filter((c) => c.links.some((l) => l.collection_id === world.id));
   const missing = characters.filter((c) => !c.links.some((l) => l.collection_id === world.id));
+  const watches = [...new Set(sources.filter((x) => x.watch_query && x.kind === "feed").map((x) => x.watch_query as string))];
   return (
     <section className="panel flex flex-col gap-4 p-4" aria-labelledby="world-h">
       <div className="flex flex-col gap-1">
@@ -82,82 +84,55 @@ export function WorldPanel({ projectId, canEdit, aiReady, characters, world, sea
         </p>
       </div>
 
-      {canEdit && aiReady && (
-        <form className="flex flex-col gap-2 border border-line bg-panel-2 p-3" onSubmit={(e) => { e.preventDefault(); s.run(() => worldSearch({ projectId, prompt, focus, period }), undefined, (r) => setOpenSearch(r.id ?? null)); }}>
-          <label className="text-sm font-medium" htmlFor="world-prompt">What&apos;s happening in the world that you want to follow?</label>
-          <textarea id="world-prompt" className="field min-h-20 text-sm" value={prompt} maxLength={600} onChange={(e) => setPrompt(e.target.value)} required
-            placeholder="e.g. New rules on exporting AI chips, and how engineers and journalists are reacting" />
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <select className="field min-h-8 w-auto py-0 text-xs" value={focus} onChange={(e) => setFocus(e.target.value)} aria-label="Look for">
-              <option value="both">News and reactions</option><option value="news">News only</option><option value="reactions">Reactions only</option>
-            </select>
-            <select className="field min-h-8 w-auto py-0 text-xs" value={period} onChange={(e) => setPeriod(e.target.value)} aria-label="From">
-              <option value="week">Past week</option><option value="month">Past month</option><option value="year">Past year</option><option value="any">Any time</option>
-            </select>
-            <button className="btn-primary min-h-8 text-xs" disabled={s.pending}>{s.pending ? "Searching the world… (about a minute)" : "Search"}</button>
+      {canEdit && (
+        <form className="flex flex-col gap-2 border border-line bg-panel-2 p-3" onSubmit={(e) => { e.preventDefault(); s.run(() => kbWorldWatchAdd({ projectId, query, news, reactions }), undefined, () => setQuery("")); }}>
+          <label className="text-sm font-medium" htmlFor="world-q">Follow something in the world</label>
+          <div className="flex flex-wrap gap-2">
+            <input id="world-q" className="field min-w-0 flex-1" value={query} maxLength={200} onChange={(e) => setQuery(e.target.value)} required
+              placeholder='A few words, e.g. chip export rules, or "artificial intelligence"' disabled={watches.length >= WATCH_LIMIT} />
+            <button className="btn-primary min-h-10 text-xs" disabled={s.pending || watches.length >= WATCH_LIMIT}>{s.pending ? "Looking…" : "Follow"}</button>
           </div>
-          <p className="text-[11px] text-muted">Studio searches the web (Anthropic Claude with web search, in the cloud), then shows what it found with links. Nothing is kept until you choose. About 5–8¢ per search.</p>
+          <div className="flex flex-wrap items-center gap-4 text-xs">
+            <label className="flex items-center gap-1.5"><input type="checkbox" checked={news} onChange={(e) => setNews(e.target.checked)} /> News (GDELT world news index)</label>
+            <label className="flex items-center gap-1.5"><input type="checkbox" checked={reactions} onChange={(e) => setReactions(e.target.checked)} /> Reactions (Hacker News discussions)</label>
+          </div>
+          <p className="text-[11px] text-muted">
+            Free: these are open public sources, read without any AI. Checked once a day; each keeps only its newest 15 items unless you keep one.
+            {` ${watches.length} of ${WATCH_LIMIT} used.`}
+          </p>
           <Status msg={s.msg} />
         </form>
       )}
 
-      {searches.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <p className="text-[11px] font-semibold tracking-[0.1em] text-muted uppercase">Searches</p>
-          <ul className="flex flex-col divide-y divide-line border-y border-line">
-            {searches.map((x) => (
-              <li key={x.id} className="flex flex-col">
-                <button type="button" className="flex flex-wrap items-baseline justify-between gap-2 py-2 text-left text-sm" aria-expanded={openSearch === x.id} onClick={() => setOpenSearch(openSearch === x.id ? null : x.id)}>
-                  <span className="min-w-0 flex-1 truncate">&ldquo;{x.prompt}&rdquo;</span>
-                  <span className="text-xs text-muted">{x.status === "running" ? "Searching…" : x.status === "failed" ? "Failed" : `${x.results.length} found · ${x.results.filter((r) => r.kept).length} kept`} · {when(x.created_at)}</span>
-                </button>
-                {openSearch === x.id && <Findings projectId={projectId} canEdit={canEdit} search={x} onRerun={() => { setPrompt(x.prompt); setFocus(x.focus); setPeriod(x.period); }} />}
+      {watches.length > 0 && (
+        <ul className="flex flex-col divide-y divide-line border-y border-line">
+          {watches.map((w) => {
+            const feeds = sources.filter((x) => x.watch_query === w && x.kind === "feed");
+            return (
+              <li key={w} className="flex flex-col gap-1 py-2 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold">&ldquo;{w}&rdquo;</span>
+                  {canEdit && <button type="button" className="btn min-h-7 text-[11px]" disabled={s.pending}
+                    onClick={() => { if (window.confirm(`Stop following "${w}"? Items you kept stay in World.`)) s.run(() => kbWorldWatchRemove({ projectId, query: w })); }}>Stop following</button>}
+                </div>
+                {feeds.map((f) => {
+                  const st = feedState(f);
+                  return (
+                    <p key={f.id} className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                      <span className="w-20 shrink-0 font-medium text-text">{f.adapter === "gdelt" ? "News" : "Reactions"}</span>
+                      <span className={st.tone === "danger" ? "text-danger" : st.tone === "warn" ? "text-warn" : ""}>{st.label}</span>
+                      <span>· {counts[f.id] ?? 0} items · checked {ago(f.last_success_at)}</span>
+                      {f.status === "error" && f.last_error && <span className="text-danger">· {f.last_error}</span>}
+                      {canEdit && <button type="button" className="text-accent underline" disabled={s.pending} onClick={() => s.run(() => kbRefreshNow({ projectId, sourceId: f.id }))}>Check now</button>}
+                    </p>
+                  );
+                })}
               </li>
-            ))}
-          </ul>
-        </div>
+            );
+          })}
+        </ul>
       )}
     </section>
-  );
-}
-
-function Findings({ projectId, canEdit, search, onRerun }: { projectId: string; canEdit: boolean; search: WorldSearch; onRerun: () => void }) {
-  const s = useRun();
-  const [pick, setPick] = useState<Set<string>>(new Set(search.results.filter((r) => !r.kept).map((r) => r.id)));
-  if (search.status === "failed") return <p className="pb-3 text-sm text-danger">{search.error ?? "The search failed."} Nothing was saved.</p>;
-  if (search.status === "running") return <p className="pb-3 text-sm text-muted">Still searching…</p>;
-  if (!search.results.length) return <p className="pb-3 text-sm text-muted">Nothing useful came back. Try different words.</p>;
-  const left = search.results.filter((r) => !r.kept && pick.has(r.id));
-  return (
-    <div className="flex flex-col gap-2 pb-3">
-      <ul className="flex flex-col gap-2">
-        {search.results.map((r) => (
-          <li key={r.id} className={`flex gap-2 border p-2 text-sm ${r.kept ? "border-ok/50 bg-ok-soft/30" : "border-line"}`}>
-            {canEdit && !r.kept && <input type="checkbox" className="mt-1" checked={pick.has(r.id)} aria-label={`Keep ${r.title}`}
-              onChange={() => setPick((p) => { const n = new Set(p); if (n.has(r.id)) n.delete(r.id); else n.add(r.id); return n; })} />}
-            <div className="min-w-0 flex-1">
-              <p className="flex flex-wrap items-center gap-2">
-                <span className="border border-line px-1 text-[10px] font-semibold uppercase">{KIND[r.kind]}</span>
-                <a className="font-medium text-accent underline" href={r.url} target="_blank" rel="noopener noreferrer nofollow">{r.title}</a>
-                {r.kept && <span className="text-[10px] font-semibold text-ok uppercase">Kept</span>}
-              </p>
-              <p className="text-xs text-muted">{r.source || new URL(r.url).hostname}{r.published ? ` · ${r.published}` : " · date not shown"}</p>
-              <p className="mt-1">{r.summary}</p>
-              {r.why && <p className="text-xs text-muted">Why: {r.why}</p>}
-            </div>
-          </li>
-        ))}
-      </ul>
-      <p className="text-[11px] text-muted">Summaries are written by Studio&apos;s research assistant from the pages found. Open a link to check it. {search.searches} web searches · ${Number(search.cost_usd).toFixed(3)}</p>
-      {canEdit && (
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className="btn-primary min-h-8 text-xs" disabled={s.pending || !left.length}
-            onClick={() => s.run(() => worldKeep({ projectId, searchId: search.id, resultIds: left.map((r) => r.id) }))}>Keep {left.length || ""} in World</button>
-          <button type="button" className="btn min-h-8 text-xs" onClick={onRerun}>Search again with this prompt</button>
-        </div>
-      )}
-      <Status msg={s.msg} />
-    </div>
   );
 }
 
@@ -197,7 +172,7 @@ export function ItemImpressions({ projectId, canEdit, aiReady, itemId, itemVersi
           )}
           <button type="button" className="btn min-h-8 text-xs" disabled={s.pending || !who} onClick={() => s.run(() => formImpression({ projectId, characterId: who, itemId }), "Impression proposed.")}>
             {s.pending ? "Imagining…" : `How would ${name(who)} experience this?`}</button>
-          <span className="text-[11px] text-muted">Character agent (Anthropic Claude, cloud), from their profile.</span>
+          <span className="text-[11px] text-muted">Uses a small cloud AI model (Claude Haiku), only when you ask: about 0.1¢ each.</span>
         </div>
       )}
       <Status msg={s.msg} />

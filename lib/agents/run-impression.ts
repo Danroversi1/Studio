@@ -5,7 +5,7 @@ import { anthropicClient } from "../ai/client";
 import { costUsd, type Usage } from "../ai/pricing";
 import { supabaseService } from "../supabase/server";
 
-export const IMPRESSION_MODEL = "claude-sonnet-5-5" as const;
+export const IMPRESSION_MODEL = "claude-haiku-5-5" as const; // smallest model: low cost
 
 const SYSTEM = `You are a character agent in a young director's film studio (she is 13 and the author).
 Write how THIS character would experience one piece of news or commentary from the world: first person, present tense, 60–120 words.
@@ -22,12 +22,11 @@ export async function runImpression(runId: string, input: {
   let cost = 0;
   try {
     const res = await anthropicClient().messages.create({
-      model: IMPRESSION_MODEL, max_tokens: 600, system: SYSTEM,
+      model: IMPRESSION_MODEL, max_tokens: 350, system: SYSTEM,
       messages: [{ role: "user", content: `<data>${JSON.stringify({
         character: { name: input.name, description: input.description.slice(0, 1500), profile: input.profile },
         world_item: { title: input.item.title, source: input.item.source, date: input.item.date ?? "unknown", content: input.item.content.slice(0, 2500) },
       })}</data>\nHow does ${input.name} experience this?` }],
-      output_config: { effort: "low" },
     });
     usage = res.usage as Usage;
     cost = costUsd(IMPRESSION_MODEL, usage);

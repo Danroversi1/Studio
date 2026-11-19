@@ -24,25 +24,30 @@ select tests.ok((select connected from public.kb_world_collection(tests.v('W'), 
   and not exists (select 1 from public.character_knowledge where collection_id = tests.v('world') and character_id = tests.v('wb') and archived_at is null),
   'connecting everyone adds new characters and respects one she removed');
 
-select tests.put('s1', public.world_search_request(tests.v('W'), 'AI chip export rules and reactions', 'both', 'month'));
-select tests.throws(format($q$select public.world_search_request(%L, 'again', 'both', 'month')$q$, tests.v('W')), 'PT409', 'one search at a time');
-select tests.throws(format($q$select public.world_search_complete(%L, '[]', '[]', 0, '{}', 0, 'x')$q$, tests.v('s1')), '42501', 'only the server completes searches');
+select tests.ok(public.kb_world_watch_add(tests.v('W'), 'chip export rules', jsonb_build_array(
+  jsonb_build_object('adapter', 'gdelt', 'feed_url', 'https://api.gdeltproject.org/api/v2/doc/doc?query=x', 'title', 'News: chip export rules'),
+  jsonb_build_object('adapter', 'hn', 'feed_url', 'https://hn.algolia.com/api/v1/search_by_date?query=x', 'title', 'Reactions: chip export rules'))) = 2, 'a watch adds free news and reaction feeds');
+select tests.throws(format($q$select public.kb_world_watch_add(%L, 'x', jsonb_build_array(jsonb_build_object('adapter', 'gdelt', 'feed_url', 'https://evil.example/?', 'title', 't')))$q$, tests.v('W')),
+  '22023', 'only the free sources Studio builds');
+select tests.throws(format($q$select public.kb_world_watch_add(%L, 'Chip Export Rules', jsonb_build_array(jsonb_build_object('adapter', 'hn', 'feed_url', 'https://hn.algolia.com/api/v1/search_by_date?q', 'title', 't')))$q$, tests.v('W')),
+  '23505', 'no duplicate watches');
+select public.kb_world_watch_add(tests.v('W'), 'watch ' || g, jsonb_build_array(jsonb_build_object('adapter', 'hn', 'feed_url', 'https://hn.algolia.com/api/v1/search_by_date?query=' || g, 'title', 't')))
+  from generate_series(2, 10) g;
+select tests.throws(format($q$select public.kb_world_watch_add(%L, 'one more', jsonb_build_array(jsonb_build_object('adapter', 'hn', 'feed_url', 'https://hn.algolia.com/api/v1/search_by_date?q', 'title', 't')))$q$, tests.v('W')),
+  '22023', 'at most 10 watches');
+select tests.put('gsrc', (select id from public.knowledge_sources where project_id = tests.v('W') and adapter = 'gdelt'));
+select tests.ok((select count(*) from public.kb_collection_items(tests.v('W'), array[tests.v('world')])) = 0, 'empty until refreshed');
 :as_service
-select public.world_search_complete(tests.v('s1'), jsonb_build_array(
-  jsonb_build_object('id', 'r1', 'kind', 'news', 'title', 'Export rules tighten', 'url', 'https://news.example/a', 'source', 'Example News', 'published', '2026-11-10', 'summary', 'Rules tightened.', 'why', 'Johnny works in chips.'),
-  jsonb_build_object('id', 'r2', 'kind', 'reaction', 'title', 'Engineers react', 'url', 'https://blog.example/b', 'source', 'A blog', 'published', '', 'summary', 'Mixed feelings.', 'why', '')),
-  '["chip export rules"]', 2, '{}', 0.03, 'test');
+select public.kb_feed_ingest(tests.v('gsrc'), (select jsonb_agg(jsonb_build_object('key', 'k' || g, 'title', 'Story ' || g, 'url', 'https://news.example/' || g,
+  'published_at', (timestamptz '2026-11-01' + g * interval '1 hour')::text)) from generate_series(1, 20) g), '{}');
 :as_dir
-select tests.ok(public.world_search_keep(tests.v('W'), tests.v('s1'), array['r1', 'r2']) = 2, 'kept two findings');
-select tests.ok((select count(*) from public.kb_collection_items(tests.v('W'), array[tests.v('world')])) = 2, 'they are in World');
-select tests.ok((select content_status from public.knowledge_items i join public.knowledge_sources s on s.id = i.source_id where s.url = 'https://news.example/a') = 'ai_summary'
-  and (select published_at::date from public.knowledge_items i join public.knowledge_sources s on s.id = i.source_id where s.url = 'https://news.example/a') = date '2026-11-10'
-  and (select published_at from public.knowledge_items i join public.knowledge_sources s on s.id = i.source_id where s.url = 'https://blog.example/b') is null,
-  'summaries are labeled; a missing date stays unknown');
-select tests.ok(public.world_search_keep(tests.v('W'), tests.v('s1'), array['r1']) = 1
-  and (select count(*) from public.knowledge_sources where project_id = tests.v('W') and url = 'https://news.example/a') = 1, 'keeping twice does not duplicate');
-
-select tests.put('item', (select i.id from public.knowledge_items i join public.knowledge_sources s on s.id = i.source_id where s.url = 'https://news.example/a'));
+select public.kb_item_pin(tests.v('W'), (select id from public.knowledge_items where source_id = tests.v('gsrc') and dedupe_key = 'k1'), true);
+:as_service
+select tests.ok(public.kb_trim_watch(tests.v('gsrc')) = 4, 'trimming keeps the newest 15 plus kept items');
+:as_dir
+select tests.ok((select count(*) from public.knowledge_items where source_id = tests.v('gsrc') and archived_at is null) = 16
+  and exists (select 1 from public.knowledge_items where source_id = tests.v('gsrc') and dedupe_key = 'k1' and archived_at is null), 'the kept item survives');
+select tests.put('item', (select id from public.knowledge_items where source_id = tests.v('gsrc') and dedupe_key = 'k20'));
 select tests.put('run', public.impression_request(tests.v('W'), tests.v('wa'), tests.v('item')));
 :as_service
 select tests.put('imp', public.impression_complete(tests.v('run'), 'It feels like the ground moved.', 1, 0, '{}', 0.002, 'test'));
@@ -50,10 +55,12 @@ select tests.put('imp', public.impression_complete(tests.v('run'), 'It feels lik
 select tests.ok((select status from public.character_impressions where id = tests.v('imp')) = 'proposed', 'an impression is proposed');
 select public.impression_decide(tests.v('W'), tests.v('imp'), true, 'It feels like the floor tilted.');
 select tests.ok((select status || ':' || text from public.character_impressions where id = tests.v('imp')) = 'accepted:It feels like the floor tilted.', 'accepted with her edit');
+select public.kb_world_watch_remove(tests.v('W'), 'chip export rules');
+select tests.ok((select count(*) from public.kb_collection_items(tests.v('W'), array[tests.v('world')])) = 2,
+  'removing a watch keeps the kept item and the one with an impression');
 :as_outsider
-select tests.ok((select count(*) from public.world_searches where project_id = tests.v('W')) = 0
-  and (select count(*) from public.character_impressions where project_id = tests.v('W')) = 0, 'outsiders see nothing');
-select tests.throws(format($q$select public.world_search_request(%L, 'x y z', 'both', 'month')$q$, tests.v('W')), 'PT404', 'outsiders cannot search');
+select tests.ok((select count(*) from public.character_impressions where project_id = tests.v('W')) = 0, 'outsiders see nothing');
+select tests.throws(format($q$select public.kb_world_watch_add(%L, 'x y z', '[]')$q$, tests.v('W')), 'PT404', 'outsiders cannot follow');
 :as_owner
 select n, label from tests.results where not passed order by n;
 select count(*) filter (where passed) as passed, count(*) filter (where not passed) as failed from tests.results;

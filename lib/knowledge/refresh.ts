@@ -5,6 +5,7 @@ import { supabaseService } from "../supabase/server";
 import { detectSource, type AdapterId } from "./adapters";
 import { discoverFeeds, parseFeed, type ParsedFeed } from "./feed";
 import { FetchError, fetchPublic } from "./fetch";
+import { parseGdelt, parseHn } from "./watch";
 
 const FEED_ACCEPT = "application/rss+xml, application/atom+xml, application/rdf+xml, application/xml;q=0.9, text/xml;q=0.9, text/html;q=0.5, */*;q=0.1";
 
@@ -59,7 +60,8 @@ export async function refreshFeed(sourceId: string, force = false): Promise<Refr
     const headers: Record<string, string> = {};
     if (src.http_etag) headers["If-None-Match"] = src.http_etag;
     if (src.http_last_modified) headers["If-Modified-Since"] = src.http_last_modified;
-    const r = await fetchPublic(src.feed_url, { accept: FEED_ACCEPT, headers });
+    const isJson = src.adapter === "gdelt" || src.adapter === "hn";
+    const r = await fetchPublic(src.feed_url, { accept: isJson ? "application/json, text/plain;q=0.5" : FEED_ACCEPT, headers: isJson ? {} : headers, timeoutMs: 15_000 });
     if (r.status === 304) {
       await db.rpc("kb_feed_unchanged", { p_source: sourceId });
       return { ok: true, unchanged: true };
@@ -68,14 +70,22 @@ export async function refreshFeed(sourceId: string, force = false): Promise<Refr
     if (r.status === 404 || r.status === 410) return await fail(`The feed is no longer at this address (${r.status}).`);
     if (r.status === 429) return await fail("The site asked us to slow down (429). Studio will try again later.");
     if (r.status >= 400) return await fail(`The site answered with an error (${r.status}).`);
-    const feed = parseFeed(r.body);
-    if (!feed) return await fail("This address no longer returns a feed.");
-    const items = feed.items.slice(0, 100);
-    const { data, error } = await db.rpc("kb_feed_ingest", {
-      p_source: sourceId, p_items: items,
-      p_meta: { title: feed.title, site_url: feed.site_url, etag: r.etag, last_modified: r.lastModified },
-    });
+    let items; let meta: Record<string, unknown> = { etag: r.etag, last_modified: r.lastModified };
+    if (src.adapter === "gdelt" || src.adapter === "hn") {
+      // Free World-watch sources answer JSON; read deterministically (no model).
+      const parsed = src.adapter === "gdelt" ? parseGdelt(r.body) : parseHn(r.body);
+      if (!Array.isArray(parsed)) return await fail(parsed.error);
+      items = parsed;
+    } else {
+      const feed = parseFeed(r.body);
+      if (!feed) return await fail("This address no longer returns a feed.");
+      items = feed.items.slice(0, 100);
+      meta = { ...meta, title: feed.title, site_url: feed.site_url };
+    }
+    const { data, error } = await db.rpc("kb_feed_ingest", { p_source: sourceId, p_items: items, p_meta: meta });
     if (error) return await fail("The new items couldn't be saved.");
+    // Watches stay small: only the newest items are kept (her kept items never trimmed).
+    if (src.adapter === "gdelt" || src.adapter === "hn") await db.rpc("kb_trim_watch", { p_source: sourceId });
     const res = (data ?? {}) as { new?: number; changed?: number };
     return { ok: true, added: res.new ?? 0, changed: res.changed ?? 0 };
   } catch (e) {
@@ -87,14 +97,21 @@ export async function refreshFeed(sourceId: string, force = false): Promise<Refr
 export async function refreshDue(opts: { projectId?: string; limit?: number; budgetMs?: number } = {}): Promise<{ checked: number; ok: number; failed: number }> {
   const db = supabaseService();
   // Feeds of deleted films are never refreshed.
-  let q = db.from("knowledge_sources").select("id, projects!inner(status)").neq("projects.status", "deleted").eq("kind", "feed").is("archived_at", null).is("disconnected_at", null)
+  let q = db.from("knowledge_sources").select("id, adapter, projects!inner(status)").neq("projects.status", "deleted").eq("kind", "feed").is("archived_at", null).is("disconnected_at", null)
     .eq("paused", false).lte("next_refresh_at", new Date().toISOString()).order("next_refresh_at", { ascending: true }).limit(opts.limit ?? 25);
   if (opts.projectId) q = q.eq("project_id", opts.projectId);
   const { data } = await q;
   const started = Date.now();
   let ok = 0, failed = 0, checked = 0;
+  let lastGdelt = 0;
   for (const row of data ?? []) {
     if (Date.now() - started > (opts.budgetMs ?? 45_000)) break;
+    // The free news index asks for at most one request every 5 seconds.
+    if (row.adapter === "gdelt") {
+      const wait = 5_500 - (Date.now() - lastGdelt);
+      if (wait > 0) await new Promise((res) => setTimeout(res, wait));
+      lastGdelt = Date.now();
+    }
     const r = await refreshFeed(String(row.id));
     if (r.skipped) continue;
     checked++;

@@ -4,12 +4,12 @@ export interface KSource {
   url: string | null; feed_url: string | null; origin: string | null; asset_id: string | null; reference_id: string | null;
   director_note: string | null; paused: boolean; disconnected_at: string | null; refresh_hours: number | null;
   next_refresh_at: string | null; last_attempt_at: string | null; last_success_at: string | null; last_error: string | null;
-  failures: number; created_at: string; updated_at: string;
+  failures: number; created_at: string; updated_at: string; watch_query?: string | null;
 }
 export interface KItem {
   id: string; source_id: string; title: string; url: string | null; author: string | null; published_at: string | null;
   retrieved_at: string; content: string; content_status: string; version: number; director_note: string | null;
-  verification: string; verification_note: string | null; updated_at: string;
+  verification: string; verification_note: string | null; updated_at: string; pinned?: boolean;
 }
 export interface KCollection { id: string; name: string; description: string | null; character_id?: string | null; kind?: string }
 export interface KMember { collection_id: string; source_id: string | null; item_id: string | null }
@@ -21,6 +21,4 @@ export function collectionsOf(item: Pick<KItem, "id" | "source_id">, members: KM
 
 export interface KCharacter { id: string; name: string; thumb: import("../thumb").ThumbSource; links: { collection_id: string; purpose: string; temporal: string }[] }
 
-export interface WorldFinding { id: string; kind: "news" | "reaction" | "background"; title: string; url: string; source: string; published: string; summary: string; why: string; page_age: string | null; kept?: boolean }
-export interface WorldSearch { id: string; prompt: string; focus: string; period: string; status: string; results: WorldFinding[]; searches: number; cost_usd: number; error: string | null; created_at: string }
 export interface Impression { id: string; character_id: string; item_id: string; item_version: number; text: string; status: "proposed" | "accepted" | "dismissed"; created_at: string }

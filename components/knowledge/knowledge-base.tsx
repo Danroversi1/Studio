@@ -14,7 +14,8 @@ import { saveKnowledgeLink } from "@/app/projects/[projectId]/connect-actions";
 import { PURPOSE_LABEL, TEMPORAL_LABEL, type Purpose, type Temporal } from "@/lib/knowledge/eligibility";
 import { ThumbView } from "@/components/thumb-view";
 import { ItemImpressions, WorldCard, WorldPanel } from "./world";
-import type { Impression, WorldSearch } from "@/lib/knowledge/types";
+import type { Impression } from "@/lib/knowledge/types";
+import { kbItemPin } from "@/app/projects/[projectId]/knowledge-actions";
 import { docTypeOf, extractText, uploadDocument } from "@/lib/knowledge/documents";
 import { CONTENT_STATUS, KIND_LABEL, REFRESH_CHOICES, STATUS, VERIFICATION, ago, feedState } from "@/lib/knowledge/labels";
 
@@ -471,6 +472,11 @@ function ItemRow({ projectId, item, source, collections, members, canEdit, imp }
         {item.version > 1 && <span>· Version {item.version}</span>}
         {st && <Badge tone={st.tone}>{st.label}</Badge>}
         {item.verification !== "unverified" && <Badge tone={item.verification === "checked" ? "ok" : "warn"}>{VERIFICATION[item.verification]}</Badge>}
+        {source.watch_query && (canEdit
+          ? <button type="button" className={`border px-1.5 py-0.5 text-[10px] font-semibold uppercase ${item.pinned ? "border-ok text-ok" : "border-line"}`} disabled={s.pending}
+              title={item.pinned ? "Kept: never trimmed" : "Keep it so daily trimming never removes it"}
+              onClick={() => s.run(() => kbItemPin({ projectId, itemId: item.id, pinned: !item.pinned }))}>{item.pinned ? "Kept" : "Keep"}</button>
+          : item.pinned ? <Badge tone="ok">Kept</Badge> : null)}
         {inCols.map((c) => <span key={c} className="border border-line px-1.5 py-0.5 text-[10px]">{collections.find((x) => x.id === c)?.name}</span>)}
       </p>
       {imp && !open && imp.impressions.some((i) => i.item_id === item.id && (!imp.only || i.character_id === imp.only)) && (
@@ -533,11 +539,11 @@ function ItemRow({ projectId, item, source, collections, members, canEdit, imp }
   );
 }
 
-export function KnowledgeBase({ projectId, canEdit, sources, items, collections, members, references, used, characters, selectedCharacter, searches, impressions, aiReady, worldOpen }: {
+export function KnowledgeBase({ projectId, canEdit, sources, items, collections, members, references, used, characters, selectedCharacter, impressions, aiReady, worldOpen }: {
   projectId: string; canEdit: boolean; sources: KSource[]; items: KItem[]; collections: KCollection[]; members: KMember[];
   references: { id: string; title: string | null; source_url: string | null; source_domain: string | null }[]; used: Record<string, number>;
   characters: KCharacter[]; selectedCharacter: string | null;
-  searches: WorldSearch[]; impressions: Impression[]; aiReady: boolean; worldOpen: boolean;
+  impressions: Impression[]; aiReady: boolean; worldOpen: boolean;
 }) {
   const router = useRouter();
   const [active, setActive] = useState<string | null>(null);
@@ -582,12 +588,12 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
     <div className="flex flex-col gap-6">
       <WorldCard projectId={projectId} canEdit={canEdit} world={world} items={world ? counts[world.id] ?? 0 : 0} open={inWorld}
         connected={world ? characters.filter((c) => c.links.some((l) => l.collection_id === world.id)).length : 0} total={characters.length} />
-      {inWorld && world && <WorldPanel projectId={projectId} canEdit={canEdit} aiReady={aiReady} characters={characters} world={world} searches={searches} />}
+      {inWorld && world && <WorldPanel projectId={projectId} canEdit={canEdit} characters={characters} world={world} sources={sources} counts={itemCounts} />}
       {!inWorld && <CharacterStrip projectId={projectId} canEdit={canEdit} characters={characters} collections={collections} counts={counts} selected={char?.id ?? null} />}
       {char && <CharacterPanel projectId={projectId} canEdit={canEdit} character={char} collections={collections} counts={counts} />}
       {canEdit && <AddResearch key={inWorld ? "world" : own?.id ?? "all"} projectId={projectId} collections={collections} references={references} preset={preset} />}
       {!char && !inWorld && (canEdit || collections.length > 0) && <Collections projectId={projectId} collections={collections} counts={counts} used={used} active={active} onActive={setActive} />}
-      {!char && !inWorld && <Feeds projectId={projectId} feeds={sources.filter((s) => s.kind === "feed")} collections={collections} members={members} itemCounts={itemCounts} />}
+      {!char && !inWorld && <Feeds projectId={projectId} feeds={sources.filter((s) => s.kind === "feed" && !s.watch_query)} collections={collections} members={members} itemCounts={itemCounts} />}
       <section className="panel flex flex-col gap-3 p-4" aria-labelledby="lib-h">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 id="lib-h" className="display text-lg">{inWorld ? "In the World" : char ? `What ${char.name} can draw on` : `Library ${active ? `· ${collections.find((c) => c.id === active)?.name}` : ""}`}</h2>

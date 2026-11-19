@@ -1,11 +1,12 @@
--- STUDIO — The World knowledge base, World searches and character impressions (qualia).
+-- STUDIO — The World knowledge base, free World watches and character impressions (qualia).
 -- Additive and backward compatible.
 --
 -- * World: one special collection per film for the world outside the story (news, events,
 --   how people react). It's research: nothing in it becomes story fact unless she decides.
--- * World searches: she writes a prompt; the server searches the web (Anthropic web search)
---   and proposes findings with their real links. Nothing is kept until she picks it.
---   Summaries are written by Studio's research assistant and labeled that way.
+-- * World watches: she types what to follow; Studio follows it with FREE public sources
+--   (GDELT news index, Hacker News discussion search) as feeds checked once a day. No model,
+--   no tokens. At most 10 watches per film, and each watch keeps only its newest 15 items per
+--   source (items she keeps, or that a character has an impression of, are never trimmed).
 -- * Impressions: a character's first-person experience of one World item, written by the
 --   character agent from her character profile. Proposed until she accepts; accepted ones
 --   color that character's dialogue (only when the item is available in the scene).
@@ -21,27 +22,11 @@ alter table public.knowledge_items drop constraint if exists knowledge_items_con
 alter table public.knowledge_items add constraint knowledge_items_content_status_check
   check (content_status in ('full_text', 'excerpt', 'summary', 'ai_summary', 'metadata_only'));
 
-create table if not exists public.world_searches (
-  id uuid primary key default gen_random_uuid(),
-  project_id uuid not null references public.projects(id) on delete cascade,
-  prompt text not null check (length(btrim(prompt)) between 3 and 600),
-  focus text not null default 'both' check (focus in ('news', 'reactions', 'both')),
-  period text not null default 'month' check (period in ('week', 'month', 'year', 'any')),
-  status text not null default 'running' check (status in ('running', 'done', 'failed')),
-  -- [{id, kind, title, url, source, published, summary, why, kept}]
-  results jsonb not null default '[]'::jsonb check (jsonb_typeof(results) = 'array' and length(results::text) <= 200000),
-  queries jsonb not null default '[]'::jsonb,
-  searches integer not null default 0,
-  cost_usd numeric(10,4) not null default 0,
-  error text check (error is null or length(error) <= 500),
-  agent_run_id uuid references public.agent_runs(id) on delete set null,
-  created_by uuid not null references auth.users(id),
-  created_at timestamptz not null default now(),
-  finished_at timestamptz
-);
-create index if not exists world_searches_project_idx on public.world_searches (project_id, created_at desc);
-
-alter table public.knowledge_sources add column if not exists search_id uuid references public.world_searches(id) on delete set null;
+alter table public.knowledge_sources drop constraint if exists knowledge_sources_adapter_check;
+alter table public.knowledge_sources add constraint knowledge_sources_adapter_check check (adapter in ('manual', 'rss', 'bluesky', 'mastodon', 'gdelt', 'hn'));
+alter table public.knowledge_sources add column if not exists watch_query text check (watch_query is null or length(btrim(watch_query)) between 2 and 200);
+alter table public.knowledge_items add column if not exists pinned boolean not null default false;
+grant select (watch_query) on public.knowledge_sources to authenticated;
 
 create table if not exists public.character_impressions (
   id uuid primary key default gen_random_uuid(),
@@ -62,7 +47,7 @@ create index if not exists character_impressions_idx on public.character_impress
 
 do $$ declare t text;
 begin
-  foreach t in array array['world_searches', 'character_impressions'] loop
+  foreach t in array array['character_impressions'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists %I on public.%I', t || '_read', t);
     execute format('create policy %I on public.%I for select to authenticated using (public.studio_level(project_id) >= 2)', t || '_read', t);
@@ -72,7 +57,6 @@ begin
     execute format('grant all on public.%I to service_role', t);
   end loop;
 end $$;
-grant select (search_id) on public.knowledge_sources to authenticated;
 
 -- ---- World --------------------------------------------------------------------------------
 /** The film's World collection (made on first use). With p_connect_all, connects it to every
@@ -104,102 +88,81 @@ begin
   return query select v_id, n;
 end $$;
 
-/** Starts a World search (budget-checked, one at a time, at most 30 a day per film). */
-create or replace function public.world_search_request(p_project uuid, p_prompt text, p_focus text, p_period text)
-returns uuid
-language plpgsql security definer set search_path = '' as $$
-declare v_uid uuid; v_run uuid; v_id uuid;
-begin
-  v_uid := public.studio_require(p_project, 3, 'search the world');
-  if coalesce(length(btrim(p_prompt)), 0) not between 3 and 600 then raise exception 'Write what you want to follow (up to 600 characters).' using errcode = '22023'; end if;
-  if p_focus not in ('news', 'reactions', 'both') or p_period not in ('week', 'month', 'year', 'any') then raise exception 'Unknown search option.' using errcode = '22023'; end if;
-  if exists (select 1 from public.world_searches where project_id = p_project and status = 'running' and created_at > now() - interval '4 minutes') then
-    raise exception 'A World search is already running. Wait for it to finish.' using errcode = 'PT409';
-  end if;
-  if (select count(*) from public.world_searches where project_id = p_project and created_at > now() - interval '1 day') >= 30 then
-    raise exception 'That''s 30 World searches today. Try again tomorrow.' using errcode = 'PT409';
-  end if;
-  if public.studio_ai_budget_usd(p_project) - public.studio_ai_spent_month_usd(p_project) < 0.20 then
-    raise exception 'The team has used this month''s AI budget. Ask your Executive Producer.' using errcode = 'PT402';
-  end if;
-  insert into public.agent_runs (project_id, domain, status, task_type, input_payload, model_provider, prompt_version, requested_by, started_at)
-  values (p_project, 'writer', 'running', 'world_search', jsonb_build_object('prompt', left(btrim(p_prompt), 600)), 'anthropic', 'world-search-v1', v_uid, now())
-  returning id into v_run;
-  insert into public.world_searches (project_id, prompt, focus, period, agent_run_id, created_by)
-  values (p_project, btrim(p_prompt), p_focus, p_period, v_run, v_uid) returning id into v_id;
-  return v_id;
-end $$;
-
-/** SERVICE ROLE ONLY. */
-create or replace function public.world_search_complete(p_search uuid, p_results jsonb, p_queries jsonb, p_searches integer, p_usage jsonb, p_cost_usd numeric, p_model text)
-returns void
-language plpgsql security definer set search_path = '' as $$
-declare s public.world_searches; r public.agent_runs;
-begin
-  select * into s from public.world_searches where id = p_search for update;
-  if s.id is null or s.status <> 'running' then raise exception 'Search isn''t running.' using errcode = 'PT409'; end if;
-  if jsonb_typeof(p_results) <> 'array' or jsonb_array_length(p_results) > 25 then raise exception 'Unexpected results.' using errcode = '22023'; end if;
-  select * into r from public.agent_runs where id = s.agent_run_id for update;
-  if r.id is not null then
-    perform public.studio_record_ai_charge(r, p_usage, p_cost_usd);
-    update public.agent_runs set status = 'succeeded', completed_at = now(), model_name = left(p_model, 100), token_usage = coalesce(p_usage, '{}'::jsonb),
-           output_payload = jsonb_build_object('search_id', s.id, 'results', jsonb_array_length(p_results)) where id = r.id;
-  end if;
-  update public.world_searches set status = 'done', results = p_results, queries = coalesce(p_queries, '[]'::jsonb),
-         searches = coalesce(p_searches, 0), cost_usd = coalesce(p_cost_usd, 0), finished_at = now() where id = s.id;
-end $$;
-
-/** SERVICE ROLE ONLY. */
-create or replace function public.world_search_fail(p_search uuid, p_error text, p_usage jsonb, p_cost_usd numeric)
-returns void
-language plpgsql security definer set search_path = '' as $$
-declare s public.world_searches; r public.agent_runs;
-begin
-  select * into s from public.world_searches where id = p_search for update;
-  if s.id is null then return; end if;
-  select * into r from public.agent_runs where id = s.agent_run_id for update;
-  if r.id is not null then
-    if coalesce(p_cost_usd, 0) > 0 then perform public.studio_record_ai_charge(r, p_usage, p_cost_usd); end if;
-    update public.agent_runs set status = 'failed', completed_at = now(), error_message = left(coalesce(p_error, ''), 1000) where id = r.id;
-  end if;
-  update public.world_searches set status = 'failed', error = left(coalesce(p_error, 'The search failed.'), 500), cost_usd = coalesce(p_cost_usd, 0), finished_at = now()
-   where id = s.id and status = 'running';
-end $$;
-
-/** Keeps chosen findings in World: each becomes a saved link with the research assistant's
- *  summary (labeled as such). A link already in the film is reused, not duplicated. */
-create or replace function public.world_search_keep(p_project uuid, p_search uuid, p_result_ids text[])
+/** Follow something in the world for free: one feed per chosen free source (news / reactions),
+ *  checked once a day. p_feeds: [{adapter: gdelt|hn, feed_url, title}] built by the server. */
+create or replace function public.kb_world_watch_add(p_project uuid, p_query text, p_feeds jsonb)
 returns integer
 language plpgsql security definer set search_path = '' as $$
-declare v_uid uuid; s public.world_searches; v_world uuid; f jsonb; v_src uuid; v_pub timestamptz; n integer := 0; v_results jsonb;
+declare v_uid uuid; v_world uuid; f jsonb; v_id uuid; n integer := 0; v_q text := btrim(coalesce(p_query, ''));
 begin
-  v_uid := public.studio_require(p_project, 3, 'keep World findings');
-  select * into s from public.world_searches where id = p_search and project_id = p_project for update;
-  if s.id is null or s.status <> 'done' then raise exception 'Search not found.' using errcode = 'PT404'; end if;
+  v_uid := public.studio_require(p_project, 3, 'follow the world');
+  if length(v_q) not between 2 and 200 then raise exception 'Type a few words to follow (up to 200 characters).' using errcode = '22023'; end if;
+  if jsonb_typeof(p_feeds) <> 'array' or jsonb_array_length(p_feeds) not between 1 and 2 then raise exception 'Choose news, reactions or both.' using errcode = '22023'; end if;
+  if exists (select 1 from public.knowledge_sources where project_id = p_project and archived_at is null and lower(watch_query) = lower(v_q)) then
+    raise exception 'You''re already following that.' using errcode = '23505';
+  end if;
+  if (select count(distinct lower(watch_query)) from public.knowledge_sources where project_id = p_project and archived_at is null and watch_query is not null) >= 10 then
+    raise exception 'You can follow up to 10 things. Remove one first.' using errcode = '22023';
+  end if;
   select collection_id into v_world from public.kb_world_collection(p_project, false);
-  for f in select x from jsonb_array_elements(s.results) x where x ->> 'id' = any(p_result_ids) loop
-    continue when coalesce(f ->> 'url', '') !~ '^https?://' or coalesce(btrim(f ->> 'title'), '') = '';
-    select id into v_src from public.knowledge_sources where project_id = p_project and archived_at is null and kind = 'link' and url = f ->> 'url' limit 1;
-    if v_src is null then
-      v_pub := case when (f ->> 'published') ~ '^\d{4}-\d{2}-\d{2}$' then ((f ->> 'published') || 'T12:00:00Z')::timestamptz end;
-      insert into public.knowledge_sources (project_id, kind, status, title, url, origin, search_id, created_by)
-      values (p_project, 'link', 'link_saved', left(f ->> 'title', 300), left(f ->> 'url', 2000), left(nullif(f ->> 'source', ''), 200), s.id, v_uid)
-      returning id into v_src;
-      perform public.kb_put_item(p_project, v_src, 'main', left(f ->> 'title', 500), left(f ->> 'url', 2000), null, v_pub,
-        left(concat_ws(E'\n\n', nullif(f ->> 'summary', ''), case when nullif(f ->> 'why', '') is not null then 'Why it may matter: ' || (f ->> 'why') end), 4000), 'ai_summary');
-      update public.knowledge_items set verification = 'unverified',
-             verification_note = 'Found by a World search ("' || left(s.prompt, 120) || '"). The summary was written by Studio''s research assistant'
-               || case when v_pub is not null then ' and the date is as reported for the page' else '' end || '. Open the link to check it.'
-       where source_id = v_src and dedupe_key = 'main';
-    end if;
-    insert into public.knowledge_collection_members (project_id, collection_id, source_id, created_by)
-    values (p_project, v_world, v_src, v_uid) on conflict do nothing;
+  for f in select * from jsonb_array_elements(p_feeds) loop
+    if f ->> 'adapter' = 'gdelt' and (f ->> 'feed_url') !~ '^https://api\.gdeltproject\.org/api/v2/doc/doc\?' then raise exception 'Unexpected news address.' using errcode = '22023'; end if;
+    if f ->> 'adapter' = 'hn' and (f ->> 'feed_url') !~ '^https://hn\.algolia\.com/api/v1/search_by_date\?' then raise exception 'Unexpected discussion address.' using errcode = '22023'; end if;
+    if f ->> 'adapter' not in ('gdelt', 'hn') then raise exception 'Unknown free source.' using errcode = '22023'; end if;
+    insert into public.knowledge_sources (project_id, kind, adapter, status, title, feed_url, origin, refresh_hours, next_refresh_at, watch_query, created_by)
+    values (p_project, 'feed', f ->> 'adapter', 'pending', left(coalesce(nullif(f ->> 'title', ''), v_q), 300), f ->> 'feed_url',
+            case f ->> 'adapter' when 'gdelt' then 'GDELT news index' else 'Hacker News' end, 24, now(), v_q, v_uid)
+    returning id into v_id;
+    insert into public.knowledge_collection_members (project_id, collection_id, source_id, created_by) values (p_project, v_world, v_id, v_uid);
     n := n + 1;
   end loop;
-  select coalesce(jsonb_agg(case when x ->> 'id' = any(p_result_ids) then x || '{"kept": true}'::jsonb else x end), '[]'::jsonb)
-    into v_results from jsonb_array_elements(s.results) x;
-  update public.world_searches set results = v_results where id = s.id;
-  perform public.studio_audit(p_project, v_uid, 'user', 'knowledge.world_kept', 'world_search', s.id, jsonb_build_object('kept', n));
+  perform public.studio_audit(p_project, v_uid, 'user', 'knowledge.world_watch_added', 'project', p_project, jsonb_build_object('query', v_q));
+  return n;
+end $$;
+
+/** Stops following: the watch stops refreshing and its items are trimmed away, except items
+ *  she kept or that a character has an impression of, which stay in World. Frees the slot. */
+create or replace function public.kb_world_watch_remove(p_project uuid, p_query text)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_uid uuid; r record;
+begin
+  v_uid := public.studio_require(p_project, 3, 'follow the world');
+  for r in select id from public.knowledge_sources where project_id = p_project and archived_at is null and lower(watch_query) = lower(btrim(p_query)) loop
+    update public.knowledge_items i set archived_at = now()
+     where i.source_id = r.id and i.archived_at is null and not i.pinned
+       and not exists (select 1 from public.character_impressions c where c.item_id = i.id and c.status <> 'dismissed');
+    update public.knowledge_sources set disconnected_at = coalesce(disconnected_at, now()), watch_query = null,
+           title = left('Stopped: ' || title, 300), updated_at = now() where id = r.id;
+  end loop;
+end $$;
+
+/** Keep (pin) an item so trimming never removes it. */
+create or replace function public.kb_item_pin(p_project uuid, p_item uuid, p_pinned boolean)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_uid uuid;
+begin
+  v_uid := public.studio_require(p_project, 3, 'keep research');
+  update public.knowledge_items set pinned = coalesce(p_pinned, false), updated_at = now() where id = p_item and project_id = p_project;
+  if not found then raise exception 'Research not found.' using errcode = 'PT404'; end if;
+end $$;
+
+/** SERVICE ROLE ONLY. Keeps a watch feed small: only the newest 15 items stay in the library
+ *  (kept items and ones with impressions are never trimmed; trimmed rows are archived, not
+ *  deleted, so earlier drafts keep their record). */
+create or replace function public.kb_trim_watch(p_source uuid)
+returns integer
+language plpgsql security definer set search_path = '' as $$
+declare n integer;
+begin
+  with ranked as (
+    select i.id, row_number() over (order by coalesce(i.published_at, i.retrieved_at) desc) rn
+      from public.knowledge_items i
+     where i.source_id = p_source and i.archived_at is null and not i.pinned
+       and not exists (select 1 from public.character_impressions c where c.item_id = i.id and c.status <> 'dismissed'))
+  update public.knowledge_items set archived_at = now() where id in (select id from ranked where rn > 15);
+  get diagnostics n = row_count;
   return n;
 end $$;
 
@@ -261,13 +224,12 @@ end $$;
 
 do $$ declare f text;
 begin
-  foreach f in array array['kb_world_collection(uuid, boolean)', 'world_search_request(uuid, text, text, text)', 'world_search_keep(uuid, uuid, text[])',
-    'impression_request(uuid, uuid, uuid)', 'impression_decide(uuid, uuid, boolean, text)'] loop
+  foreach f in array array['kb_world_collection(uuid, boolean)', 'kb_world_watch_add(uuid, text, jsonb)', 'kb_world_watch_remove(uuid, text)',
+    'kb_item_pin(uuid, uuid, boolean)', 'impression_request(uuid, uuid, uuid)', 'impression_decide(uuid, uuid, boolean, text)'] loop
     execute format('revoke all on function public.%s from public, anon', f);
     execute format('grant execute on function public.%s to authenticated, service_role', f);
   end loop;
-  foreach f in array array['world_search_complete(uuid, jsonb, jsonb, integer, jsonb, numeric, text)', 'world_search_fail(uuid, text, jsonb, numeric)',
-    'impression_complete(uuid, text, integer, integer, jsonb, numeric, text)'] loop
+  foreach f in array array['kb_trim_watch(uuid)', 'impression_complete(uuid, text, integer, integer, jsonb, numeric, text)'] loop
     execute format('revoke all on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to service_role', f);
   end loop;
