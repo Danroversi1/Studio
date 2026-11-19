@@ -63,6 +63,6 @@ export function feedsForTopic(t: WatchTopic, opts: { news: boolean; reactions: b
   const feeds: { adapter: "rss" | "hn" | "weather"; feed_url: string; title: string }[] = [];
   if (t.weather && opts.weatherAt) feeds.push({ adapter: "weather", feed_url: weatherUrl(opts.weatherAt.lat, opts.weatherAt.lon), title: `Weather: ${t.weather}` });
   if (opts.news && t.news) feeds.push({ adapter: "rss", feed_url: `${NEWS_SEARCH}?${new URLSearchParams({ q: `${t.news} when:7d`, hl: "en-US", gl: "US", ceid: "US:en" })}`, title: `News: ${t.label}` });
-  if (opts.reactions && t.reactions) feeds.push({ adapter: "hn", feed_url: `${HN_SEARCH}?${new URLSearchParams({ query: t.reactions, tags: "(story,comment)", hitsPerPage: String(PER_SOURCE) })}`, title: `Reactions: ${t.label}` });
+  if (opts.reactions && t.reactions) feeds.push({ adapter: "hn", feed_url: `${HN_SEARCH}?${new URLSearchParams({ query: t.reactions, tags: "story", hitsPerPage: String(PER_SOURCE) })}`, title: `Reactions: ${t.label}` });
   return feeds;
 }

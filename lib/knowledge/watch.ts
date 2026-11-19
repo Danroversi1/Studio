@@ -29,7 +29,7 @@ export function buildWatchFeeds(query: string, opts: { news: boolean; reactions:
     out.push({ adapter: "rss", feed_url: `${NEWS_SEARCH}?${p}`, title: `News: ${q}` });
   }
   if (opts.reactions) {
-    const p = new URLSearchParams({ query: q, tags: "(story,comment)", hitsPerPage: String(PER_SOURCE) });
+    const p = new URLSearchParams({ query: q, tags: "story", hitsPerPage: String(PER_SOURCE) });
     out.push({ adapter: "hn", feed_url: `${HN_SEARCH}?${p}`, title: `Reactions: ${q}` });
   }
   return out;
