@@ -1,6 +1,7 @@
 // SERVER ONLY. What the Connections desk and the dialogue process need to know about
 // knowledge → character connections, scene time and the outline. No model.
 import { byRole, roleOf } from "@/lib/characters/roles";
+import { countAppearances } from "@/lib/characters/appearances";
 import { splitScenes } from "../dialogue/scenes";
 import { PARTS } from "../scene-plan";
 import { sortByOrder } from "../notebook-order";
@@ -49,7 +50,8 @@ export async function getConnectContext(projectId: string) {
   for (const r of (inCols ?? []) as { collection_id: string }[]) counts[r.collection_id] = (counts[r.collection_id] ?? 0) + 1;
   const scenes = splitScenes(script.body).map((s) => ({ key: s.key, heading: s.heading, beatId: s.beatId, characters: s.characters }));
   return {
-    characters: byRole(((chars.data ?? []) as { id: string; name: string; metadata: Record<string, unknown> | null }[]).map((c) => ({ id: c.id, name: c.name, role: roleOf(c.metadata) }))),
+    characters: byRole(((chars.data ?? []) as { id: string; name: string; metadata: Record<string, unknown> | null }[]).map((c) => ({ id: c.id, name: c.name, role: roleOf(c.metadata) })),
+      countAppearances(script.body, ((chars.data ?? []) as { name: string }[]).map((c) => c.name))),
     collections: ((cols.data ?? []) as { id: string; name: string; description: string | null }[]).map((c) => ({ ...c, count: counts[c.id] ?? 0 })),
     links: (links.data ?? []) as KnowledgeLink[],
     contexts: (ctx.data ?? []) as SceneContext[],

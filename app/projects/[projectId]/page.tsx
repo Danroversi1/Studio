@@ -10,7 +10,7 @@ import { Flash } from "@/components/flash";
 import { IconArrowUpRight, IconCharacter, IconLink, IconLocation, IconPlus, IconSparkle, IconStory } from "@/components/icons";
 import { SubmitButton } from "@/components/ui";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
-import { getAiBudget, getLatestVersions, getProjectShell, getStoryReferences, getWorld, type VersionStatus } from "@/lib/data";
+import { getAiBudget, getAppearances, getLatestVersions, getProjectShell, getStoryReferences, getWorld, type VersionStatus } from "@/lib/data";
 import { WorldLine } from "@/components/world-line";
 import { ThumbView } from "@/components/thumb-view";
 import { thumbOf } from "@/lib/thumb";
@@ -58,9 +58,9 @@ function Card({ icon, title, badge, preview, heading, sub, agent, href, openLabe
 }
 
 /** Characters are shown in sections by the role she gives them; locations stay one group. */
-function groupsOf<T extends { name: string; metadata?: Record<string, unknown> | null }>(section: string, items: T[]) {
+function groupsOf<T extends { name: string; metadata?: Record<string, unknown> | null }>(section: string, items: T[], appearances: Record<string, number>) {
   if (section !== "characters") return [{ key: "all", label: "", hint: "", items }];
-  const withRole = byRole(items.map((e) => ({ ...e, role: roleOf(e.metadata) })));
+  const withRole = byRole(items.map((e) => ({ ...e, role: roleOf(e.metadata) })), appearances);
   const groups = [...ROLES, null].map((r) => ({
     key: r ?? "none", label: r ? ROLE_LABEL[r] : "Role not set", hint: r ? ROLE_HINT[r] : "Choose a role on each card to organize them",
     items: withRole.filter((e) => e.role === r),
@@ -96,11 +96,12 @@ export default async function ProjectOverview({
   const story = entities.find((e) => e.kind === "story");
   const characters = entities.filter((e) => e.kind === "character");
   const locations = entities.filter((e) => e.kind === "location");
-  const [latest, budget, refs, world] = await Promise.all([
+  const [latest, budget, refs, world, appearances] = await Promise.all([
     getLatestVersions(projectId),
     getAiBudget(projectId),
     story ? getStoryReferences(projectId, story.id) : Promise.resolve([]),
     getWorld(projectId),
+    getAppearances(projectId, characters.map((c) => c.name)),
   ]);
   const treatments = refs.filter((r) => isTreatmentRef(r));
   const storyLatest = story ? latest.get(story.id) : undefined;
@@ -196,7 +197,7 @@ export default async function ProjectOverview({
               <p className="help mt-1">Add them yourself, or let your Story Lead suggest them from your story.</p>
             </div>
           ) : (
-            groupsOf(sec.id, sec.items).map((g) => (
+            groupsOf(sec.id, sec.items, appearances).map((g) => (
             <div key={g.key} className="flex flex-col gap-3">
               {g.label && (
                 <h3 className="flex items-baseline gap-3 text-sm font-semibold tracking-[0.12em] uppercase">

@@ -263,13 +263,14 @@ export async function getCast(projectId: string) {
   const latest = new Map<string, { id: string; content: Record<string, string> }>();
   for (const v of vers ?? []) if (!latest.has(v.entity_id)) latest.set(v.entity_id, v as never);
   const { byRole, roleOf } = await import("./characters/roles");
+  const seen = await getAppearances(projectId, (ents ?? []).map((e) => e.name as string));
   return byRole((ents ?? []).map((e) => {
     const l = latest.get(e.id);
     return {
       id: e.id as string, name: e.name as string, role: roleOf(e.metadata as Record<string, unknown> | null), approved: !!e.current_version_id, latestId: l?.id ?? null,
       summary: String(l?.content?.summary ?? ""), notes: String(l?.content?.notes ?? ""),
     };
-  }));
+  }), seen);
 }
 
 /** Her own words for each character, from the cast answer in her story (lowercase name → text). */
@@ -281,6 +282,15 @@ export async function getCastOriginals(projectId: string): Promise<Record<string
   const { parseIntake } = await import("./intake");
   const { parseCast } = await import("./cast");
   return Object.fromEntries(parseCast(parseIntake(String(v?.content?.body ?? "")).who).map((c) => [c.name.toLowerCase(), c.description]));
+}
+
+/** Scenes each character appears in, from her latest script (keyed by lowercase name). */
+export async function getAppearances(projectId: string, names: string[]): Promise<Record<string, number>> {
+  const sb = await supabaseServer();
+  const { latestScript } = await import("./knowledge/connect-data");
+  const { countAppearances } = await import("./characters/appearances");
+  const script = await latestScript(sb, projectId);
+  return countAppearances(script.body, names);
 }
 
 /** Her earlier "world in a sentence" versions, newest first (distinct texts). */

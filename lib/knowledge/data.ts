@@ -1,6 +1,7 @@
 // SERVER ONLY. Reads for the Knowledge Base and the desks that use it (RLS applies: only
 // members of this film see its research).
 import { byRole, roleOf } from "@/lib/characters/roles";
+import { getAppearances } from "@/lib/data";
 import { supabaseServer } from "../supabase/server";
 
 import { thumbOf } from "../thumb";
@@ -27,10 +28,12 @@ export async function getKnowledge(projectId: string) {
   ]);
   const { data: chars } = await sb.from("entities").select("id, name, metadata").eq("project_id", projectId).eq("kind", "character").is("archived_at", null).neq("status", "archived").order("name");
   const linkRows = (links.data ?? []) as { collection_id: string; character_id: string; purpose: string; temporal: string }[];
+  const charRows = (chars ?? []) as { id: string; name: string; metadata: Record<string, unknown> | null }[];
+  const appearances = await getAppearances(projectId, charRows.map((c) => c.name));
   const characters: KCharacter[] = byRole(((chars ?? []) as { id: string; name: string; metadata: Record<string, unknown> | null }[]).map((c) => ({
     id: c.id, name: c.name, role: roleOf(c.metadata), thumb: thumbOf(c.metadata),
     links: linkRows.filter((l) => l.character_id === c.id).map((l) => ({ collection_id: l.collection_id, purpose: l.purpose, temporal: l.temporal })),
-  })));
+  })), appearances);
   const src = (sources.data ?? []) as KSource[];
   const live = new Set(src.map((s) => s.id));
   const imported = new Set(src.map((s) => s.reference_id).filter(Boolean));

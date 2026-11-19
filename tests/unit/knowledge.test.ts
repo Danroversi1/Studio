@@ -139,3 +139,13 @@ test("Character menus: protagonist, supporting, featured, then unset; alphabetic
   assert.equal(roleOf({ cast_role: "villain" }), null);
   assert.equal(roleOf(null), null);
 });
+
+import { countAppearances } from "../../lib/characters/appearances";
+test("Character menus: within a role, most scene appearances first", () => {
+  const script = "INT. PLANE - NIGHT\n\nJOHNNY\nHello.\n\nMarie looks away.\n\nINT. OFFICE - DAY\n\nJOHNNY\nAgain.\n\nEXT. STREET - DAY\n\nArmand walks. Johnny follows.\n";
+  const seen = countAppearances(script, ["Johnny", "Marie", "Armand", "Jacques"]);
+  assert.deepEqual(seen, { johnny: 3, marie: 1, armand: 1, jacques: 0 });
+  const list = [{ name: "Marie", role: "supporting" as const }, { name: "Armand", role: "supporting" as const },
+    { name: "Jacques", role: "supporting" as const }, { name: "Johnny", role: "supporting" as const }, { name: "Zed", role: "protagonist" as const }];
+  assert.deepEqual(byRole(list, seen).map((c) => c.name), ["Zed", "Johnny", "Armand", "Marie", "Jacques"]);
+});
