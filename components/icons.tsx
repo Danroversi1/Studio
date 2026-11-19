@@ -85,3 +85,6 @@ export const IconFrames = ({ className }: P) => (
 export const IconCamera = ({ className }: P) => (
   <svg {...base(className)}><rect x="3" y="7" width="13" height="10" /><path d="m16 11 5-3v8l-5-3" /></svg>
 );
+export const IconLibrary = ({ className }: P) => (
+  <svg {...base(className)}><path d="M4.5 4v16M8.5 4v16" /><path d="M12.5 5.2l3.7-1 4.3 15.6-3.7 1z" /><path d="M3 20h18" /></svg>
+);

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconBook, IconCamera, IconFrames, IconGlobe, IconLink, IconCharacter, IconChat, IconImage, IconPalette, IconScript, IconLocation, IconOverview, IconSettings, IconSparkle, IconStory } from "./icons";
+import { IconBook, IconCamera, IconFrames, IconGlobe, IconLink, IconCharacter, IconChat, IconImage, IconPalette, IconScript, IconLibrary, IconLocation, IconOverview, IconSettings, IconSparkle, IconStory } from "./icons";
 
 export interface NavEntity { id: string; name: string; approved: boolean }
 
@@ -56,6 +56,7 @@ export function SidebarNav({ projectId, storyId, characters, locations, pendingS
           </Item>
         )}
         <Item href={`${base}/world`} active={path === `${base}/world`} icon={<IconGlobe />}>World &amp; Time</Item>
+        <Item href={`${base}/knowledge`} active={path === `${base}/knowledge`} icon={<IconLibrary />}>Knowledge Base</Item>
         <Item href={`${base}/connections`} active={path === `${base}/connections`} icon={<IconLink />}>Connections</Item>
         <Item href={`${base}/treatment`} active={path === `${base}/treatment`} icon={<IconBook />}>Treatment</Item>
         <Item href={`${base}/script`} active={path === `${base}/script`} icon={<IconScript />}>Script desk</Item>

@@ -15,6 +15,8 @@ export function friendlyError(error: { code?: string; message?: string } | null 
           ? "Your access level does not allow that."
           : message,
       };
+    case "23505":
+      return { kind: "conflict", message: message.startsWith("duplicate key") ? "That already exists." : message };
     case "PT402":
       return { kind: "invalid", message };
     case "PT404":

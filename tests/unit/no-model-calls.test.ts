@@ -33,6 +33,10 @@ const ROUTINE = [
   "app/api/renderer/pair/route.ts", "app/api/renderer/poll/route.ts", "app/api/renderer/jobs/[jobId]/progress/route.ts",
   "app/api/renderer/jobs/[jobId]/output/route.ts", "app/api/renderer/jobs/[jobId]/complete/route.ts", "app/api/renderer/jobs/[jobId]/fail/route.ts",
   "app/api/assets/route.ts", "app/api/assets/[assetId]/complete/route.ts", "app/api/assets/[assetId]/route.ts",
+  // Knowledge Base: browsing, adding, tagging, collections and feed refreshes (scheduled or
+  // manual). Feed collection is deterministic and must never reach a model or dialogue.
+  "app/projects/[projectId]/knowledge-actions.ts", "app/projects/[projectId]/knowledge/page.tsx", "components/knowledge/knowledge-base.tsx",
+  "app/api/cron/knowledge/route.ts", "lib/knowledge/refresh.ts", "lib/knowledge/data.ts", "lib/knowledge/eligibility.ts",
 ];
 
 function resolveImport(from: string, spec: string): string | null {
