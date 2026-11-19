@@ -280,10 +280,17 @@ function CoverageChoice({ ctx, value }: { ctx: Ctx; value?: Coverage }) {
   );
 }
 
-function SentenceCard({ ctx, world }: { ctx: Ctx; world: World }) {
+function SentenceCard({ ctx, world, versions }: { ctx: Ctx; world: World; versions: { text: string; at: string }[] }) {
   const confirmed = world.confirmed.summary?.value.text ?? "";
   const suggested = composeSentence(world.confirmed);
   const [editing, setEditing] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
+  // Other versions she can go back to: the one suggested from her latest choices, then her earlier ones.
+  const others = [
+    ...(confirmed && suggested && suggested !== confirmed ? [{ text: suggested, label: "From your latest choices" }] : []),
+    ...versions.filter((v) => v.text !== confirmed && v.text !== suggested)
+      .map((v) => ({ text: v.text, label: `Saved ${new Date(v.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` })),
+  ];
   const [text, setText] = useState(confirmed || suggested || "");
   const s = useSaver(ctx);
   const save = (t: string) => s.run(() => saveWorldSection({ projectId: ctx.projectId, section: "summary", value: { text: t }, baseVersion: ctx.version }), "Saved.", () => setEditing(false));
@@ -291,7 +298,15 @@ function SentenceCard({ ctx, world }: { ctx: Ctx; world: World }) {
     <section className="panel flex flex-col gap-3 p-5" aria-labelledby="world-sentence">
       <div className="flex items-start justify-between gap-2">
         <h2 id="world-sentence" className="eyebrow text-text">Your world, in a sentence</h2>
-        {ctx.canEdit && !editing && <button type="button" className="text-xs text-accent hover:underline" onClick={() => { setText(confirmed || suggested || ""); setEditing(true); }}>Edit</button>}
+        {!editing && (
+          <span className="flex items-center gap-3">
+            {confirmed && others.length > 0 && (
+              <button type="button" className="text-xs text-accent hover:underline" aria-expanded={showVersions} onClick={() => setShowVersions((v) => !v)}>
+                Versions ({others.length})</button>
+            )}
+            {ctx.canEdit && <button type="button" className="text-xs text-accent hover:underline" onClick={() => { setText(confirmed || suggested || ""); setEditing(true); }}>Edit</button>}
+          </span>
+        )}
       </div>
       {editing ? (
         <form className="flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); if (text.trim()) save(text); }}>
@@ -302,12 +317,18 @@ function SentenceCard({ ctx, world }: { ctx: Ctx; world: World }) {
       ) : confirmed ? (
         <>
           <p className="font-serif text-xl leading-snug">{confirmed}</p>
-          {suggested && suggested !== confirmed && world.confirmed.summary && (
-            <div className="flex flex-col gap-1.5 border border-dashed border-line p-2.5 text-sm">
-              <p className="text-[11px] tracking-[0.12em] text-muted uppercase">Suggestion from your latest choices · not decided</p>
-              <p>{suggested}</p>
-              {ctx.canEdit && <button type="button" className="btn min-h-9 self-start text-xs" disabled={s.pending} onClick={() => save(suggested)}>Use this</button>}
-            </div>
+          {showVersions && others.length > 0 && (
+            <ul className="flex flex-col divide-y divide-line border-y border-line text-sm">
+              {others.map((o) => (
+                <li key={o.label + o.text} className="flex flex-wrap items-start justify-between gap-2 py-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] tracking-[0.12em] text-muted uppercase">{o.label}</span>
+                    <span className="font-serif">{o.text}</span>
+                  </span>
+                  {ctx.canEdit && <button type="button" className="btn min-h-8 text-xs" disabled={s.pending} onClick={() => save(o.text)}>Use this</button>}
+                </li>
+              ))}
+            </ul>
           )}
         </>
       ) : suggested ? (
@@ -325,8 +346,8 @@ function SentenceCard({ ctx, world }: { ctx: Ctx; world: World }) {
 }
 
 // ---------------------------------------------------------------------------
-export function WorldCards({ projectId, world, canEdit, locations }: {
-  projectId: string; world: World; canEdit: boolean; locations: { id: string; name: string }[];
+export function WorldCards({ projectId, world, canEdit, locations, sentenceVersions = [] }: {
+  projectId: string; world: World; canEdit: boolean; locations: { id: string; name: string }[]; sentenceVersions?: { text: string; at: string }[];
 }) {
   const ctx: Ctx = { projectId, version: world.version, canEdit };
   const [editing, setEditing] = useState<Section | null>(null);
@@ -376,7 +397,7 @@ export function WorldCards({ projectId, world, canEdit, locations }: {
           )}
         </Card>
       </div>
-      <SentenceCard key={`${world.version}`} ctx={ctx} world={world} />
+      <SentenceCard key={`${world.version}`} ctx={ctx} world={world} versions={sentenceVersions} />
     </div>
   );
 }

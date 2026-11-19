@@ -68,13 +68,16 @@ function CollectionPicker({ collections, value, onChange, label = "Add to collec
 }
 
 // ---- Adding research ------------------------------------------------------------------------
-type Tab = "note" | "link" | "document" | "reference" | "feed";
+type Tab = "note" | "link" | "document" | "reference" | "feed" | "library";
 const TABS: { id: Tab; label: string }[] = [
   { id: "note", label: "Note" }, { id: "link", label: "Link" }, { id: "document", label: "Document" },
   { id: "reference", label: "From References" }, { id: "feed", label: "Updating source" },
 ];
 
-function AddResearch({ projectId, collections, references, preset }: { projectId: string; collections: KCollection[]; references: { id: string; title: string | null; source_url: string | null; source_domain: string | null }[]; preset: string[] }) {
+function AddResearch({ projectId, collections, references, preset, share }: { projectId: string; collections: KCollection[]; references: { id: string; title: string | null; source_url: string | null; source_domain: string | null }[]; preset: string[];
+  /** Research already in the Knowledge Base that can also go into this collection (World), without copying. */
+  share?: { collection: KCollection; sources: KSource[] };
+}) {
   const [tab, setTab] = useState<Tab>("note");
   const [cols, setCols] = useState<string[]>(preset);
   useEffect(() => { setCols(preset); }, [preset]);
@@ -84,7 +87,9 @@ function AddResearch({ projectId, collections, references, preset }: { projectId
   const [file, setFile] = useState<File | null>(null); const [docText, setDocText] = useState(""); const [docNote, setDocNote] = useState<string | null>(null);
   const [preview, setPreview] = useState<FeedPreview | null>(null); const [hours, setHours] = useState(24);
   const [ref, setRef] = useState("");
+  const [shared, setShared] = useState("");
   const [busy, setBusy] = useState(false);
+  const tabs = share ? [...TABS.slice(0, 3), { id: "library" as Tab, label: "From Knowledge Base" }, ...TABS.slice(3)] : TABS;
   const reset = () => { setTitle(""); setBody(""); setUrl(""); setExcerpt(""); setNote(""); setFile(null); setDocText(""); setDocNote(null); setPreview(null); setRef(""); };
 
   async function pickFile(f: File | null) {
@@ -112,12 +117,30 @@ function AddResearch({ projectId, collections, references, preset }: { projectId
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="add-h" className="display text-lg">Add research</h2>
         <div role="tablist" aria-label="Kind of research" className="flex flex-wrap gap-1">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button key={t.id} role="tab" type="button" aria-selected={tab === t.id} onClick={() => { setTab(t.id); s.setMsg(null); }}
               className={`btn min-h-8 px-2.5 text-xs ${tab === t.id ? "border-text bg-text text-panel-2" : ""}`}>{t.label}</button>
           ))}
         </div>
       </div>
+
+      {tab === "library" && share && (
+        <form className="flex flex-col gap-2" onSubmit={(e) => {
+          e.preventDefault();
+          if (shared) s.run(() => kbCollectionMember({ projectId, collectionId: share.collection.id, sourceId: shared, on: true }), `Added to ${share.collection.name}.`, () => setShared(""));
+        }}>
+          {share.sources.length ? (
+            <>
+              <select className="field" value={shared} onChange={(e) => setShared(e.target.value)} aria-label="Research in your Knowledge Base" required>
+                <option value="">Choose research from your Knowledge Base…</option>
+                {share.sources.map((x) => <option key={x.id} value={x.id}>{KIND_LABEL[x.kind as keyof typeof KIND_LABEL] ?? x.kind}: {x.title}</option>)}
+              </select>
+              <p className="help">It stays where it is and also appears in {share.collection.name}. One piece of research can be in several places without being copied.</p>
+              <div><button className="btn-primary min-h-9 text-xs" disabled={s.pending || !shared}>{s.pending ? "Adding…" : `Add to ${share.collection.name}`}</button></div>
+            </>
+          ) : <p className="text-sm text-muted">Everything in your Knowledge Base is already here.</p>}
+        </form>
+      )}
 
       {tab === "note" && (
         <form className="flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); s.run(() => kbAddNote({ projectId, title, body, collections: cols }), "Note saved.", reset); }}>
@@ -641,7 +664,8 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
         world={world} worldOpen={inWorld} />}
       {inWorld && world && <WorldPanel projectId={projectId} canEdit={canEdit} characters={characters} world={world} sources={sources} counts={itemCounts} />}
       {char && <CharacterPanel projectId={projectId} canEdit={canEdit} character={char} collections={collections} counts={counts} />}
-      {canEdit && <AddResearch key={inWorld ? "world" : own?.id ?? "all"} projectId={projectId} collections={collections} references={references} preset={preset} />}
+      {canEdit && <AddResearch key={inWorld ? "world" : own?.id ?? "all"} projectId={projectId} collections={collections} references={references} preset={preset}
+        share={inWorld && world ? { collection: world, sources: sources.filter((x) => !x.disconnected_at && !x.watch_query && !members.some((m) => m.collection_id === world.id && m.source_id === x.id)) } : undefined} />}
       {!char && !inWorld && (canEdit || collections.length > 0) && <Collections projectId={projectId} collections={collections} counts={counts} used={used} active={active} onActive={setActive} />}
       {!char && !inWorld && <Feeds projectId={projectId} feeds={sources.filter((s) => s.kind === "feed" && !s.watch_query)} collections={collections} members={members} itemCounts={itemCounts} />}
       <section className="panel flex flex-col gap-3 p-4" aria-labelledby="lib-h">
@@ -659,7 +683,7 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
           <ul className="flex flex-col divide-y divide-line">
             {shown.map((i) => <ItemRow key={i.id} projectId={projectId} item={i} source={byId.get(i.source_id)!} collections={collections} members={members} canEdit={canEdit} imp={imp} />)}
           </ul>
-        ) : <p className="text-sm text-muted">{inWorld ? "Nothing in the World yet. Search above, or add news and references by hand." : char ? `Nothing for ${char.name} yet. Add research above, or connect a collection on the Connections desk.` : items.length ? "Nothing matches." : "Nothing here yet. Add a note, a link, a document or an updating source."}</p>}
+        ) : <p className="text-sm text-muted">{inWorld ? "Nothing in the World yet. Follow something above, add research by hand, or bring in research from your Knowledge Base." : char ? `Nothing for ${char.name} yet. Add research above, or connect a collection on the Connections desk.` : items.length ? "Nothing matches." : "Nothing here yet. Add a note, a link, a document or an updating source."}</p>}
         {items.length > 200 && shown.length === 200 && <p className="text-xs text-muted">Showing the first 200. Search or pick a collection to narrow it down.</p>}
       </section>
     </div>

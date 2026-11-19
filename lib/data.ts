@@ -283,6 +283,20 @@ export async function getCastOriginals(projectId: string): Promise<Record<string
   return Object.fromEntries(parseCast(parseIntake(String(v?.content?.body ?? "")).who).map((c) => [c.name.toLowerCase(), c.description]));
 }
 
+/** Her earlier "world in a sentence" versions, newest first (distinct texts). */
+export async function getWorldSentenceVersions(projectId: string): Promise<{ text: string; at: string }[]> {
+  const sb = await supabaseServer();
+  const { data } = await sb.from("story_world_history").select("value, created_at").eq("project_id", projectId).eq("section", "summary")
+    .in("change", ["set", "accept"]).order("created_at", { ascending: false }).limit(30);
+  const seen = new Set<string>(); const out: { text: string; at: string }[] = [];
+  for (const r of (data ?? []) as { value: { text?: unknown } | null; created_at: string }[]) {
+    const t = typeof r.value?.text === "string" ? r.value.text.trim() : "";
+    if (!t || seen.has(t)) continue;
+    seen.add(t); out.push({ text: t, at: r.created_at });
+  }
+  return out.slice(0, 10);
+}
+
 /** World & Time for a film (empty world if nothing yet). */
 export async function getWorld(projectId: string) {
   const sb = await supabaseServer();

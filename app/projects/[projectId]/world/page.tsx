@@ -14,7 +14,7 @@ import { KnowledgeBase } from "@/components/knowledge/knowledge-base";
 import { getKnowledge } from "@/lib/knowledge/data";
 import { PARTNERS, openingFor } from "@/lib/agents/partners";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
-import { getAiBudget, getAllReferences, getLatestVersions, getNotebook, getPartnerThreads, getProjectShell, getThreadMessages, getWorld } from "@/lib/data";
+import { getAiBudget, getAllReferences, getLatestVersions, getNotebook, getPartnerThreads, getProjectShell, getThreadMessages, getWorld, getWorldSentenceVersions } from "@/lib/data";
 import { runtimeInfo } from "@/lib/runtime";
 import { composeSentence, isEmptyWorld } from "@/lib/world";
 import { addReference, updateNote } from "../actions";
@@ -33,9 +33,9 @@ export default async function WorldPage({ params, searchParams }: {
   const caps = shell.caps;
   const base = `/projects/${projectId}/world`;
 
-  const [world, threads, budget, notebook, refs, latest, kb] = await Promise.all([
+  const [world, threads, budget, notebook, refs, latest, kb, sentenceVersions] = await Promise.all([
     getWorld(projectId), getPartnerThreads(projectId, "world"), getAiBudget(projectId), getNotebook(projectId),
-    getAllReferences(projectId), getLatestVersions(projectId), getKnowledge(projectId),
+    getAllReferences(projectId), getLatestVersions(projectId), getKnowledge(projectId), getWorldSentenceVersions(projectId),
   ]);
   const current = fresh ? null : (threads.find((t) => t.id === thread) ?? threads[0] ?? null);
   const messages = current ? await getThreadMessages(projectId, current.id) : [];
@@ -75,7 +75,7 @@ export default async function WorldPage({ params, searchParams }: {
         ) : null}
 
         {autoRead && <WorldReadAuto projectId={projectId} />}
-        <WorldCards projectId={projectId} world={world} canEdit={!!caps.can_edit} locations={locations} />
+        <WorldCards projectId={projectId} world={world} canEdit={!!caps.can_edit} locations={locations} sentenceVersions={sentenceVersions} />
 
         {reviews.length > 0 && (
           <section className="panel flex flex-col gap-2 p-5" aria-labelledby="review-h">
