@@ -255,20 +255,21 @@ export async function getAllReferences(projectId: string) {
 export async function getCast(projectId: string) {
   const sb = await supabaseServer();
   const [{ data: ents }, { data: vers }] = await Promise.all([
-    sb.from("entities").select("id, name, current_version_id, created_at")
+    sb.from("entities").select("id, name, current_version_id, created_at, metadata")
       .eq("project_id", projectId).eq("kind", "character").neq("status", "archived").order("created_at"),
     sb.from("versions").select("id, entity_id, version_number, content")
       .eq("project_id", projectId).order("version_number", { ascending: false }),
   ]);
   const latest = new Map<string, { id: string; content: Record<string, string> }>();
   for (const v of vers ?? []) if (!latest.has(v.entity_id)) latest.set(v.entity_id, v as never);
-  return (ents ?? []).map((e) => {
+  const { byRole, roleOf } = await import("./characters/roles");
+  return byRole((ents ?? []).map((e) => {
     const l = latest.get(e.id);
     return {
-      id: e.id as string, name: e.name as string, approved: !!e.current_version_id, latestId: l?.id ?? null,
+      id: e.id as string, name: e.name as string, role: roleOf(e.metadata as Record<string, unknown> | null), approved: !!e.current_version_id, latestId: l?.id ?? null,
       summary: String(l?.content?.summary ?? ""), notes: String(l?.content?.notes ?? ""),
     };
-  });
+  }));
 }
 
 /** Her own words for each character, from the cast answer in her story (lowercase name → text). */

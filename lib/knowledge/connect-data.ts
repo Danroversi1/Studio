@@ -1,5 +1,6 @@
 // SERVER ONLY. What the Connections desk and the dialogue process need to know about
 // knowledge → character connections, scene time and the outline. No model.
+import { byRole, roleOf } from "@/lib/characters/roles";
 import { splitScenes } from "../dialogue/scenes";
 import { PARTS } from "../scene-plan";
 import { sortByOrder } from "../notebook-order";
@@ -35,7 +36,7 @@ export async function latestScript(sb: Sb, projectId: string) {
 export async function getConnectContext(projectId: string) {
   const sb = await supabaseServer();
   const [chars, cols, links, ctx, beats, script] = await Promise.all([
-    sb.from("entities").select("id, name").eq("project_id", projectId).eq("kind", "character").is("archived_at", null).neq("status", "archived").order("name"),
+    sb.from("entities").select("id, name, metadata").eq("project_id", projectId).eq("kind", "character").is("archived_at", null).neq("status", "archived").order("name"),
     sb.from("knowledge_collections").select("id, name, description").eq("project_id", projectId).is("archived_at", null).order("name"),
     sb.from("character_knowledge").select("id, character_id, collection_id, purpose, temporal, scope_terms, from_beat, note, updated_at").eq("project_id", projectId).is("archived_at", null),
     sb.from("scene_contexts").select("scene_key, beat_id, story_date, story_date_note, objectives, runtime_seconds, tone, pinned_snapshot_id, version").eq("project_id", projectId),
@@ -48,7 +49,7 @@ export async function getConnectContext(projectId: string) {
   for (const r of (inCols ?? []) as { collection_id: string }[]) counts[r.collection_id] = (counts[r.collection_id] ?? 0) + 1;
   const scenes = splitScenes(script.body).map((s) => ({ key: s.key, heading: s.heading, beatId: s.beatId, characters: s.characters }));
   return {
-    characters: (chars.data ?? []) as { id: string; name: string }[],
+    characters: byRole(((chars.data ?? []) as { id: string; name: string; metadata: Record<string, unknown> | null }[]).map((c) => ({ id: c.id, name: c.name, role: roleOf(c.metadata) }))),
     collections: ((cols.data ?? []) as { id: string; name: string; description: string | null }[]).map((c) => ({ ...c, count: counts[c.id] ?? 0 })),
     links: (links.data ?? []) as KnowledgeLink[],
     contexts: (ctx.data ?? []) as SceneContext[],

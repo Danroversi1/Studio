@@ -1,5 +1,7 @@
 // Project overview: every piece of the film as a card. Content comes from the shared
 // project graph; nothing here is a placeholder for an unbuilt feature.
+import { RoleSelect } from "@/components/characters/role-picker";
+import { ROLES, ROLE_HINT, ROLE_LABEL, byRole, roleOf } from "@/lib/characters/roles";
 import Link from "next/link";
 import { parseGoogleLink, slidesEmbedUrl } from "@/lib/google/links";
 import { parseIntake, isTreatmentRef } from "@/lib/intake";
@@ -29,9 +31,9 @@ function statusBadge(approved: boolean, latest?: { status: VersionStatus }) {
   return <Badge tone="explore">Start exploring</Badge>;
 }
 
-function Card({ icon, title, badge, preview, heading, sub, agent, href, openLabel = "Open", bleed = false }: {
+function Card({ icon, title, badge, preview, heading, sub, agent, href, openLabel = "Open", bleed = false, extra }: {
   icon: React.ReactNode; title: string; badge: React.ReactNode; preview: React.ReactNode;
-  heading: string; sub: string; agent?: string; href: string; openLabel?: string; bleed?: boolean;
+  heading: string; sub: string; agent?: string; href: string; openLabel?: string; bleed?: boolean; extra?: React.ReactNode;
 }) {
   return (
     <article className="panel flex flex-col">
@@ -46,13 +48,25 @@ function Card({ icon, title, badge, preview, heading, sub, agent, href, openLabe
         <p className="help">{sub}</p>
       </div>
       <div className="flex items-center justify-between border-t border-line px-5">
-        <span className="inline-flex items-center gap-2 text-xs tracking-[0.12em] text-muted uppercase">
+        {extra ?? <span className="inline-flex items-center gap-2 text-xs tracking-[0.12em] text-muted uppercase">
           {agent && <><span className="size-2 bg-brand" aria-hidden /> {agent}</>}
-        </span>
+        </span>}
         <Link href={href} className="link-accent">{openLabel} <IconArrowUpRight /></Link>
       </div>
     </article>
   );
+}
+
+/** Characters are shown in sections by the role she gives them; locations stay one group. */
+function groupsOf<T extends { name: string; metadata?: Record<string, unknown> | null }>(section: string, items: T[]) {
+  if (section !== "characters") return [{ key: "all", label: "", hint: "", items }];
+  const withRole = byRole(items.map((e) => ({ ...e, role: roleOf(e.metadata) })));
+  const groups = [...ROLES, null].map((r) => ({
+    key: r ?? "none", label: r ? ROLE_LABEL[r] : "Role not set", hint: r ? ROLE_HINT[r] : "Choose a role on each card to organize them",
+    items: withRole.filter((e) => e.role === r),
+  })).filter((g) => g.items.length);
+  // Nothing assigned yet: one plain group, no headings.
+  return groups.length === 1 && groups[0].key === "none" ? [{ ...groups[0], label: "", hint: "" }] : groups;
 }
 
 function SectionHead({ id, title, note, action }: { id?: string; title: string; note?: string; action?: React.ReactNode }) {
@@ -182,8 +196,15 @@ export default async function ProjectOverview({
               <p className="help mt-1">Add them yourself, or let your Story Lead suggest them from your story.</p>
             </div>
           ) : (
+            groupsOf(sec.id, sec.items).map((g) => (
+            <div key={g.key} className="flex flex-col gap-3">
+              {g.label && (
+                <h3 className="flex items-baseline gap-3 text-sm font-semibold tracking-[0.12em] uppercase">
+                  {g.label}<span className="text-xs font-normal tracking-normal text-muted normal-case">{g.hint}</span>
+                </h3>
+              )}
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-              {sec.items.map((e) => {
+              {g.items.map((e) => {
                 const v = latest.get(e.id);
                 return (
                   <Card key={e.id} icon={sec.icon} title={e.name} badge={statusBadge(!!e.current_version_id, v)}
@@ -202,10 +223,15 @@ export default async function ProjectOverview({
                     )}
                     heading={sec.id === "characters" ? "Who they are" : "What it feels like"}
                     sub={v ? `Revision ${v.version_number}` : "No revisions yet"}
-                    href={`/projects/${projectId}/items/${e.id}`} />
+                    href={`/projects/${projectId}/items/${e.id}`}
+                    extra={sec.id === "characters" ? (caps.can_edit
+                      ? <RoleSelect projectId={projectId} entityId={e.id} name={e.name} role={roleOf(e.metadata)} />
+                      : <span className="text-xs tracking-[0.12em] text-muted uppercase">{roleOf(e.metadata) ? ROLE_LABEL[roleOf(e.metadata)!] : ""}</span>) : undefined} />
                 );
               })}
             </div>
+            </div>
+            ))
           )}
         </section>
       ))}

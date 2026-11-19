@@ -15,6 +15,8 @@ select public.set_character_role(tests.v('rj'), 'protagonist');
 select tests.ok((select metadata ->> 'cast_role' from public.entities where id = tests.v('rj')) = 'protagonist', 'role saved');
 select public.set_character_role(tests.v('rj'), null);
 select tests.ok(not ((select metadata from public.entities where id = tests.v('rj')) ? 'cast_role'), 'role cleared');
+select public.set_character_role(tests.v('rj'), 'antagonist');
+select tests.ok((select metadata ->> 'cast_role' from public.entities where id = tests.v('rj')) = 'antagonist', 'antagonist is a role');
 select tests.throws(format($q$select public.set_character_role(%L, 'villain')$q$, tests.v('rj')), '22023', 'only the three roles');
 :as_outsider
 select tests.throws(format($q$select public.set_character_role(%L, 'featured')$q$, tests.v('rj')), 'PT404', 'outsiders cannot');

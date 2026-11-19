@@ -15,8 +15,8 @@ import { PURPOSE_LABEL, TEMPORAL_LABEL, type Purpose, type Temporal } from "@/li
 import { ThumbView } from "@/components/thumb-view";
 import { ItemImpressions, WorldPanel } from "./world";
 import { worldSetUp } from "@/app/projects/[projectId]/knowledge-actions";
-import { setCharacterRole } from "@/app/projects/[projectId]/character-actions";
-import { ROLES, ROLE_LABEL } from "@/lib/characters/roles";
+import { ROLE_LABEL } from "@/lib/characters/roles";
+import { RoleButtons } from "@/components/characters/role-picker";
 import type { Impression } from "@/lib/knowledge/types";
 import { kbItemPin } from "@/app/projects/[projectId]/knowledge-actions";
 import { docTypeOf, extractText, uploadDocument } from "@/lib/knowledge/documents";
@@ -380,7 +380,7 @@ function CharacterStrip({ projectId, canEdit, characters, collections, counts, s
     router.push("?world=1", { scroll: false });
     router.refresh();
   }
-  const tile = (on: boolean) => `flex w-full items-center gap-2 border p-2 text-left transition-colors ${on ? "border-text bg-text text-panel-2" : "border-line bg-panel-2 hover:border-text"}`;
+  const tile = (on: boolean) => `flex h-full min-h-[4.75rem] w-full items-center gap-2 border p-2 text-left transition-colors ${on ? "border-text bg-text text-panel-2" : "border-line bg-panel-2 hover:border-text"}`;
   const sub = (on: boolean) => `block text-[11px] ${on ? "text-panel-2/80" : "text-muted"}`;
   const worldItems = world ? counts[world.id] ?? 0 : 0;
   const worldReach = world ? characters.filter((c) => c.links.some((l) => l.collection_id === world.id)).length : 0;
@@ -399,6 +399,7 @@ function CharacterStrip({ projectId, canEdit, characters, collections, counts, s
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold uppercase">{busy === "world" ? "Opening…" : "World"}</span>
+                <span className={`${sub(worldOpen)} font-medium`}>Everyone&apos;s world</span>
                 <span className={sub(worldOpen)}>{world ? `${worldItems} item${worldItems === 1 ? "" : "s"} · ${worldReach} of ${characters.length} characters` : "News and reactions"}</span>
               </span>
             </button>
@@ -434,22 +435,6 @@ function CharacterStrip({ projectId, canEdit, characters, collections, counts, s
   );
 }
 
-/** Her choice of the character's role; it sets the order of character menus. */
-function RolePicker({ projectId, character }: { projectId: string; character: KCharacter }) {
-  const s = useRun();
-  return (
-    <div className="flex flex-wrap items-center gap-2 text-xs" role="group" aria-label={`${character.name}'s role`}>
-      <span className="text-muted">Role:</span>
-      {ROLES.map((r) => (
-        <button key={r} type="button" aria-pressed={character.role === r} disabled={s.pending}
-          className={`border px-2 py-1 font-semibold uppercase ${character.role === r ? "border-text bg-text text-panel-2" : "border-line hover:border-text"}`}
-          onClick={() => s.run(() => setCharacterRole({ projectId, entityId: character.id, role: character.role === r ? null : r }))}>{ROLE_LABEL[r]}</button>
-      ))}
-      <Status msg={s.msg} />
-    </div>
-  );
-}
-
 function CharacterPanel({ projectId, canEdit, character, collections, counts }: {
   projectId: string; canEdit: boolean; character: KCharacter; collections: KCollection[]; counts: Record<string, number>;
 }) {
@@ -465,7 +450,7 @@ function CharacterPanel({ projectId, canEdit, character, collections, counts }: 
             Research you add here goes into {character.name}&apos;s own collection. It&apos;s what {character.name} could draw on in scenes,
             within the time rules. What {character.name} knows for certain lives on their character page.
           </p>
-          {canEdit ? <RolePicker projectId={projectId} character={character} /> : character.role && <p className="text-xs text-muted">Role: {ROLE_LABEL[character.role]}</p>}
+          {canEdit ? <RoleButtons key={character.id} projectId={projectId} entityId={character.id} name={character.name} role={character.role} /> : character.role && <p className="text-xs text-muted">Role: {ROLE_LABEL[character.role]}</p>}
         </div>
         <div className="flex flex-col items-end gap-1 text-xs">
           <Link href={`/projects/${projectId}/items/${character.id}`} className="text-accent">Open {character.name}&apos;s character page →</Link>

@@ -1,4 +1,6 @@
 import { CharacterAgent } from "@/components/characters/character-agent";
+import { RoleButtons } from "@/components/characters/role-picker";
+import { ROLE_LABEL, roleOf } from "@/lib/characters/roles";
 import { getCharacterAgent } from "@/lib/characters/data";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -361,6 +363,9 @@ export default async function ItemWorkspace({
             <h2 className="display text-4xl leading-none">{entity.name}</h2>
           )}
           {versionTag}
+          {kind === "character" && (caps.can_edit
+            ? <div className="mt-2 max-w-2xl"><RoleButtons projectId={projectId} entityId={entityId} name={entity.name} role={roleOf(entity.metadata as Record<string, unknown> | null)} /></div>
+            : roleOf(entity.metadata as Record<string, unknown> | null) && <p className="text-xs text-muted uppercase">{ROLE_LABEL[roleOf(entity.metadata as Record<string, unknown> | null)!]}</p>)}
         </div>
         {revisionsLayer}
       </header>

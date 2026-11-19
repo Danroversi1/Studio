@@ -134,6 +134,7 @@ test("Character menus: protagonist, supporting, featured, then unset; alphabetic
     { name: "Ana", role: "supporting" as const }, { name: "Johnny", role: "protagonist" as const }, { name: "al", role: null },
   ];
   assert.deepEqual(byRole(list).map((c) => c.name), ["Johnny", "Ana", "bo", "Mia", "al", "zed"]);
+  assert.deepEqual(byRole([{ name: "b", role: "supporting" as const }, { name: "x", role: "antagonist" as const }]).map((c) => c.name), ["x", "b"]);
   assert.equal(roleOf({ cast_role: "protagonist" }), "protagonist");
   assert.equal(roleOf({ cast_role: "villain" }), null);
   assert.equal(roleOf(null), null);
