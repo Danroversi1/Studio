@@ -25,9 +25,9 @@ select tests.ok((select connected from public.kb_world_collection(tests.v('W'), 
   'connecting everyone adds new characters and respects one she removed');
 
 select tests.ok(public.kb_world_watch_add(tests.v('W'), 'chip export rules', jsonb_build_array(
-  jsonb_build_object('adapter', 'gdelt', 'feed_url', 'https://api.gdeltproject.org/api/v2/doc/doc?query=x', 'title', 'News: chip export rules'),
+  jsonb_build_object('adapter', 'rss', 'feed_url', 'https://news.google.com/rss/search?q=x', 'title', 'News: chip export rules'),
   jsonb_build_object('adapter', 'hn', 'feed_url', 'https://hn.algolia.com/api/v1/search_by_date?query=x', 'title', 'Reactions: chip export rules'))) = 2, 'a watch adds free news and reaction feeds');
-select tests.throws(format($q$select public.kb_world_watch_add(%L, 'x', jsonb_build_array(jsonb_build_object('adapter', 'gdelt', 'feed_url', 'https://evil.example/?', 'title', 't')))$q$, tests.v('W')),
+select tests.throws(format($q$select public.kb_world_watch_add(%L, 'x', jsonb_build_array(jsonb_build_object('adapter', 'rss', 'feed_url', 'https://evil.example/?', 'title', 't')))$q$, tests.v('W')),
   '22023', 'only the free sources Studio builds');
 select tests.throws(format($q$select public.kb_world_watch_add(%L, 'Chip Export Rules', jsonb_build_array(jsonb_build_object('adapter', 'hn', 'feed_url', 'https://hn.algolia.com/api/v1/search_by_date?q', 'title', 't')))$q$, tests.v('W')),
   '23505', 'no duplicate watches');
@@ -35,7 +35,7 @@ select public.kb_world_watch_add(tests.v('W'), 'watch ' || g, jsonb_build_array(
   from generate_series(2, 10) g;
 select tests.throws(format($q$select public.kb_world_watch_add(%L, 'one more', jsonb_build_array(jsonb_build_object('adapter', 'hn', 'feed_url', 'https://hn.algolia.com/api/v1/search_by_date?q', 'title', 't')))$q$, tests.v('W')),
   '22023', 'at most 10 watches');
-select tests.put('gsrc', (select id from public.knowledge_sources where project_id = tests.v('W') and adapter = 'gdelt'));
+select tests.put('gsrc', (select id from public.knowledge_sources where project_id = tests.v('W') and adapter = 'rss'));
 select tests.ok((select count(*) from public.kb_collection_items(tests.v('W'), array[tests.v('world')])) = 0, 'empty until refreshed');
 :as_service
 select public.kb_feed_ingest(tests.v('gsrc'), (select jsonb_agg(jsonb_build_object('key', 'k' || g, 'title', 'Story ' || g, 'url', 'https://news.example/' || g,

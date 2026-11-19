@@ -93,7 +93,7 @@ export function WorldPanel({ projectId, canEdit, characters, world, sources, cou
             <button className="btn-primary min-h-10 text-xs" disabled={s.pending || watches.length >= WATCH_LIMIT}>{s.pending ? "Looking…" : "Follow"}</button>
           </div>
           <div className="flex flex-wrap items-center gap-4 text-xs">
-            <label className="flex items-center gap-1.5"><input type="checkbox" checked={news} onChange={(e) => setNews(e.target.checked)} /> News (GDELT world news index)</label>
+            <label className="flex items-center gap-1.5"><input type="checkbox" checked={news} onChange={(e) => setNews(e.target.checked)} /> News (Google News)</label>
             <label className="flex items-center gap-1.5"><input type="checkbox" checked={reactions} onChange={(e) => setReactions(e.target.checked)} /> Reactions (Hacker News discussions)</label>
           </div>
           <p className="text-[11px] text-muted">
@@ -119,7 +119,7 @@ export function WorldPanel({ projectId, canEdit, characters, world, sources, cou
                   const st = feedState(f);
                   return (
                     <p key={f.id} className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                      <span className="w-20 shrink-0 font-medium text-text">{f.adapter === "gdelt" ? "News" : "Reactions"}</span>
+                      <span className="w-20 shrink-0 font-medium text-text">{f.adapter === "hn" ? "Reactions" : "News"}</span>
                       <span className={st.tone === "danger" ? "text-danger" : st.tone === "warn" ? "text-warn" : ""}>{st.label}</span>
                       <span>· {counts[f.id] ?? 0} items · checked {ago(f.last_success_at)}</span>
                       {f.status === "error" && f.last_error && <span className="text-danger">· {f.last_error}</span>}

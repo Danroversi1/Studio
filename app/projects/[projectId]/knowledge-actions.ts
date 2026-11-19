@@ -223,14 +223,12 @@ export async function kbWorldWatchAdd(input: { projectId: string; query: string;
   const { error } = await sb.rpc("kb_world_watch_add", { p_project: input.projectId, p_query: input.query.trim(), p_feeds: feeds });
   if (error) return fail(error);
   const { data: rows } = await sb.from("knowledge_sources").select("id").eq("project_id", input.projectId).eq("watch_query", input.query.trim()).is("archived_at", null);
-  let found = 0; const problems: string[] = [];
-  for (const [i, r] of (rows ?? []).entries()) {
-    if (i > 0) await new Promise((res) => setTimeout(res, 5_500)); // free sources ask us to pace requests
-    const out = await refreshFeed(String(r.id), true);
-    if (out.ok) found += out.added ?? 0; else if (out.error) problems.push(out.error);
-  }
+  // The two free sources are different sites, so they're checked side by side.
+  const outs = await Promise.all((rows ?? []).map((r) => refreshFeed(String(r.id), true)));
+  const found = outs.reduce((n, o) => n + (o.ok ? o.added ?? 0 : 0), 0);
+  const problem = outs.find((o) => !o.ok && o.error)?.error;
   touch(input.projectId);
-  return { ok: true, note: `Following. ${found} item${found === 1 ? "" : "s"} found${problems.length ? `; ${problems[0]}` : ""}. Checked again once a day.` };
+  return { ok: true, note: `Following. ${found} item${found === 1 ? "" : "s"} found.${problem ? ` One source didn't answer yet: ${problem}` : ""} Checked again once a day.` };
 }
 
 export async function kbWorldWatchRemove(input: { projectId: string; query: string }): Promise<R> {
