@@ -149,3 +149,19 @@ test("Character menus: within a role, most scene appearances first", () => {
     { name: "Jacques", role: "supporting" as const }, { name: "Johnny", role: "supporting" as const }, { name: "Zed", role: "protagonist" as const }];
   assert.deepEqual(byRole(list, seen).map((c) => c.name), ["Zed", "Johnny", "Armand", "Marie", "Jacques"]);
 });
+
+import { feedsForTopic, planWatches } from "../../lib/knowledge/plan";
+test("World watches: a typed request becomes separate free topics (no AI)", () => {
+  const p = planWatches("find news about the following: AI, Semiconductors, Geopolitics, Economy, Local news for each of the cities in the story, weather and traffic for each of the cities in the story.", ["San Francisco", "Washington"]);
+  assert.deepEqual(p.map((t) => t.label), ["AI", "Semiconductors", "Geopolitics", "Economy", "San Francisco: local news", "Washington: local news",
+    "San Francisco: weather and traffic", "Washington: weather and traffic"]);
+  assert.equal(p[0].reactions, "AI");
+  assert.equal(p[4].news, '"San Francisco"');
+  assert.equal(p[4].reactions, null);
+  assert.equal(p[6].news, '"San Francisco" (weather OR traffic)');
+  assert.deepEqual(planWatches("chip export rules", []).map((t) => t.label), ["chip export rules"]);
+  assert.deepEqual(planWatches("local news in the cities of the story", []), [], "no cities yet: nothing invented");
+  const f = feedsForTopic(p[6], { news: true, reactions: true });
+  assert.equal(f.length, 1);
+  assert.ok(f[0].feed_url.startsWith("https://news.google.com/rss/search?q=%22San+Francisco%22+%28weather+OR+traffic%29+when%3A7d"));
+});

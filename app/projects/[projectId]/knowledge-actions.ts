@@ -8,7 +8,8 @@ import { detectSource, normalizeUrl } from "@/lib/knowledge/adapters";
 import { FetchError, fetchPublic } from "@/lib/knowledge/fetch";
 import { readLinkMeta } from "@/lib/knowledge/link-meta";
 import { identifyFeed, refreshDue, refreshFeed } from "@/lib/knowledge/refresh";
-import { buildWatchFeeds } from "@/lib/knowledge/watch";
+import { buildWatchFeeds, WATCH_LIMIT } from "@/lib/knowledge/watch";
+import { feedsForTopic, planWatches, type WatchTopic } from "@/lib/knowledge/plan";
 import { supabaseServer } from "@/lib/supabase/server";
 
 type R = { ok: true; id?: string; note?: string } | { ok: false; error: string };
@@ -253,4 +254,48 @@ export async function decideImpression(input: { projectId: string; impressionId:
   if (error) return fail(error);
   touch(input.projectId);
   return { ok: true, note: input.accept ? "Accepted. It will color this character's dialogue." : "Dismissed." };
+}
+
+/** What she typed → topics to follow (no AI): shown to her to confirm. "The cities in the
+ *  story" means the real places she set in World & Time. */
+export async function kbWorldPlan(input: { projectId: string; prompt: string }): Promise<{ ok: true; topics: WatchTopic[]; free: number; cities: string[] } | { ok: false; error: string }> {
+  const sb = await supabaseServer();
+  const [{ data: w }, { data: srcs }] = await Promise.all([
+    sb.from("story_world").select("data").eq("project_id", input.projectId).maybeSingle(),
+    sb.from("knowledge_sources").select("watch_query").eq("project_id", input.projectId).is("archived_at", null).not("watch_query", "is", null),
+  ]);
+  const places = ((w?.data as { confirmed?: { where?: { value?: { places?: { name: string; kind: string }[] } } } } | null)?.confirmed?.where?.value?.places ?? []);
+  const cities = places.filter((p) => p.kind !== "invented" && p.name?.trim()).map((p) => p.name.trim());
+  const used = new Set(((srcs ?? []) as { watch_query: string }[]).map((r) => r.watch_query.toLowerCase())).size;
+  const topics = planWatches(input.prompt, cities);
+  if (!topics.length) return { ok: false, error: /cit(y|ies)|places/i.test(input.prompt) && !cities.length
+    ? "Your story has no real cities in World & Time yet. Add them there, or type the city names."
+    : "Type a few topics, separated by commas (for example: AI, semiconductors, the economy)." };
+  return { ok: true, topics, free: Math.max(0, WATCH_LIMIT - used), cities };
+}
+
+/** Follow the topics she confirmed. Each topic is its own watch (free; checked once a day). */
+export async function kbWorldFollow(input: { projectId: string; topics: (WatchTopic & { useNews: boolean; useReactions: boolean })[] }): Promise<R> {
+  const sb = await supabaseServer();
+  const safeNews = (q: string | null) => (q && /^[\p{L}\p{N}\s"'()\-]{1,300}$/u.test(q) ? q : null);
+  const added: string[] = []; const problems: string[] = [];
+  for (const t of input.topics.slice(0, WATCH_LIMIT)) {
+    const topic: WatchTopic = { label: t.label.slice(0, 200), news: safeNews(t.news), reactions: t.reactions ? t.reactions.replace(/[^\p{L}\p{N}\s"'-]/gu, " ").trim().slice(0, 200) || null : null };
+    const feeds = feedsForTopic(topic, { news: t.useNews, reactions: t.useReactions });
+    if (!feeds.length) continue;
+    const { error } = await sb.rpc("kb_world_watch_add", { p_project: input.projectId, p_query: topic.label, p_feeds: feeds });
+    if (error) { problems.push(`${topic.label}: ${friendlyError(error).message}`); if (error.message.includes("up to 10")) break; continue; }
+    added.push(topic.label);
+  }
+  if (!added.length) return { ok: false, error: problems[0] ?? "Nothing to follow." };
+  const { data: rows } = await sb.from("knowledge_sources").select("id, watch_query").eq("project_id", input.projectId).in("watch_query", added).is("archived_at", null);
+  const outs = await Promise.all(((rows ?? []) as { id: string; watch_query: string }[]).map(async (r) => ({ q: r.watch_query, o: await refreshFeed(String(r.id), true) })));
+  const found = new Map<string, number>();
+  for (const { q, o } of outs) found.set(q, (found.get(q) ?? 0) + (o.ok ? o.added ?? 0 : 0));
+  const empty = added.filter((q) => !found.get(q));
+  const total = [...found.values()].reduce((a, b) => a + b, 0);
+  touch(input.projectId);
+  return { ok: true, note: `Following ${added.length} topic${added.length === 1 ? "" : "s"}: ${total} items found.`
+    + (empty.length ? ` Nothing matched this week for ${empty.map((q) => `"${q}"`).join(", ")}; it will look again tomorrow, or stop it and try other words.` : "")
+    + (problems.length ? ` Not added: ${problems.join("; ")}.` : "") + " Checked again once a day." };
 }
