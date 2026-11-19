@@ -10,6 +10,7 @@ import { readLinkMeta } from "@/lib/knowledge/link-meta";
 import { identifyFeed, refreshDue, refreshFeed } from "@/lib/knowledge/refresh";
 import { buildWatchFeeds, WATCH_LIMIT } from "@/lib/knowledge/watch";
 import { feedsForTopic, planWatches, type WatchTopic } from "@/lib/knowledge/plan";
+import { GEOCODE_API, parseGeocode } from "@/lib/knowledge/weather";
 import { supabaseServer } from "@/lib/supabase/server";
 
 type R = { ok: true; id?: string; note?: string } | { ok: false; error: string };
@@ -274,20 +275,31 @@ export async function kbWorldPlan(input: { projectId: string; prompt: string }):
   return { ok: true, topics, free: Math.max(0, WATCH_LIMIT - used), cities };
 }
 
-/** Follow the topics she confirmed. Each topic is its own watch (free; checked once a day). */
-export async function kbWorldFollow(input: { projectId: string; topics: (WatchTopic & { useNews: boolean; useReactions: boolean })[] }): Promise<R> {
+/** One step: what she typed → topics (no AI) → followed right away, with the stories
+ *  brought in now. City weather comes from Open-Meteo (free); the city is looked up once. */
+export async function kbWorldFollowPrompt(input: { projectId: string; prompt: string }): Promise<R> {
+  const plan = await kbWorldPlan(input);
+  if (!plan.ok) return plan;
+  if (!plan.free) return { ok: false, error: `You're following ${WATCH_LIMIT} topics already. Stop one first.` };
   const sb = await supabaseServer();
-  const safeNews = (q: string | null) => (q && /^[\p{L}\p{N}\s"'()\-]{1,300}$/u.test(q) ? q : null);
-  const added: string[] = []; const problems: string[] = [];
-  for (const t of input.topics.slice(0, WATCH_LIMIT)) {
-    const topic: WatchTopic = { label: t.label.slice(0, 200), news: safeNews(t.news), reactions: t.reactions ? t.reactions.replace(/[^\p{L}\p{N}\s"'-]/gu, " ").trim().slice(0, 200) || null : null };
-    const feeds = feedsForTopic(topic, { news: t.useNews, reactions: t.useReactions });
+  const added: string[] = []; const problems: string[] = []; const skipped: string[] = [];
+  for (const topic of plan.topics) {
+    if (added.length >= plan.free) { skipped.push(topic.label); continue; }
+    let weatherAt: { lat: number; lon: number } | null = null;
+    if (topic.weather) {
+      try {
+        const r = await fetchPublic(`${GEOCODE_API}?${new URLSearchParams({ name: topic.weather, count: "1", language: "en", format: "json" })}`, { accept: "application/json", timeoutMs: 10_000 });
+        const g = r.status < 400 ? parseGeocode(r.body) : null;
+        if (g) weatherAt = { lat: g.lat, lon: g.lon }; else problems.push(`no weather found for ${topic.weather}`);
+      } catch { problems.push(`the weather service didn't answer for ${topic.weather}`); }
+    }
+    const feeds = feedsForTopic(topic, { news: true, reactions: true, weatherAt });
     if (!feeds.length) continue;
     const { error } = await sb.rpc("kb_world_watch_add", { p_project: input.projectId, p_query: topic.label, p_feeds: feeds });
-    if (error) { problems.push(`${topic.label}: ${friendlyError(error).message}`); if (error.message.includes("up to 10")) break; continue; }
+    if (error) { if (!/already following/i.test(error.message)) problems.push(`${topic.label}: ${friendlyError(error).message}`); continue; }
     added.push(topic.label);
   }
-  if (!added.length) return { ok: false, error: problems[0] ?? "Nothing to follow." };
+  if (!added.length) return { ok: false, error: problems[0] ? `Nothing new to follow: ${problems[0]}.` : "You're already following all of that." };
   const { data: rows } = await sb.from("knowledge_sources").select("id, watch_query").eq("project_id", input.projectId).in("watch_query", added).is("archived_at", null);
   const outs = await Promise.all(((rows ?? []) as { id: string; watch_query: string }[]).map(async (r) => ({ q: r.watch_query, o: await refreshFeed(String(r.id), true) })));
   const found = new Map<string, number>();
@@ -295,7 +307,8 @@ export async function kbWorldFollow(input: { projectId: string; topics: (WatchTo
   const empty = added.filter((q) => !found.get(q));
   const total = [...found.values()].reduce((a, b) => a + b, 0);
   touch(input.projectId);
-  return { ok: true, note: `Following ${added.length} topic${added.length === 1 ? "" : "s"}: ${total} items found.`
-    + (empty.length ? ` Nothing matched this week for ${empty.map((q) => `"${q}"`).join(", ")}; it will look again tomorrow, or stop it and try other words.` : "")
-    + (problems.length ? ` Not added: ${problems.join("; ")}.` : "") + " Checked again once a day." };
+  return { ok: true, note: `Now following ${added.join(", ")}. ${total} stories and reports below.`
+    + (empty.length ? ` Nothing matched yet for ${empty.join(", ")}.` : "")
+    + (skipped.length ? ` Not added (10-topic limit): ${skipped.join(", ")}.` : "")
+    + (problems.length ? ` Note: ${problems.join("; ")}.` : "") };
 }

@@ -6,6 +6,7 @@ import { detectSource, type AdapterId } from "./adapters";
 import { discoverFeeds, parseFeed, type ParsedFeed } from "./feed";
 import { FetchError, fetchPublic } from "./fetch";
 import { isWatchFeed, parseHn, PER_SOURCE } from "./watch";
+import { parseWeather } from "./weather";
 
 const FEED_ACCEPT = "application/rss+xml, application/atom+xml, application/rdf+xml, application/xml;q=0.9, text/xml;q=0.9, text/html;q=0.5, */*;q=0.1";
 
@@ -60,7 +61,7 @@ export async function refreshFeed(sourceId: string, force = false): Promise<Refr
     const headers: Record<string, string> = {};
     if (src.http_etag) headers["If-None-Match"] = src.http_etag;
     if (src.http_last_modified) headers["If-Modified-Since"] = src.http_last_modified;
-    const isJson = src.adapter === "hn";
+    const isJson = src.adapter === "hn" || src.adapter === "weather";
     const watch = isWatchFeed(src.adapter, src.feed_url);
     const r = await fetchPublic(src.feed_url, { accept: isJson ? "application/json, text/plain;q=0.5" : FEED_ACCEPT, headers: isJson ? {} : headers, timeoutMs: 15_000 });
     if (r.status === 304) {
@@ -72,9 +73,14 @@ export async function refreshFeed(sourceId: string, force = false): Promise<Refr
     if (r.status === 429) return await fail("The site asked us to slow down (429). Studio will try again later.");
     if (r.status >= 400) return await fail(`The site answered with an error (${r.status}).`);
     let items; let meta: Record<string, unknown> = { etag: r.etag, last_modified: r.lastModified };
-    if (src.adapter === "hn") {
-      // Free discussion search answers JSON; read deterministically (no model).
-      const parsed = parseHn(r.body);
+    if (src.adapter === "hn" || src.adapter === "weather") {
+      // Free JSON sources (discussion search, weather); read deterministically (no model).
+      let city = "";
+      if (src.adapter === "weather") {
+        const { data: t } = await db.from("knowledge_sources").select("title").eq("id", sourceId).maybeSingle();
+        city = String(t?.title ?? "").replace(/^(Stopped: )?Weather: /, "") || "The city";
+      }
+      const parsed = src.adapter === "hn" ? parseHn(r.body) : parseWeather(r.body, city);
       if (!Array.isArray(parsed)) return await fail(parsed.error);
       items = parsed;
     } else {

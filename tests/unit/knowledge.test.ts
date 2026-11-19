@@ -158,10 +158,33 @@ test("World watches: a typed request becomes separate free topics (no AI)", () =
   assert.equal(p[0].reactions, "AI");
   assert.equal(p[4].news, '"San Francisco"');
   assert.equal(p[4].reactions, null);
-  assert.equal(p[6].news, '"San Francisco" (weather OR traffic)');
+  assert.equal(p[6].news, '"San Francisco" traffic');
+  assert.equal(p[6].weather, "San Francisco");
   assert.deepEqual(planWatches("chip export rules", []).map((t) => t.label), ["chip export rules"]);
   assert.deepEqual(planWatches("local news in the cities of the story", []), [], "no cities yet: nothing invented");
   const f = feedsForTopic(p[6], { news: true, reactions: true });
   assert.equal(f.length, 1);
-  assert.ok(f[0].feed_url.startsWith("https://news.google.com/rss/search?q=%22San+Francisco%22+%28weather+OR+traffic%29+when%3A7d"));
+  assert.ok(f[0].feed_url.startsWith("https://news.google.com/rss/search?q=%22San+Francisco%22+traffic+when%3A7d"));
+});
+
+import { describe as wxDescribe, parseGeocode, parseWeather, weatherUrl } from "../../lib/knowledge/weather";
+test("World weather: free daily report per city, read without AI", () => {
+  const p = planWatches("local news and weather and traffic for the cities in the story", ["San Francisco"]);
+  assert.deepEqual(p.map((t) => [t.label, t.news, t.weather]), [["San Francisco: local news, weather and traffic", '"San Francisco"', "San Francisco"]]);
+  const only = planWatches("weather for each of the cities in the story", ["Paris"]);
+  assert.deepEqual(only.map((t) => [t.news, t.weather]), [[null, "Paris"]]);
+  const f = feedsForTopic(p[0], { news: true, reactions: true, weatherAt: { lat: 37.77, lon: -122.42 } });
+  assert.deepEqual(f.map((x) => x.adapter), ["weather", "rss"]);
+  assert.ok(weatherUrl(1, 2).startsWith("https://api.open-meteo.com/v1/forecast?latitude=1.000&longitude=2.000"));
+  assert.deepEqual(parseGeocode('{"results":[{"latitude":37.7,"longitude":-122.4,"name":"San Francisco","admin1":"California","country":"United States"}]}'),
+    { lat: 37.7, lon: -122.4, name: "San Francisco", region: "California, United States" });
+  assert.equal(parseGeocode("{}"), null);
+  assert.equal(wxDescribe(61), "rain");
+  const w = parseWeather(JSON.stringify({ current: { temperature_2m: 61.2, apparent_temperature: 59, weather_code: 3, wind_speed_10m: 8 },
+    daily: { time: ["2026-11-19", "2026-11-20", "2026-11-21"], weather_code: [61, 0, 2], temperature_2m_max: [64, 66, 65], temperature_2m_min: [52, 50, 51], precipitation_probability_max: [70, 5, 10] } }), "San Francisco");
+  assert.ok(Array.isArray(w) && w.length === 1);
+  assert.equal(w[0].key, "weather:san francisco:2026-11-19");
+  assert.equal(w[0].title, "San Francisco weather · Thu, Nov 19: rain, 64°F / 52°F");
+  assert.ok(w[0].content.startsWith("Now: 61°F (feels like 59°F), overcast, wind 8 mph.\nToday: rain, high 64°F, low 52°F, 70% chance of rain."));
+  assert.ok(!Array.isArray(parseWeather("nope", "X")));
 });

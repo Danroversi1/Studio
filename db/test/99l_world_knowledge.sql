@@ -27,12 +27,15 @@ select tests.ok((select connected from public.kb_world_collection(tests.v('W'), 
 select tests.ok(public.kb_world_watch_add(tests.v('W'), 'chip export rules', jsonb_build_array(
   jsonb_build_object('adapter', 'rss', 'feed_url', 'https://news.google.com/rss/search?q=x', 'title', 'News: chip export rules'),
   jsonb_build_object('adapter', 'hn', 'feed_url', 'https://hn.algolia.com/api/v1/search_by_date?query=x', 'title', 'Reactions: chip export rules'))) = 2, 'a watch adds free news and reaction feeds');
+select tests.ok(public.kb_world_watch_add(tests.v('W'), 'Paris: weather and traffic', jsonb_build_array(
+  jsonb_build_object('adapter', 'weather', 'feed_url', 'https://api.open-meteo.com/v1/forecast?latitude=48.857&longitude=2.352', 'title', 'Weather: Paris'),
+  jsonb_build_object('adapter', 'rss', 'feed_url', 'https://news.google.com/rss/search?q=Paris+traffic', 'title', 'News: Paris'))) = 2, 'a watch can bring a free weather report');
 select tests.throws(format($q$select public.kb_world_watch_add(%L, 'x', jsonb_build_array(jsonb_build_object('adapter', 'rss', 'feed_url', 'https://evil.example/?', 'title', 't')))$q$, tests.v('W')),
   '22023', 'only the free sources Studio builds');
 select tests.throws(format($q$select public.kb_world_watch_add(%L, 'Chip Export Rules', jsonb_build_array(jsonb_build_object('adapter', 'hn', 'feed_url', 'https://hn.algolia.com/api/v1/search_by_date?q', 'title', 't')))$q$, tests.v('W')),
   '23505', 'no duplicate watches');
 select public.kb_world_watch_add(tests.v('W'), 'watch ' || g, jsonb_build_array(jsonb_build_object('adapter', 'hn', 'feed_url', 'https://hn.algolia.com/api/v1/search_by_date?query=' || g, 'title', 't')))
-  from generate_series(2, 10) g;
+  from generate_series(3, 10) g;
 select tests.throws(format($q$select public.kb_world_watch_add(%L, 'one more', jsonb_build_array(jsonb_build_object('adapter', 'hn', 'feed_url', 'https://hn.algolia.com/api/v1/search_by_date?q', 'title', 't')))$q$, tests.v('W')),
   '22023', 'at most 10 watches');
 select tests.put('gsrc', (select id from public.knowledge_sources where project_id = tests.v('W') and adapter = 'rss'));

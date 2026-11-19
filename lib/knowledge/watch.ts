@@ -13,7 +13,7 @@ export const HN_SEARCH = "https://hn.algolia.com/api/v1/search_by_date";
 
 /** Is this feed one of the free World watches (kept small: newest PER_SOURCE items)? */
 export const isWatchFeed = (adapter: string, url: string) =>
-  adapter === "hn" || (adapter === "rss" && url.startsWith(`${NEWS_SEARCH}?`));
+  adapter === "hn" || adapter === "weather" || (adapter === "rss" && url.startsWith(`${NEWS_SEARCH}?`));
 
 /** Words she typed → a safe search string (letters, numbers, spaces, quotes for phrases). */
 export function cleanQuery(q: string): string {

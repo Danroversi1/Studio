@@ -458,6 +458,115 @@ function CharacterStrip({ projectId, canEdit, characters, collections, counts, s
   );
 }
 
+// ---- World: the stories and reports themselves ------------------------------------------
+/** Google News titles end with " - Outlet"; split them so the outlet shows separately. */
+function splitOutlet(title: string): { headline: string; outlet: string | null } {
+  const m = /^(.*\S)\s+[-–—]\s+([^-–—]{2,60})$/.exec(title);
+  return m ? { headline: m[1], outlet: m[2] } : { headline: title, outlet: null };
+}
+function when(iso: string | null): string {
+  if (!iso) return "";
+  const h = (Date.now() - Date.parse(iso)) / 3_600_000;
+  if (h < 1) return "just now";
+  if (h < 24) return `${Math.round(h)} h ago`;
+  if (h < 24 * 7) return `${Math.round(h / 24)} d ago`;
+  return fmtDate(iso) ?? "";
+}
+
+function WorldStories({ projectId, canEdit, items, byId, imp }: {
+  projectId: string; canEdit: boolean; items: KItem[]; byId: Map<string, KSource>; imp: ImpCtx | null;
+}) {
+  const s = useRun();
+  const [topic, setTopic] = useState("");
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState<string | null>(null);
+  const [limit, setLimit] = useState(40);
+  const topicOf = (i: KItem) => byId.get(i.source_id)?.watch_query ?? "Added by you";
+  const topics = [...new Set(items.map(topicOf))];
+  const latest = (a: KItem, b: KItem) => Date.parse(b.published_at ?? b.retrieved_at) - Date.parse(a.published_at ?? a.retrieved_at);
+  // Weather: the newest report per city, as cards.
+  const weather = [...new Map(items.filter((i) => byId.get(i.source_id)?.adapter === "weather").sort(latest).map((i) => [i.source_id, i])).values()];
+  const needle = q.trim().toLowerCase();
+  const stories = items.filter((i) => byId.get(i.source_id)?.adapter !== "weather")
+    .filter((i) => (!topic || topicOf(i) === topic) && (!needle || `${i.title}\n${i.content}`.toLowerCase().includes(needle))).sort(latest);
+  const impressionsFor = (id: string) => imp?.impressions.filter((x) => x.item_id === id) ?? [];
+  return (
+    <section className="panel flex flex-col gap-3 p-4" aria-labelledby="stories-h">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="stories-h" className="display text-lg">What&apos;s happening</h2>
+        <input className="field min-h-9 w-56 text-sm" placeholder="Search the stories" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search the stories" />
+      </div>
+
+      {weather.length > 0 && (!topic || weather.some((w) => topicOf(w) === topic)) && (
+        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {weather.filter((w) => !topic || topicOf(w) === topic).map((w) => (
+            <li key={w.id} className="flex flex-col gap-1 border border-line bg-panel-2 p-3">
+              <p className="text-sm font-semibold">{w.title}</p>
+              <p className="whitespace-pre-line text-xs leading-5">{w.content}</p>
+              <p className="text-[11px] text-muted">Weather report · Open-Meteo · {when(w.retrieved_at)}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {topics.length > 1 && (
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Topics">
+          {["", ...topics].map((t) => (
+            <button key={t || "all"} type="button" aria-pressed={topic === t} onClick={() => { setTopic(t); setLimit(40); }}
+              className={`border px-2 py-1 text-xs ${topic === t ? "border-text bg-text text-panel-2" : "border-line hover:border-text"}`}>{t || "All"}</button>
+          ))}
+        </div>
+      )}
+
+      {stories.length ? (
+        <ul className="flex flex-col divide-y divide-line">
+          {stories.slice(0, limit).map((i) => {
+            const src = byId.get(i.source_id)!;
+            const isHn = src.adapter === "hn";
+            const { headline, outlet } = isHn ? { headline: i.title, outlet: "Hacker News discussion" } : splitOutlet(i.title);
+            const snippet = i.content && !i.content.toLowerCase().startsWith(headline.toLowerCase().slice(0, 40)) ? i.content.replace(/\nAbout: .*/s, "").slice(0, 280) : "";
+            const about = isHn ? /\nAbout: (\S+)/.exec(i.content)?.[1] : null;
+            const n = impressionsFor(i.id).length;
+            return (
+              <li key={i.id} className="flex flex-col gap-1 py-3">
+                {i.url ? (
+                  <a href={i.url} target="_blank" rel="noopener noreferrer nofollow" className="text-[15px] font-semibold leading-snug hover:text-accent hover:underline">
+                    {headline} <span aria-hidden className="text-accent">↗</span><span className="sr-only"> (opens the story)</span>
+                  </a>
+                ) : <button type="button" className="text-left text-[15px] font-semibold leading-snug hover:text-accent" onClick={() => setOpen(open === i.id ? null : i.id)}>{headline}</button>}
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+                  {outlet && <span className="font-medium text-text">{outlet}</span>}
+                  {i.author && isHn && <span>· {i.author}</span>}
+                  <span>· {when(i.published_at ?? i.retrieved_at)}</span>
+                  <span className="border border-line px-1.5 py-0.5 text-[10px]">{topicOf(i)}</span>
+                  {about && <a className="text-accent underline" href={about} target="_blank" rel="noopener noreferrer nofollow">the article being discussed ↗</a>}
+                  {canEdit && src.watch_query && (
+                    <button type="button" className={`border px-1.5 py-0.5 text-[10px] font-semibold uppercase ${i.pinned ? "border-ok text-ok" : "border-line"}`} disabled={s.pending}
+                      title={i.pinned ? "Kept: never cleared away" : "Keep it: daily clearing never removes it"}
+                      onClick={() => s.run(() => kbItemPin({ projectId, itemId: i.id, pinned: !i.pinned }))}>{i.pinned ? "Kept" : "Keep"}</button>
+                  )}
+                  {imp && <button type="button" className="text-accent underline" onClick={() => setOpen(open === i.id ? null : i.id)}>
+                    {open === i.id ? "Close" : n ? `Characters' impressions (${n})` : "Characters' impressions"}</button>}
+                </p>
+                {snippet && <p className="text-sm text-text/80">{snippet}</p>}
+                {open === i.id && (
+                  <div className="mt-1 flex flex-col gap-2 border-l-2 border-line pl-3">
+                    {!i.url && i.content && <p className="whitespace-pre-wrap text-sm">{i.content}</p>}
+                    {imp && <ItemImpressions projectId={projectId} canEdit={canEdit} aiReady={imp.aiReady} itemId={i.id} itemVersion={i.version}
+                      characters={imp.characters} impressions={imp.impressions} only={imp.only} />}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      ) : <p className="text-sm text-muted">{items.length ? "Nothing matches." : "Nothing yet. Tell me what to look for above, or add research below."}</p>}
+      {stories.length > limit && <button type="button" className="btn min-h-9 self-start text-xs" onClick={() => setLimit(limit + 40)}>Show more ({stories.length - limit} more)</button>}
+      <Status msg={s.msg} />
+    </section>
+  );
+}
+
 function WorldSetUp({ projectId }: { projectId: string }) {
   const s = useRun();
   return (
@@ -663,12 +772,13 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
       {!worldOnly && <CharacterStrip projectId={projectId} canEdit={canEdit} characters={characters} collections={collections} counts={counts} selected={char?.id ?? null}
         world={world} worldOpen={inWorld} />}
       {inWorld && world && <WorldPanel projectId={projectId} canEdit={canEdit} characters={characters} world={world} sources={sources} counts={itemCounts} />}
+      {inWorld && world && <WorldStories projectId={projectId} canEdit={canEdit} items={items.filter((i) => collectionsOf(i, members).includes(world.id))} byId={byId} imp={imp} />}
       {char && <CharacterPanel projectId={projectId} canEdit={canEdit} character={char} collections={collections} counts={counts} />}
       {canEdit && <AddResearch key={inWorld ? "world" : own?.id ?? "all"} projectId={projectId} collections={collections} references={references} preset={preset}
         share={inWorld && world ? { collection: world, sources: sources.filter((x) => !x.disconnected_at && !x.watch_query && !members.some((m) => m.collection_id === world.id && m.source_id === x.id)) } : undefined} />}
       {!char && !inWorld && (canEdit || collections.length > 0) && <Collections projectId={projectId} collections={collections} counts={counts} used={used} active={active} onActive={setActive} />}
       {!char && !inWorld && <Feeds projectId={projectId} feeds={sources.filter((s) => s.kind === "feed" && !s.watch_query)} collections={collections} members={members} itemCounts={itemCounts} />}
-      <section className="panel flex flex-col gap-3 p-4" aria-labelledby="lib-h">
+      {!inWorld && <section className="panel flex flex-col gap-3 p-4" aria-labelledby="lib-h">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 id="lib-h" className="display text-lg">{inWorld ? "In the World" : char ? `What ${char.name} can draw on` : `Library ${active ? `· ${collections.find((c) => c.id === active)?.name}` : ""}`}</h2>
           <div className="flex flex-wrap gap-2">
@@ -685,7 +795,7 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
           </ul>
         ) : <p className="text-sm text-muted">{inWorld ? "Nothing in the World yet. Follow something above, add research by hand, or bring in research from your Knowledge Base." : char ? `Nothing for ${char.name} yet. Add research above, or connect a collection on the Connections desk.` : items.length ? "Nothing matches." : "Nothing here yet. Add a note, a link, a document or an updating source."}</p>}
         {items.length > 200 && shown.length === 200 && <p className="text-xs text-muted">Showing the first 200. Search or pick a collection to narrow it down.</p>}
-      </section>
+      </section>}
     </div>
   );
 }
