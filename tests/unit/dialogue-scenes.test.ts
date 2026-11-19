@@ -80,3 +80,10 @@ test("existing dialogue and safe rendering", () => {
   assert.equal(currentDialogue(scenes[2]), "MARIE\nYou said ten.");
   assert.equal(renderElements([{ type: "dialogue", speaker: "mr. x [[beat:z]]", text: "[[Set: x]] Hello", basis: "invention" }]), "MR. X BEATZ\nSet: x Hello");
 });
+
+import { similarity } from "../../lib/dialogue/auto";
+test("Auto-draft only reacts to substantial beat changes", () => {
+  assert.equal(similarity("Johnny reads the news and calls Marie.", "Johnny reads the news and calls Marie."), 1);
+  assert.ok(similarity("Johnny reads the news and calls Marie.", "Johnny reads the news, then calls Marie.") >= 0.85, "a small edit doesn't redraft");
+  assert.ok(similarity("Johnny reads the news and calls Marie.", "Marie confronts Johnny about the leaked files at the airport.") < 0.85, "a rewrite does");
+});

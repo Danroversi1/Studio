@@ -11,6 +11,8 @@ import { friendlyError, withMessage } from "@/lib/errors";
 import { parseCast } from "@/lib/cast";
 import { between, sortByOrder } from "@/lib/notebook-order";
 import { runScenePlan } from "@/lib/agents/run-scene-plan";
+import { queueAutoDraftsForBeat } from "@/lib/dialogue/auto";
+import { processQueue } from "@/lib/dialogue/run";
 import { runCastScan } from "@/lib/agents/run-cast-scan";
 import { castSummary, newPeople, speakers, type ScriptPerson } from "@/lib/script-cast";
 import { createHash } from "node:crypto";
@@ -401,6 +403,15 @@ export async function updateNote(fd: FormData) {
     p_item: s(fd, "itemId"), p_status: opt(fd, "status"), p_kind: opt(fd, "kind"), p_body: opt(fd, "body"),
   });
   if (error) redirect(withMessage(back, "error", friendlyError(error).message));
+  // Optional Auto-draft: a deliberately saved outline beat may queue proposals for its own
+  // scenes (only if she turned it on; only if the beat changed substantially).
+  if (opt(fd, "body")) {
+    const itemId = s(fd, "itemId");
+    after(async () => {
+      const n = await queueAutoDraftsForBeat(await supabaseServer(), projectId, itemId).catch(() => 0);
+      if (n) await processQueue(projectId, { max: 2 }).catch(() => 0);
+    });
+  }
   revalidatePath(back);
   redirect(back);
 }
@@ -649,7 +660,11 @@ export async function insertBeat(fd: FormData) {
   if (error || !id) redirect(withMessage(back, "error", friendlyError(error!).message));
   const { error: e2 } = await sb.rpc("place_notebook_item", { p_item: id, p_kind: null, p_position: position });
   if (e2) redirect(withMessage(back, "error", friendlyError(e2).message));
-  after(() => planScenes(projectId).catch(() => undefined));
+  after(async () => {
+    await planScenes(projectId).catch(() => undefined);
+    const n = await queueAutoDraftsForBeat(await supabaseServer(), projectId, String(id)).catch(() => 0);
+    if (n) await processQueue(projectId, { max: 2 }).catch(() => 0);
+  });
   revalidatePath(back);
   redirect(`${back}#outline-h`);
 }

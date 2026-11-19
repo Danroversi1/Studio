@@ -11,6 +11,7 @@ const FORBIDDEN = [
   "lib/storyboard/provider.ts",               // the cloud image provider (OpenAI): never on the local path
   "lib/ai/client.ts", "lib/storyboard/suggest.ts", "lib/storyboard/run-job.ts", "lib/agents/run-partner-turn.ts",
   "lib/agents/run-story-breakdown.ts", "lib/agents/run-scene-plan.ts", "lib/agents/run-cast-scan.ts", "lib/agents/run-world-read.ts",
+  "lib/agents/run-character-talk.ts", "lib/dialogue/run.ts",
 ];
 const ROUTINE = [
   "app/projects/[projectId]/storyboard-actions.ts",          // every routine server action
@@ -83,4 +84,19 @@ test("the optional AI routes are the only storyboard entry points that can call 
   assert.ok([...ai.keys()].some((f) => f.endsWith("lib/storyboard/run-job.ts")));
   const sug = graph("app/api/storyboards/[sequenceId]/suggest/route.ts");
   assert.ok([...sug.keys()].some((f) => f.endsWith("lib/ai/client.ts")));
+});
+
+test("feed refreshes can't reach dialogue at all (no drafting cascade from new research)", () => {
+  for (const entry of ["app/api/cron/knowledge/route.ts", "lib/knowledge/refresh.ts", "app/projects/[projectId]/knowledge-actions.ts"]) {
+    for (const [file, path] of graph(entry)) {
+      assert.ok(!file.includes("/lib/dialogue/"), `${entry} reaches ${file.replace(`${ROOT}/`, "")} via ${path.join(" → ")}`);
+    }
+  }
+});
+
+test("drafting dialogue is reachable only from the dialogue actions and the outline's Auto-draft hook", () => {
+  const d = graph("app/projects/[projectId]/dialogue-actions.ts");
+  assert.ok([...d.keys()].some((f) => f.endsWith("lib/dialogue/run.ts")));
+  assert.ok(!graph("lib/dialogue/scenes.ts").has(join(ROOT, "lib/ai/client.ts")));
+  assert.ok(!graph("lib/dialogue/request.ts").has(join(ROOT, "lib/ai/client.ts")), "building a request (retrieval, rules) needs no model");
 });

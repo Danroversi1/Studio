@@ -16,6 +16,9 @@ export const maxDuration = 300;
 import { CastBox } from "@/components/cast-box";
 import { runtimeInfo, targetPages } from "@/lib/runtime";
 import { approveScreenplay, saveScreenplay } from "../actions";
+import { DialogueDesk } from "@/components/dialogue/dialogue-desk";
+import { getDialogueDesk } from "@/lib/dialogue/data";
+import { DIALOGUE_PROVIDER } from "@/lib/dialogue/run";
 
 export default async function ScriptPage({
   params,
@@ -29,7 +32,7 @@ export default async function ScriptPage({
   const [shell, sp, cast, originals, notebook] = await Promise.all([
     getProjectShell(projectId), getScreenplay(projectId), getCast(projectId), getCastOriginals(projectId), getNotebook(projectId),
   ]);
-  const world = await getWorld(projectId);
+  const [world, desk] = await Promise.all([getWorld(projectId), getDialogueDesk(projectId)]);
   if (!shell || !shell.caps.member) notFound();
   const { caps } = shell;
   const runtime = (shell.project as { runtime?: string | null }).runtime ?? null;
@@ -92,6 +95,13 @@ export default async function ScriptPage({
         initial={selected?.content.body ?? ""} parentVersionId={selected?.id ?? ""}
         baseVersionId={sp?.entity.current_version_id ?? ""} canEdit={!!caps.can_edit} saveAction={saveScreenplay}
         target={targetPages(runtime)} lengthLabel={runtimeInfo(runtime)?.label ?? null} />
+
+      {(!v || v === versions[0]?.id) && (
+        <DialogueDesk projectId={projectId} canEdit={!!caps.can_edit} aiReady={aiConfigured()}
+          provider={`${DIALOGUE_PROVIDER.provider} ${DIALOGUE_PROVIDER.model} (${DIALOGUE_PROVIDER.location.toLowerCase()})`}
+          scenes={desk.scenes} contexts={desk.contexts} proposals={desk.proposals} settings={desk.settings} characters={desk.characters}
+          scriptVersionId={desk.scriptVersionId} />
+      )}
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[1fr_24rem]">
         <BreakdownPanel body={selected?.content.body ?? ""} />
