@@ -393,14 +393,14 @@ function CharacterStrip({ projectId, canEdit, characters, collections, counts, s
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {(world || canEdit) && (
           <li>
-            <button type="button" aria-pressed={worldOpen} disabled={busy === "world"} onClick={() => void openWorld()} className={tile(worldOpen)}>
+            <button type="button" aria-pressed={worldOpen} disabled={busy === "world"} title={world ? `Connected to ${worldReach} of ${characters.length} characters` : undefined} onClick={() => void openWorld()} className={tile(worldOpen)}>
               <span className={`grid h-12 w-12 shrink-0 place-items-center ${worldOpen ? "bg-panel-2 text-text" : "bg-text text-panel-2"}`} aria-hidden>
                 <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18" /></svg>
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold uppercase">{busy === "world" ? "Opening…" : "World"}</span>
-                <span className={`${sub(worldOpen)} font-medium`}>Everyone&apos;s world</span>
-                <span className={sub(worldOpen)}>{world ? `${worldItems} item${worldItems === 1 ? "" : "s"} · ${worldReach} of ${characters.length} characters` : "News and reactions"}</span>
+                <span className={`${sub(worldOpen)} font-medium`}>For everyone</span>
+                <span className={sub(worldOpen)}>{world ? `${worldItems} item${worldItems === 1 ? "" : "s"} · ${worldReach} of ${characters.length}` : "News and reactions"}</span>
               </span>
             </button>
           </li>

@@ -58,7 +58,7 @@ export function WorldPanel({ projectId, canEdit, characters, world, sources, cou
 
       {canEdit && (
         <form className="flex flex-col gap-2 border border-line bg-panel-2 p-3" onSubmit={(e) => { e.preventDefault(); s.run(() => kbWorldWatchAdd({ projectId, query, news, reactions }), undefined, () => setQuery("")); }}>
-          <label className="text-sm font-medium" htmlFor="world-q">Follow something in the world</label>
+          <label className="text-sm font-medium" htmlFor="world-q">Tell me what you want me to look for to inform your world.</label>
           <div className="flex flex-wrap gap-2">
             <input id="world-q" className="field min-w-0 flex-1" value={query} maxLength={200} onChange={(e) => setQuery(e.target.value)} required
               placeholder='A few words, e.g. chip export rules, or "artificial intelligence"' disabled={watches.length >= WATCH_LIMIT} />
@@ -69,7 +69,7 @@ export function WorldPanel({ projectId, canEdit, characters, world, sources, cou
             <label className="flex items-center gap-1.5"><input type="checkbox" checked={reactions} onChange={(e) => setReactions(e.target.checked)} /> Reactions (Hacker News discussions)</label>
           </div>
           <p className="text-[11px] text-muted">
-            Free: these are open public sources, read without any AI. Checked once a day; each keeps only its newest 15 items unless you keep one.
+            NOTE: these are open public sources, read without any AI. Checked once a day; each keeps only its newest 15 items unless you keep one.
             {` ${watches.length} of ${WATCH_LIMIT} used.`}
           </p>
           <Status msg={s.msg} />
