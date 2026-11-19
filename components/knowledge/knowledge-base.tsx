@@ -13,6 +13,8 @@ import { collectionsOf, type KCharacter, type KCollection, type KItem, type KMem
 import { saveKnowledgeLink } from "@/app/projects/[projectId]/connect-actions";
 import { PURPOSE_LABEL, TEMPORAL_LABEL, type Purpose, type Temporal } from "@/lib/knowledge/eligibility";
 import { ThumbView } from "@/components/thumb-view";
+import { ItemImpressions, WorldCard, WorldPanel } from "./world";
+import type { Impression, WorldSearch } from "@/lib/knowledge/types";
 import { docTypeOf, extractText, uploadDocument } from "@/lib/knowledge/documents";
 import { CONTENT_STATUS, KIND_LABEL, REFRESH_CHOICES, STATUS, VERIFICATION, ago, feedState } from "@/lib/knowledge/labels";
 
@@ -446,7 +448,8 @@ function CharacterPanel({ projectId, canEdit, character, collections, counts }: 
 }
 
 // ---- Library ------------------------------------------------------------------------------
-function ItemRow({ projectId, item, source, collections, members, canEdit }: { projectId: string; item: KItem; source: KSource; collections: KCollection[]; members: KMember[]; canEdit: boolean }) {
+interface ImpCtx { characters: KCharacter[]; impressions: Impression[]; only: string | null; aiReady: boolean }
+function ItemRow({ projectId, item, source, collections, members, canEdit, imp }: { projectId: string; item: KItem; source: KSource; collections: KCollection[]; members: KMember[]; canEdit: boolean; imp?: ImpCtx | null }) {
   const s = useRun();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState(item.director_note ?? "");
@@ -470,12 +473,17 @@ function ItemRow({ projectId, item, source, collections, members, canEdit }: { p
         {item.verification !== "unverified" && <Badge tone={item.verification === "checked" ? "ok" : "warn"}>{VERIFICATION[item.verification]}</Badge>}
         {inCols.map((c) => <span key={c} className="border border-line px-1.5 py-0.5 text-[10px]">{collections.find((x) => x.id === c)?.name}</span>)}
       </p>
+      {imp && !open && imp.impressions.some((i) => i.item_id === item.id && (!imp.only || i.character_id === imp.only)) && (
+        <p className="text-xs text-muted">{imp.impressions.filter((i) => i.item_id === item.id && (!imp.only || i.character_id === imp.only)).length} character impression(s). Open to see.</p>
+      )}
       {open && (
         <div className="mt-1 flex flex-col gap-2 border-l-2 border-line pl-3">
           <p className="text-[11px] tracking-[0.08em] text-muted uppercase">What the source says · {CONTENT_STATUS[item.content_status]}</p>
           {item.content ? <p className="max-h-64 overflow-y-auto whitespace-pre-wrap">{item.content}</p> : <p className="text-muted">Only the title and details were saved.</p>}
           {(item.url || source.url) && <a className="truncate text-xs text-accent underline" href={item.url ?? source.url ?? "#"} target="_blank" rel="noopener noreferrer nofollow">{item.url ?? source.url}</a>}
           {source.asset_id && <a className="text-xs text-accent underline" href={`/api/assets/${source.asset_id}`} target="_blank" rel="noopener noreferrer">Open the original file</a>}
+          {imp && <ItemImpressions projectId={projectId} canEdit={canEdit} aiReady={imp.aiReady} itemId={item.id} itemVersion={item.version}
+            characters={imp.characters} impressions={imp.impressions} only={imp.only} />}
           {canEdit ? (
             <form className="flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); s.run(() => kbAnnotateItem({ projectId, itemId: item.id, data: { director_note: note, verification: ver, verification_note: verNote, published_at: date ? `${date}T12:00:00Z` : "" } })); }}>
               <label className="text-xs text-muted">Your interpretation (kept separate from the source)
@@ -525,10 +533,11 @@ function ItemRow({ projectId, item, source, collections, members, canEdit }: { p
   );
 }
 
-export function KnowledgeBase({ projectId, canEdit, sources, items, collections, members, references, used, characters, selectedCharacter }: {
+export function KnowledgeBase({ projectId, canEdit, sources, items, collections, members, references, used, characters, selectedCharacter, searches, impressions, aiReady, worldOpen }: {
   projectId: string; canEdit: boolean; sources: KSource[]; items: KItem[]; collections: KCollection[]; members: KMember[];
   references: { id: string; title: string | null; source_url: string | null; source_domain: string | null }[]; used: Record<string, number>;
   characters: KCharacter[]; selectedCharacter: string | null;
+  searches: WorldSearch[]; impressions: Impression[]; aiReady: boolean; worldOpen: boolean;
 }) {
   const router = useRouter();
   const [active, setActive] = useState<string | null>(null);
@@ -549,9 +558,12 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
     return m;
   }, [items, members]);
   const itemCounts = useMemo(() => items.reduce<Record<string, number>>((m, i) => ({ ...m, [i.source_id]: (m[i.source_id] ?? 0) + 1 }), {}), [items]);
-  const char = characters.find((c) => c.id === selectedCharacter) ?? null;
+  const world = collections.find((c) => c.kind === "world") ?? null;
+  const inWorld = worldOpen && !!world;
+  const char = inWorld ? null : characters.find((c) => c.id === selectedCharacter) ?? null;
   const own = char ? collections.find((c) => c.character_id === char.id) ?? null : null;
-  const charCols = useMemo(() => (char ? [...new Set([...char.links.map((l) => l.collection_id), ...(own ? [own.id] : [])])] : null), [char, own]);
+  const charCols = useMemo(() => (inWorld && world ? [world.id] : char ? [...new Set([...char.links.map((l) => l.collection_id), ...(own ? [own.id] : [])])] : null), [char, own, inWorld, world]);
+  const imp: ImpCtx | null = inWorld ? { characters, impressions, only: null, aiReady } : char ? { characters, impressions, only: char.id, aiReady } : null;
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return items.filter((i) => {
@@ -564,18 +576,21 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
       return true;
     }).slice(0, 200);
   }, [items, byId, kind, active, members, q, charCols]);
-  const preset = useMemo(() => (own ? [own.id] : active ? [active] : []), [active, own]);
+  const preset = useMemo(() => (inWorld && world ? [world.id] : own ? [own.id] : active ? [active] : []), [active, own, inWorld, world]);
 
   return (
     <div className="flex flex-col gap-6">
-      <CharacterStrip projectId={projectId} canEdit={canEdit} characters={characters} collections={collections} counts={counts} selected={char?.id ?? null} />
+      <WorldCard projectId={projectId} canEdit={canEdit} world={world} items={world ? counts[world.id] ?? 0 : 0} open={inWorld}
+        connected={world ? characters.filter((c) => c.links.some((l) => l.collection_id === world.id)).length : 0} total={characters.length} />
+      {inWorld && world && <WorldPanel projectId={projectId} canEdit={canEdit} aiReady={aiReady} characters={characters} world={world} searches={searches} />}
+      {!inWorld && <CharacterStrip projectId={projectId} canEdit={canEdit} characters={characters} collections={collections} counts={counts} selected={char?.id ?? null} />}
       {char && <CharacterPanel projectId={projectId} canEdit={canEdit} character={char} collections={collections} counts={counts} />}
-      {canEdit && <AddResearch key={own?.id ?? "all"} projectId={projectId} collections={collections} references={references} preset={preset} />}
-      {!char && (canEdit || collections.length > 0) && <Collections projectId={projectId} collections={collections} counts={counts} used={used} active={active} onActive={setActive} />}
-      {!char && <Feeds projectId={projectId} feeds={sources.filter((s) => s.kind === "feed")} collections={collections} members={members} itemCounts={itemCounts} />}
+      {canEdit && <AddResearch key={inWorld ? "world" : own?.id ?? "all"} projectId={projectId} collections={collections} references={references} preset={preset} />}
+      {!char && !inWorld && (canEdit || collections.length > 0) && <Collections projectId={projectId} collections={collections} counts={counts} used={used} active={active} onActive={setActive} />}
+      {!char && !inWorld && <Feeds projectId={projectId} feeds={sources.filter((s) => s.kind === "feed")} collections={collections} members={members} itemCounts={itemCounts} />}
       <section className="panel flex flex-col gap-3 p-4" aria-labelledby="lib-h">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="lib-h" className="display text-lg">{char ? `What ${char.name} can draw on` : `Library ${active ? `· ${collections.find((c) => c.id === active)?.name}` : ""}`}</h2>
+          <h2 id="lib-h" className="display text-lg">{inWorld ? "In the World" : char ? `What ${char.name} can draw on` : `Library ${active ? `· ${collections.find((c) => c.id === active)?.name}` : ""}`}</h2>
           <div className="flex flex-wrap gap-2">
             <input className="field min-h-9 w-56 text-sm" placeholder="Search your research" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search" />
             <select className="field min-h-9 w-auto text-sm" value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Kind">
@@ -586,9 +601,9 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
         </div>
         {shown.length ? (
           <ul className="flex flex-col divide-y divide-line">
-            {shown.map((i) => <ItemRow key={i.id} projectId={projectId} item={i} source={byId.get(i.source_id)!} collections={collections} members={members} canEdit={canEdit} />)}
+            {shown.map((i) => <ItemRow key={i.id} projectId={projectId} item={i} source={byId.get(i.source_id)!} collections={collections} members={members} canEdit={canEdit} imp={imp} />)}
           </ul>
-        ) : <p className="text-sm text-muted">{char ? `Nothing for ${char.name} yet. Add research above, or connect a collection on the Connections desk.` : items.length ? "Nothing matches." : "Nothing here yet. Add a note, a link, a document or an updating source."}</p>}
+        ) : <p className="text-sm text-muted">{inWorld ? "Nothing in the World yet. Search above, or add news and references by hand." : char ? `Nothing for ${char.name} yet. Add research above, or connect a collection on the Connections desk.` : items.length ? "Nothing matches." : "Nothing here yet. Add a note, a link, a document or an updating source."}</p>}
         {items.length > 200 && shown.length === 200 && <p className="text-xs text-muted">Showing the first 200. Search or pick a collection to narrow it down.</p>}
       </section>
     </div>

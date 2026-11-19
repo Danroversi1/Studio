@@ -16,6 +16,7 @@ export const CONTENT_STATUS: Record<string, string> = {
   full_text: "Full text (yours or imported)",
   excerpt: "Your excerpt",
   summary: "Summary from the feed",
+  ai_summary: "Summary by Studio's research assistant (check the link)",
   metadata_only: "Title and details only",
 };
 

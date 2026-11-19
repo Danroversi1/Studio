@@ -13,13 +13,15 @@ import { titleCase } from "../scene-plan";
 import { supabaseServer } from "../supabase/server";
 import { currentDialogue, sceneFrame, sceneSignature, splitScenes } from "./scenes";
 
-export const WORKFLOW_VERSION = "scene-dialogue-v1";
+export const WORKFLOW_VERSION = "scene-dialogue-v2";
 type Sb = Awaited<ReturnType<typeof supabaseServer>>;
 
 export interface ResearchRef { item_id: string; version: number; title: string; source: string; date: string | null; excerpt: string; use: Use; reason: string; collection: string }
 export interface Perspective {
   id: string; name: string; description: string; profile_version: number;
   confirmed: Record<string, string>; objective: string; research: ResearchRef[];
+  /** Her accepted impressions (qualia) of World items available in this scene. */
+  impressions: { item_id: string; title: string; text: string }[];
 }
 export interface DialogueRequest {
   scene_key: string; heading: string; beat: { id: string; part: string; index: number; text: string; hash: string } | null;
@@ -123,9 +125,31 @@ export async function buildRequest(sb: Sb, projectId: string, sceneKey: string, 
       research = research.filter((r) => (seen.has(r.item_id) ? false : (seen.add(r.item_id), true)));
       research = [...research.filter((r) => r.use !== "adaptation").slice(0, 4), ...research.filter((r) => r.use === "adaptation").slice(0, 2)];
     }
+    // Accepted impressions: only for items this character may draw on in THIS scene.
+    const impressions: Perspective["impressions"] = [];
+    const { data: imps } = await sb.from("character_impressions").select("id, item_id, text").eq("project_id", projectId)
+      .eq("character_id", p.id).eq("status", "accepted").order("decided_at", { ascending: false }).limit(12);
+    if ((imps ?? []).length && mine.length) {
+      const { data: inCols } = await sb.rpc("kb_collection_items", { p_project: projectId, p_collections: mine.map((l) => l.collection_id) });
+      const colOf = new Map(((inCols ?? []) as { item_id: string; collection_id: string }[]).map((r) => [r.item_id, r.collection_id]));
+      const ids = (imps ?? []).map((i) => i.item_id).filter((id) => colOf.has(id));
+      const { data: its } = ids.length ? await sb.from("knowledge_items").select("id, version, title, content, published_at").in("id", ids) : { data: [] };
+      for (const im of imps ?? []) {
+        const it = ((its ?? []) as { id: string; version: number; title: string; content: string; published_at: string | null }[]).find((x) => x.id === im.item_id);
+        const rule = mine.find((l) => l.collection_id === colOf.get(im.item_id));
+        if (!it || !rule) continue;
+        const e = eligibility(rule, it, sceneTime, order);
+        if (e.use === "excluded") continue;
+        impressions.push({ item_id: it.id, title: it.title, text: String(im.text).slice(0, 1200) });
+        if (!research.some((r) => r.item_id === it.id)) {
+          research.push({ item_id: it.id, version: it.version, title: it.title, source: "", date: it.published_at, excerpt: it.content.slice(0, 500), use: e.use, reason: e.reason, collection: rule.knowledge_collections?.name ?? "" });
+        }
+        if (impressions.length >= 4) break;
+      }
+    }
     allRefs.push(...research);
     perspectives.push({ id: p.id, name: p.name, description: desc.slice(0, 1500), profile_version: prof?.version ?? 0,
-      confirmed: prof?.confirmed ?? {}, objective: objectives[p.id] ?? "", research });
+      confirmed: prof?.confirmed ?? {}, objective: objectives[p.id] ?? "", research, impressions });
   }
 
   const { data: storyEnt } = await sb.from("entities").select("id").eq("project_id", projectId).eq("kind", "story").limit(1).maybeSingle();
@@ -155,7 +179,7 @@ export async function buildRequest(sb: Sb, projectId: string, sceneKey: string, 
   };
   const fingerprint = hash(JSON.stringify({
     w: WORKFLOW_VERSION, s: request.scene_signature, b: beat?.hash ?? null, d: storyDate, ctx: [objectives, request.runtime_seconds, request.tone, request.story_date_note],
-    c: perspectives.map((p) => [p.id, p.profile_version, p.objective, p.research.map((r) => [r.item_id, r.version, r.use])]),
+    c: perspectives.map((p) => [p.id, p.profile_version, p.objective, p.research.map((r) => [r.item_id, r.version, r.use]), p.impressions.map((i) => [i.item_id, i.text])]),
     canon: hash(JSON.stringify(request.canon)), n: request.director_note, p: parent?.id ?? null,
   }));
   const snapshot = perspectives.flatMap((p) => p.research.map((r) => ({ ...r, character_id: p.id })));

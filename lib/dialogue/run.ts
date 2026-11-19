@@ -40,7 +40,8 @@ const SYSTEM = `You draft PROPOSED dialogue for one scene of a young director's 
 Work as a coordinated scene writer with one perspective brief per character. Each character:
 - pursues their own objective in this scene, with their own tactic, sentence shape and vocabulary (from "voice");
 - knows only what their brief says. "knows" = things they actually know. Research marked in_world = things that exist by this scene's story date and that they COULD know; don't make them quote or cite it, and don't assume they've read a specific article unless it's natural for them. Research marked background = shapes their expertise and how they talk; it is never an in-world event. Research marked adaptation = a real-world development; you may use it only as a clearly marked proposed adaptation (basis "adaptation"), never as established fact;
-- may misunderstand (see "misbeliefs"), withhold or deflect ("conceals"), and behaves as described "under pressure".
+- may misunderstand (see "misbeliefs"), withhold or deflect ("conceals"), and behaves as described "under pressure";
+- carries their own inner experience of world events ("impressions_of_the_world", approved by the director). Let it color mood, subtext and word choice; never quote it as a speech or make them explain it.
 Characters listen and respond to each other. Dialogue serves the scene's purpose (the outline beat); it is not a summary of research. Avoid exposition dumps and explaining what the audience can see. Allow silence and action. Do not polish everyone into the same voice.
 
 Rules:
@@ -63,6 +64,7 @@ function packed(req: DialogueRequest) {
     characters: req.characters.map((c) => ({
       name: c.name.toUpperCase(), description: c.description, objective_in_this_scene: c.objective || "(not set: infer the smallest objective the beat implies and list it as an assumption)",
       profile: c.confirmed, research: c.research.map((r) => ({ id: r.item_id, use: r.use, title: r.title, date: r.date ?? "unknown", excerpt: r.excerpt })),
+      impressions_of_the_world: (c.impressions ?? []).map((i) => ({ about_item: i.item_id, title: i.title, how_they_experience_it: i.text })),
     })),
     other_speakers_without_profiles: req.unknown_speakers, canon: req.canon,
     previous_draft: req.parent?.elements ?? null, revision_note: req.director_note,

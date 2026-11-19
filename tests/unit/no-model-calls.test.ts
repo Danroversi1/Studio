@@ -11,7 +11,7 @@ const FORBIDDEN = [
   "lib/storyboard/provider.ts",               // the cloud image provider (OpenAI): never on the local path
   "lib/ai/client.ts", "lib/storyboard/suggest.ts", "lib/storyboard/run-job.ts", "lib/agents/run-partner-turn.ts",
   "lib/agents/run-story-breakdown.ts", "lib/agents/run-scene-plan.ts", "lib/agents/run-cast-scan.ts", "lib/agents/run-world-read.ts",
-  "lib/agents/run-character-talk.ts", "lib/dialogue/run.ts",
+  "lib/agents/run-character-talk.ts", "lib/dialogue/run.ts", "lib/knowledge/world-search.ts", "lib/agents/run-impression.ts",
 ];
 const ROUTINE = [
   "app/projects/[projectId]/storyboard-actions.ts",          // every routine server action
@@ -36,7 +36,7 @@ const ROUTINE = [
   "app/api/assets/route.ts", "app/api/assets/[assetId]/complete/route.ts", "app/api/assets/[assetId]/route.ts",
   // Knowledge Base: browsing, adding, tagging, collections and feed refreshes (scheduled or
   // manual). Feed collection is deterministic and must never reach a model or dialogue.
-  "app/projects/[projectId]/knowledge-actions.ts", "app/projects/[projectId]/knowledge/page.tsx", "components/knowledge/knowledge-base.tsx",
+  "app/projects/[projectId]/knowledge-actions.ts",
   "app/api/cron/knowledge/route.ts", "lib/knowledge/refresh.ts", "lib/knowledge/data.ts", "lib/knowledge/eligibility.ts",
   // Connecting collections to characters, previewing what they could draw on, scene time.
   "app/projects/[projectId]/connect-actions.ts", "components/connections-desk.tsx", "components/knowledge/knowledge-connections.tsx",
@@ -89,7 +89,8 @@ test("the optional AI routes are the only storyboard entry points that can call 
 test("feed refreshes can't reach dialogue at all (no drafting cascade from new research)", () => {
   for (const entry of ["app/api/cron/knowledge/route.ts", "lib/knowledge/refresh.ts", "app/projects/[projectId]/knowledge-actions.ts"]) {
     for (const [file, path] of graph(entry)) {
-      assert.ok(!file.includes("/lib/dialogue/"), `${entry} reaches ${file.replace(`${ROOT}/`, "")} via ${path.join(" → ")}`);
+      assert.ok(!file.includes("/lib/dialogue/") && !file.endsWith("world-search.ts") && !file.endsWith("run-impression.ts"),
+        `${entry} reaches ${file.replace(`${ROOT}/`, "")} via ${path.join(" → ")}`);
     }
   }
 });

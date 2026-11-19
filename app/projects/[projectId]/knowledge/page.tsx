@@ -5,12 +5,13 @@ import { notFound } from "next/navigation";
 import { KnowledgeBase } from "@/components/knowledge/knowledge-base";
 import { getProjectShell } from "@/lib/data";
 import { getKnowledge } from "@/lib/knowledge/data";
+import { aiConfigured } from "@/lib/ai/configured";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
-export default async function KnowledgePage({ params, searchParams }: { params: Promise<{ projectId: string }>; searchParams: Promise<{ character?: string }> }) {
+export default async function KnowledgePage({ params, searchParams }: { params: Promise<{ projectId: string }>; searchParams: Promise<{ character?: string; world?: string }> }) {
   const { projectId } = await params;
-  const { character } = await searchParams;
+  const { character, world } = await searchParams;
   const shell = await getProjectShell(projectId);
   if (!shell || !shell.caps.member) notFound();
   if (!shell.caps.can_review) notFound();
@@ -28,7 +29,8 @@ export default async function KnowledgePage({ params, searchParams }: { params: 
       </header>
       <KnowledgeBase projectId={projectId} canEdit={!!shell.caps.can_edit} sources={kb.sources} items={kb.items}
         collections={kb.collections} members={kb.members} references={kb.references} used={kb.usedByCharacters}
-        characters={kb.characters} selectedCharacter={kb.characters.some((c) => c.id === character) ? character! : null} />
+        characters={kb.characters} selectedCharacter={kb.characters.some((c) => c.id === character) ? character! : null}
+        searches={kb.searches} impressions={kb.impressions} aiReady={aiConfigured()} worldOpen={world === "1"} />
     </div>
   );
 }
