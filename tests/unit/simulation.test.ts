@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkEvent, checkRun, fictionalDate, happinessLabel, nextScheduled, ruleSentence, stepToPoints, stressLabel, type CheckContext, type RawEvent } from "../../lib/sim/rules";
+import { checkEvent, checkRun, fictionalDate, happinessLabel, isTracked, nextScheduled, ruleSentence, stepToPoints, stressLabel, type CheckContext, type RawEvent } from "../../lib/sim/rules";
 
 const ctx: CheckContext = {
   characters: [{ id: "J", name: "Johnny" }, { id: "M", name: "Marie" }, { id: "X", name: "Mr. X" }],
@@ -82,4 +82,14 @@ test("Simulation: Day 1 comes from the World & Time timeline", () => {
   assert.equal(dayOneFromTimeline([{ label: "2031-06-15", precision: "exact", start_year: 2031 }], today).date, "2031-06-15");
   assert.equal(dayOneFromTimeline([{ label: "the summer before the flood", precision: "relative", start_year: null }], today).date, today);
   assert.equal(dayOneFromTimeline(undefined, today).date, today);
+});
+
+test("Simulation: feelings are tracked only for protagonist, antagonist and supporting roles", () => {
+  const c2: CheckContext = { ...ctx, tracked: ["M"] };
+  const r = checkEvent(ev({ characters: [{ name: "Johnny", involvement: "encounters_source", stress_step: 3, happiness_step: -2, feel: "panicked", movement: "Calls his mentor.", rule_ids: [] }] }), c2)!;
+  assert.deepEqual([r.characters[0].d_stress, r.characters[0].d_happiness, r.characters[0].feel, r.characters[0].movement], [0, 0, "", "Calls his mentor."], "an untracked character can still act");
+});
+test("Tracked roles", () => {
+  assert.ok(isTracked("protagonist") && isTracked("antagonist") && isTracked("supporting"));
+  assert.ok(!isTracked("featured") && !isTracked(null));
 });

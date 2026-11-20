@@ -28,6 +28,11 @@ export interface EventData {
   characters: EventCharacter[]; rationale: string; fictional_date: string | null; flags?: string[];
 }
 
+/** Feelings are tracked only for the characters the story centres on. Featured characters (and
+ *  ones without a role yet) can still be in events and act, but their feelings aren't tracked. */
+export const TRACKED_ROLES = ["protagonist", "antagonist", "supporting"] as const;
+export const isTracked = (role: string | null | undefined) => !!role && (TRACKED_ROLES as readonly string[]).includes(role);
+
 export const FAMILY_LABEL: Record<Family, string> = { world: "Pressure from the world", character: "Character tendency", story: "Story consequence" };
 export const FAMILY_HINT: Record<Family, string> = {
   world: "Conditions in the world that create pressure or relief.",
@@ -137,6 +142,8 @@ export interface CheckContext {
   rules: Pick<SimRule, "id" | "family" | "character_id">[];
   intensity: 1 | 2 | 3;
   fictionalDate: string | null;
+  /** ids of characters whose feelings are tracked (protagonist / antagonist / supporting) */
+  tracked?: string[];
 }
 
 const txt = (s: unknown, n: number) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -177,11 +184,12 @@ export function checkEvent(raw: RawEvent, ctx: CheckContext): EventData | null {
       basis = "adaptation";
     }
     seen.add(id);
+    const feels = !ctx.tracked || ctx.tracked.includes(id);
     const ruleIds = [...new Set((c.rule_ids ?? []).filter((r) => { const x = ruleOk.get(r); return x && (x.family !== "character" || x.character_id === id); }))].slice(0, 4);
     affected.push({
       character_id: id, name: ctx.characters.find((x) => x.id === id)!.name,
-      d_stress: stepToPoints(c.stress_step, ctx.intensity), d_happiness: stepToPoints(c.happiness_step, ctx.intensity),
-      feel: txt(c.feel, 200), movement: txt(c.movement, 300),
+      d_stress: feels ? stepToPoints(c.stress_step, ctx.intensity) : 0, d_happiness: feels ? stepToPoints(c.happiness_step, ctx.intensity) : 0,
+      feel: feels ? txt(c.feel, 200) : "", movement: txt(c.movement, 300),
       channel: inv === "encounters_source" ? "Through the news they follow" : inv === "told_by_character" ? `Told by ${txt(c.told_by, 80)}` : "It happens to them",
       involvement: inv, rule_ids: ruleIds,
     });

@@ -8,7 +8,7 @@ import { supabaseService } from "../supabase/server";
 import { friendlyError } from "../errors";
 import { eligibility, type LinkRule } from "../knowledge/eligibility";
 import { byRole, roleOf } from "../characters/roles";
-import { checkEvent, checkRun, dayOneFromTimeline, fictionalDate, FLEXIBILITY_PROMPT, ruleSentence, stressLabel, happinessLabel, bound,
+import { checkEvent, checkRun, dayOneFromTimeline, fictionalDate, isTracked, FLEXIBILITY_PROMPT, ruleSentence, stressLabel, happinessLabel, bound,
   type CheckContext, type EventData, type Material, type RawEvent, type SimRule } from "./rules";
 
 export const SIM_MODEL = "claude-haiku-5-5" as const; // smallest model: low cost
@@ -53,7 +53,7 @@ For each event:
 - title, short description, why it's relevant to her story (relevance).
 - basis: "source" only if it IS a provided news item happening in the story world (list source_item_ids); "adaptation" if it adapts provided material into the fiction (list them); "fiction" if invented. A headline is a source claim, not automatic story truth.
 - characters affected, each with how they're involved: "encounters_source" (they come across the news themselves; only characters listed in who_can_encounter), "told_by_character" (another character who knows tells them; give told_by), or "directly_involved" (the fictional event happens to them).
-- stress_step and happiness_step from -3 to 3 (most events: -1..1; use 2 or 3 rarely). Stress and happiness are independent: someone can be stressed and happy.
+- stress_step and happiness_step from -3 to 3, only for characters whose feelings are tracked (protagonist, antagonist, supporting); others get 0 and no feel, but can still act (most events: -1..1; use 2 or 3 rarely). Stress and happiness are independent: someone can be stressed and happy.
 - feel: a few words on how they might feel. movement: ONE sentence on what they might do next (an action, not dialogue, not a scene).
 - rule_ids: her rules that apply. Rules are tendencies, not commands: the same feeling can lead to different actions depending on what the character wants (investigate, withdraw, confront, seek support…). FLEX
 - depends_on_refs: refs of earlier events in this run it needs.
@@ -151,7 +151,7 @@ const rulesFor = (rules: SimRule[], chars: CharCtx[]) => rules.map((r) => ({ id:
 
 const charsFor = (chars: CharCtx[], rules: SimRule[]) => chars.map((c) => ({
   name: c.name, role: c.role ?? "not set", who: c.summary, profile: c.profile,
-  feeling_now: `${stressLabel(c.stress)} (${c.stress}), ${happinessLabel(c.happiness)} (${c.happiness})`,
+  feeling_now: isTracked(c.role) ? `${stressLabel(c.stress)} (${c.stress}), ${happinessLabel(c.happiness)} (${c.happiness})` : "not tracked (give 0 steps and no feel)",
   their_rules: rules.filter((r) => r.character_id === c.id).map((r) => r.id),
 }));
 
@@ -210,7 +210,8 @@ export async function advanceDay(input: { projectId: string; trigger: "manual" |
     if (res.stop_reason !== "end_turn" || !text || text.type !== "text") throw new Error(`The simulation stopped early (${res.stop_reason}).`);
     const out = JSON.parse(text.text) as { events: RawEvent[]; note: string };
     const ctx: CheckContext = { characters: chars.map((c) => ({ id: c.id, name: c.name })), access: mat.access, material: mat.material,
-      rules: rules.map((r) => ({ id: r.id, family: r.family, character_id: r.character_id })), intensity: settings.intensity, fictionalDate: storyDate };
+      rules: rules.map((r) => ({ id: r.id, family: r.family, character_id: r.character_id })), intensity: settings.intensity, fictionalDate: storyDate,
+      tracked: chars.filter((c) => isTracked(c.role)).map((c) => c.id) };
     const events = checkRun(out.events ?? [], ctx, run.remaining);
     const note = [String(out.note ?? "").slice(0, 400), mat.stale ? "No new world material since the last day: proposals use the story so far." : ""].filter(Boolean).join(" ");
     const { data: n, error } = await db.rpc("sim_run_complete", { p_run: run.run_id, p_events: events, p_inputs: inputs, p_note: note, p_usage: usage, p_cost_usd: cost, p_model: SIM_MODEL });
@@ -257,7 +258,8 @@ export async function reassessEvent(input: { projectId: string; eventId: string;
     const out = JSON.parse(text.text) as { characters: RawEvent["characters"]; rationale: string };
     const checked = checkEvent({ ref: "e", title: d.title, description: d.description, relevance: d.relevance, basis: d.basis, source_item_ids: ids,
       depends_on_refs: [], characters: out.characters ?? [], rationale: out.rationale }, { characters: chars.map((c) => ({ id: c.id, name: c.name })),
-      access: mat.access, material: mat.material, rules: rules.map((r) => ({ id: r.id, family: r.family, character_id: r.character_id })), intensity: settings.intensity, fictionalDate: storyDate });
+      access: mat.access, material: mat.material, rules: rules.map((r) => ({ id: r.id, family: r.family, character_id: r.character_id })), intensity: settings.intensity, fictionalDate: storyDate,
+      tracked: chars.filter((c) => isTracked(c.role)).map((c) => c.id) });
     if (!checked) throw new Error("Nothing usable came back.");
     const { error } = await db.rpc("sim_event_reassessed", { p_event: input.eventId, p_version: input.version, p_data: { ...checked, relevance: d.relevance || checked.relevance }, p_clear_deps: input.clearDeps });
     await db.rpc("sim_charge", { p_project: input.projectId, p_uid: input.uid, p_task: "simulation_reassess", p_usage: usage, p_cost_usd: cost, p_model: SIM_MODEL, p_ok: !error });

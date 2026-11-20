@@ -11,11 +11,12 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { advanceDay, reassessEvent } from "@/lib/sim/run";
 import { buildRequest, WORKFLOW_VERSION, type ApprovedEvent } from "@/lib/dialogue/request";
 import { processQueue } from "@/lib/dialogue/run";
-import type { EventData } from "@/lib/sim/rules";
+import { isTracked, type EventData } from "@/lib/sim/rules";
+import { roleOf } from "@/lib/characters/roles";
 
 export type SR = { ok: true; note?: string } | { ok: false; error: string };
 const fail = (e: { code?: string; message?: string } | null): SR => ({ ok: false, error: friendlyError(e).message });
-const touch = (projectId: string) => { revalidatePath(`/projects/${projectId}/world`); revalidatePath(`/projects/${projectId}/script`); };
+const touch = (projectId: string) => { revalidatePath(`/projects/${projectId}`, "layout"); revalidatePath(`/projects/${projectId}/world`); revalidatePath(`/projects/${projectId}/script`); };
 
 export async function simSaveSettings(input: { projectId: string; data: Record<string, unknown> }): Promise<SR> {
   const sb = await supabaseServer();
@@ -43,6 +44,9 @@ export async function simRemoveRule(input: { projectId: string; ruleId: string }
 
 export async function simSetState(input: { projectId: string; characterId: string; stress: number; happiness: number; note?: string }): Promise<SR> {
   const sb = await supabaseServer();
+  const { data: ent } = await sb.from("entities").select("metadata").eq("id", input.characterId).eq("project_id", input.projectId).maybeSingle();
+  if (!isTracked(roleOf(ent?.metadata as Record<string, unknown> | null)))
+    return { ok: false, error: "Feelings are tracked for protagonists, antagonists and supporting characters. Choose one of those roles first." };
   const { data, error } = await sb.rpc("sim_state_set", { p_project: input.projectId, p_character: input.characterId, p_stress: Math.round(input.stress), p_happiness: Math.round(input.happiness), p_note: input.note ?? null });
   if (error) return fail(error);
   touch(input.projectId);

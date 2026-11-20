@@ -1,5 +1,7 @@
 import { CharacterAgent } from "@/components/characters/character-agent";
 import { RoleButtons } from "@/components/characters/role-picker";
+import { CharacterFeelings } from "@/components/sim/character-feelings";
+import { getCharacterFeelings } from "@/lib/sim/data";
 import { ROLE_LABEL, roleOf } from "@/lib/characters/roles";
 import { getCharacterAgent } from "@/lib/characters/data";
 import Link from "next/link";
@@ -57,6 +59,7 @@ export default async function ItemWorkspace({
     getNotebook(projectId), getCast(projectId), getBoard(projectId), getScreenplay(projectId),
   ]);
   const agent = ws?.entity.kind === "character" ? await getCharacterAgent(projectId, entityId) : null;
+  const feelings = ws?.entity.kind === "character" ? await getCharacterFeelings(projectId, entityId, roleOf(ws.entity.metadata as Record<string, unknown> | null)) : null;
   const storyEntity = shell?.entities.find((e) => e.kind === "story");
   const storyRefs = storyEntity ? await getStoryReferences(projectId, storyEntity.id) : [];
   if (!shell || !ws) notFound();
@@ -448,6 +451,13 @@ export default async function ItemWorkspace({
 
           {isStory && <OutlineBox projectId={projectId} items={notebook.filter((n) => ["beginning", "middle", "ending"].includes(n.kind))}
             runtime={runtime} canEdit={!!caps.can_edit} back={`${base}/items/${entityId}`} />}
+
+          {kind === "character" && feelings && (
+            <CharacterFeelings projectId={projectId} characterId={entityId} name={entity.name} canEdit={!!caps.can_edit} f={feelings} />
+          )}
+          {kind === "character" && !feelings && caps.can_edit && (
+            <p className="text-xs text-muted">Feelings in the story are tracked for protagonists, antagonists and supporting characters. Choose a role above to track {entity.name}&apos;s.</p>
+          )}
 
           {kind === "character" && agent && (
             <CharacterAgent projectId={projectId} entityId={entityId} name={entity.name} canEdit={!!caps.can_edit} aiReady={aiConfigured()}

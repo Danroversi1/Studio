@@ -6,8 +6,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { simAddEvent, simAdvance, simCancelRun, simCloseDay, simDecide, simDevelopDialogue, simEditEvent, simReassess, simRemoveRule,
-  simSaveRule, simSaveSettings, simSetScene, simSetState } from "@/app/projects/[projectId]/sim-actions";
-import { changeWords, FAMILY_HINT, FAMILY_LABEL, feelWords, FLEXIBILITY_LABEL, happinessLabel, INTENSITY_LABEL, ruleSentence, stressLabel,
+  simSaveRule, simSaveSettings, simSetScene } from "@/app/projects/[projectId]/sim-actions";
+import { changeWords, FAMILY_HINT, FAMILY_LABEL, feelWords, FLEXIBILITY_LABEL, INTENSITY_LABEL, ruleSentence,
   type EventCharacter, type EventData, type Family, type SimRule } from "@/lib/sim/rules";
 import type { SimEvent, Simulation } from "@/lib/sim/data";
 
@@ -72,7 +72,7 @@ export function SimDesk({ projectId, canEdit, canApprove, aiReady, sim }: { proj
       )}
 
       <History projectId={projectId} canEdit={canEdit} aiReady={aiReady} sim={sim} approved={approved} />
-      <Characters projectId={projectId} canEdit={canEdit} sim={sim} />
+      <p className="text-xs text-muted">How each protagonist, antagonist and supporting character is feeling lives on their own character page.</p>
       <Rules projectId={projectId} canEdit={canEdit} sim={sim} />
 
       <details className="panel p-4 text-sm">
@@ -218,7 +218,7 @@ function EventCard({ projectId, canEdit, canApprove, aiReady, e, sim }: { projec
               {d.characters.map((c) => (
                 <li key={c.character_id} className="border-l-2 border-line pl-2 text-sm">
                   <span className="font-semibold uppercase">{c.name}</span> <span className="text-xs text-muted">({c.channel})</span>
-                  <p><span className="text-muted">How might they feel? </span>{changeWords(c.d_stress, c.d_happiness)}{c.feel ? ` (${c.feel})` : ""}</p>
+                  {sim.characters.find((x) => x.id === c.character_id)?.tracked !== false && <p><span className="text-muted">How might they feel? </span>{changeWords(c.d_stress, c.d_happiness)}{c.feel ? ` (${c.feel})` : ""}</p>}
                   {c.movement && <p><span className="text-muted">What might they do next? </span>{c.movement}</p>}
                 </li>
               ))}
@@ -270,9 +270,11 @@ function CharacterChanges({ chars, setChars, sim }: { chars: EventCharacter[]; s
         <div key={c.character_id} className="flex flex-col gap-1 border-l-2 border-line pl-2">
           <div className="flex items-center justify-between gap-2"><span className="text-sm font-semibold uppercase">{c.name}</span>
             <button type="button" className="text-xs text-muted hover:text-danger" onClick={() => setChars(chars.filter((_, j) => j !== i))}>Remove</button></div>
+          {sim.characters.find((x) => x.id === c.character_id)?.tracked ? (<>
           <Slider label="Stress" left="calmer" right="more stressed" value={c.d_stress} min={-25} max={25} onChange={(v) => set(i, { d_stress: v })} />
           <Slider label="Happiness" left="sadder" right="happier" value={c.d_happiness} min={-25} max={25} onChange={(v) => set(i, { d_happiness: v })} />
-          <input className="field min-h-8 text-sm" value={c.feel} maxLength={200} placeholder="How might they feel? (a few words)" onChange={(e) => set(i, { feel: e.target.value })} />
+          <input className="field min-h-8 text-sm" value={c.feel} maxLength={200} placeholder="How might they feel? (a few words)" onChange={(e) => set(i, { feel: e.target.value })} /></>)
+          : <p className="text-[11px] text-muted">Feelings aren&apos;t tracked for this character (only protagonists, antagonists and supporting characters).</p>}
           <input className="field min-h-8 text-sm" value={c.movement} maxLength={300} placeholder="What might they do next? (one action)" onChange={(e) => set(i, { movement: e.target.value })} />
         </div>
       ))}
@@ -287,7 +289,7 @@ function CharacterChanges({ chars, setChars, sim }: { chars: EventCharacter[]; s
   );
 }
 
-function Slider({ label, left, right, value, min, max, onChange, disabled }: { label: string; left: string; right: string; value: number; min: number; max: number; onChange: (v: number) => void; disabled?: boolean }) {
+export function Slider({ label, left, right, value, min, max, onChange, disabled }: { label: string; left: string; right: string; value: number; min: number; max: number; onChange: (v: number) => void; disabled?: boolean }) {
   return (
     <label className="flex flex-wrap items-center gap-2 text-xs">
       <span className="w-20 font-medium">{label}</span>
@@ -391,63 +393,6 @@ function History({ projectId, canEdit, aiReady, sim, approved }: { projectId: st
 }
 
 // ---- Characters' emotional state ------------------------------------------------------------------
-function Bar({ value, left, right }: { value: number; left: string; right: string }) {
-  const pct = (value + 100) / 2;
-  return (
-    <div className="flex items-center gap-2 text-[11px] text-muted">
-      <span className="w-14 text-right">{left}</span>
-      <div className="relative h-1.5 flex-1 bg-line" aria-hidden><span className="absolute top-[-3px] h-3 w-1.5 bg-text" style={{ left: `calc(${pct}% - 3px)` }} /></div>
-      <span className="w-16">{right}</span>
-    </div>
-  );
-}
-
-function Characters({ projectId, canEdit, sim }: { projectId: string; canEdit: boolean; sim: Simulation }) {
-  return (
-    <section className="panel flex flex-col gap-3 p-4" aria-labelledby="chars-h">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="chars-h" className="display text-lg">How the characters are doing</h2>
-        <span className="text-xs text-muted">Writing controls for your fiction, not a measurement of anyone. Stress and happiness are separate: someone can be both.</span>
-      </div>
-      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {sim.characters.map((c) => <CharacterCard key={c.id} projectId={projectId} canEdit={canEdit} c={c} />)}
-      </ul>
-      {!sim.characters.length && <p className="text-sm text-muted">No characters yet. Add them in your Story&apos;s Cast.</p>}
-    </section>
-  );
-}
-
-function CharacterCard({ projectId, canEdit, c }: { projectId: string; canEdit: boolean; c: Simulation["characters"][number] }) {
-  const s = useRun();
-  const [open, setOpen] = useState(false);
-  const [stress, setStress] = useState(c.now.stress);
-  const [happy, setHappy] = useState(c.now.happiness);
-  return (
-    <li className="flex flex-col gap-1.5 border border-line bg-panel-2 p-3">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="font-semibold uppercase">{c.name}</span>
-        <span className="text-xs">{stressLabel(c.now.stress)} · {happinessLabel(c.now.happiness)}</span>
-      </div>
-      <Bar value={c.now.stress} left="Calm" right="Stressed" />
-      <Bar value={c.now.happiness} left="Sad" right="Happy" />
-      {c.changes.length > 0 && (
-        <details className="text-[11px] text-muted"><summary className="cursor-pointer">Recent changes</summary>
-          <ul className="mt-1">{c.changes.map((x, i) => <li key={i}>Day {x.day}: {changeWords(x.d_stress, x.d_happiness)}{x.kind === "director" ? ` (your change${x.note ? `: ${x.note}` : ""})` : ""}</li>)}</ul>
-        </details>
-      )}
-      {canEdit && (open ? (
-        <form className="flex flex-col gap-1" onSubmit={(e) => { e.preventDefault(); s.run(() => simSetState({ projectId, characterId: c.id, stress, happiness: happy }), () => setOpen(false)); }}>
-          <Slider label="Stress" left="calm" right="stressed" value={stress} min={-100} max={100} onChange={setStress} />
-          <Slider label="Happiness" left="sad" right="happy" value={happy} min={-100} max={100} onChange={setHappy} />
-          <p className="text-[11px] text-muted">{c.hasHistory ? "History exists, so this is recorded as a change today. Earlier days stay as they were." : "This sets where they start."}</p>
-          <div className="flex gap-2"><button className="btn-primary min-h-8 text-xs" disabled={s.pending}>Save</button><button type="button" className="btn min-h-8 text-xs" onClick={() => setOpen(false)}>Cancel</button></div>
-        </form>
-      ) : <button type="button" className="self-start text-xs text-accent underline" onClick={() => setOpen(true)}>{c.hasHistory ? "Adjust today" : "Set starting point"}</button>)}
-      <Status msg={s.msg} />
-    </li>
-  );
-}
-
 // ---- Rules ---------------------------------------------------------------------------------------------
 const EXAMPLES: { family: Family; when_text: string; stress: number; happiness: number; tend_text: string; relief_text: string }[] = [
   { family: "character", when_text: "he encounters evidence he cannot explain", stress: 1, happiness: 0, tend_text: "investigate", relief_text: "talking with his mentor" },
