@@ -86,7 +86,7 @@ export function summarize(name: string, entries: BubbleEntry[], p: BubbleProfile
   const updates = entries.filter((e) => e.update_of !== undefined).length;
   const lead = entries[0].title.length > 110 ? `${entries[0].title.slice(0, 107)}…` : entries[0].title;
   return [
-    `${entries.length} new ${entries.length === 1 ? "item was" : "items were"} available to ${name}${topics.length ? ` — ${list(topics)}` : ""}, from ${list(sources)}.`,
+    `${entries.length} ${entries.length === 1 ? "item was" : "items were"} available to ${name}${topics.length ? ` — ${list(topics)}` : ""}, from ${list(sources)}.`,
     `Most prominent: “${lead}”.`,
     updates ? `${updates} ${updates === 1 ? "is an update" : "are updates"} to earlier reports.` : "",
     "This is what was around them, not what they read.",

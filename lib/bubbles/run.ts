@@ -6,7 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseService } from "../supabase/server";
 import { refreshFeed, type FetchCache } from "../knowledge/refresh";
 import { roleOf } from "../characters/roles";
-import { DEFAULT_ATTENTION, eligible, selectFor, summarize, type BubbleProfile, type CandidateItem } from "./select";
+import { DEFAULT_ATTENTION, eligible, selectFor, summarize, type BubbleEntry, type BubbleProfile, type CandidateItem } from "./select";
 
 type Db = SupabaseClient;
 export interface SourceResult { ok: boolean; added: number; error: string | null; stale: boolean; title: string }
@@ -92,7 +92,10 @@ export async function refreshBubbles(input: { projectId: string; trigger: "manua
     const title = new Map(sources.map((s) => [s.id, s.title.replace(/^(Stopped: )?/, "")]));
     const items: CandidateItem[] = ((rows ?? []) as unknown as (Omit<CandidateItem, "source" | "content"> & { content: string | null })[]).map((r) => ({ ...r, content: r.content ?? "", source: title.get(r.source_id) ?? "A source" }));
     const seenSince = new Date(Date.now() - SEEN_DAYS * 86400_000).toISOString().slice(0, 10);
-    const { data: prior } = active.length ? await db.from("bubble_snapshots").select("character_id, items").in("character_id", active.map((c) => c.id)).gte("run_date", seenSince) : { data: [] };
+    const { data: prior } = active.length ? await db.from("bubble_snapshots").select("character_id, run_date, items").in("character_id", active.map((c) => c.id)).gte("run_date", seenSince) : { data: [] };
+    // The attention limit is per day: a second refresh the same day only tops up to it.
+    const { data: runRow } = await db.from("bubble_runs").select("run_date").eq("id", runId).maybeSingle();
+    const today = String(runRow?.run_date ?? "");
     let selected = 0;
     for (const c of active) {
       const p = prof.get(c.id);
@@ -100,11 +103,15 @@ export async function refreshBubbles(input: { projectId: string; trigger: "manua
       const mine = charSources.get(c.id) ?? new Set<string>();
       const pool_ = items.filter((i) => worldIds.has(i.source_id) || mine.has(i.source_id));
       const seen = new Map<string, number>();
-      for (const s of ((prior ?? []) as { character_id: string; items: { item_id: string; version: number }[] }[]).filter((s) => s.character_id === c.id)) {
+      let todays: BubbleEntry[] = [];
+      for (const s of ((prior ?? []) as { character_id: string; run_date: string; items: { item_id: string; version: number }[] }[]).filter((s) => s.character_id === c.id)) {
         for (const e of s.items) seen.set(e.item_id, Math.max(seen.get(e.item_id) ?? 0, e.version ?? 1));
+        if (s.run_date === today) todays = s.items as unknown as BubbleEntry[];
       }
-      const entries = selectFor(pool_, profile, seen);
-      const put = await db.rpc("bubble_snapshot_put", { p_run: runId, p_character: c.id, p_items: entries, p_summary: summarize(c.name, entries, profile), p_profile: profile });
+      const room = profile.attention - todays.length;
+      if (room <= 0) continue; // today's coverage is already full; nothing new to add
+      const entries = selectFor(pool_, { ...profile, attention: room }, seen);
+      const put = await db.rpc("bubble_snapshot_put", { p_run: runId, p_character: c.id, p_items: entries, p_summary: summarize(c.name, [...todays, ...entries], profile), p_profile: profile });
       if (put.error) throw new Error(put.error.message);
       selected += Number(put.data ?? 0);
     }
