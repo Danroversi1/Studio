@@ -38,7 +38,7 @@ select public.kb_world_watch_add(tests.v('W'), 'watch ' || g, jsonb_build_array(
   from generate_series(3, 10) g;
 select tests.throws(format($q$select public.kb_world_watch_add(%L, 'one more', jsonb_build_array(jsonb_build_object('adapter', 'hn', 'feed_url', 'https://hn.algolia.com/api/v1/search_by_date?q', 'title', 't')))$q$, tests.v('W')),
   '22023', 'at most 10 watches');
-select tests.put('gsrc', (select id from public.knowledge_sources where project_id = tests.v('W') and adapter = 'rss'));
+select tests.put('gsrc', (select id from public.knowledge_sources where project_id = tests.v('W') and adapter = 'rss' and watch_query = 'chip export rules'));
 select tests.ok((select count(*) from public.kb_collection_items(tests.v('W'), array[tests.v('world')])) = 0, 'empty until refreshed');
 :as_service
 select public.kb_feed_ingest(tests.v('gsrc'), (select jsonb_agg(jsonb_build_object('key', 'k' || g, 'title', 'Story ' || g, 'url', 'https://news.example/' || g,

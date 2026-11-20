@@ -58,6 +58,7 @@ export function SidebarNav({ projectId, storyId, characters, locations, pendingS
         <Item href={`${base}/world`} active={path === `${base}/world`} icon={<IconGlobe />}>World &amp; Time</Item>
         <Item href={`${base}/knowledge`} active={path === `${base}/knowledge`} icon={<IconLibrary />}>Knowledge Base</Item>
         <Item href={`${base}/connections`} active={path === `${base}/connections`} icon={<IconLink />}>Connections</Item>
+        <Item href={`${base}/simulation`} active={path === `${base}/simulation`} icon={<IconGlobe />}>World simulation</Item>
         <Item href={`${base}/treatment`} active={path === `${base}/treatment`} icon={<IconBook />}>Treatment</Item>
         <Item href={`${base}/script`} active={path === `${base}/script`} icon={<IconScript />}>Script desk</Item>
         <Item href={`${base}/storyboards`} active={path.startsWith(`${base}/storyboards`)} icon={<IconFrames />}>Storyboards</Item>

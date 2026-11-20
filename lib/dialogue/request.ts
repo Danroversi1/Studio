@@ -30,13 +30,17 @@ export interface DialogueRequest {
   characters: Perspective[]; unknown_speakers: string[]; canon: { synopsis: string; world: string; decisions: string[]; relationships: string[] };
   director_note: string | null; parent: { id: string; elements: unknown } | null;
   pinned_snapshot_id: string | null; script_version_id: string | null; scene_signature: string;
+  /** Story events she approved in the World simulation, to dramatize in this scene (exact approved versions). */
+  approved_events?: ApprovedEvent[];
 }
+export interface ApprovedEvent { id: string; version: number; day: number; title: string; description: string; basis: string;
+  characters: { name: string; feel: string; movement: string }[] }
 
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
 const words = (s: string) => [...new Set((s.toLowerCase().match(/[a-z0-9][a-z0-9'-]{2,}/g) ?? []))];
 const STOP = new Set("the and for with that this from they them their there what when where which while will would into about after before because been being have has had was were are his her him she you your our out over just than then very also only some more most other such like".split(" "));
 
-export async function buildRequest(sb: Sb, projectId: string, sceneKey: string, opts: { directorNote?: string | null; parentId?: string | null } = {}): Promise<
+export async function buildRequest(sb: Sb, projectId: string, sceneKey: string, opts: { directorNote?: string | null; parentId?: string | null; events?: ApprovedEvent[] } = {}): Promise<
   { ok: true; request: DialogueRequest; hash: string; snapshot: ResearchRef[] } | { ok: false; error: string }> {
   const script = await latestScript(sb, projectId);
   const scenes = splitScenes(script.body);
@@ -176,11 +180,13 @@ export async function buildRequest(sb: Sb, projectId: string, sceneKey: string, 
     canon: { synopsis: synopsis.slice(0, 3000), world: renderWorld(toWorld(world)).slice(0, 2500), decisions: ((notes ?? []) as { body: string }[]).map((n) => n.body.slice(0, 300)), relationships },
     director_note: opts.directorNote?.trim() || null, parent,
     pinned_snapshot_id: (ctx?.pinned_snapshot_id as string | null) ?? null, script_version_id: script.versionId, scene_signature: hash(sceneSignature(scene)),
+    ...(opts.events?.length ? { approved_events: opts.events.slice(0, 10) } : {}),
   };
   const fingerprint = hash(JSON.stringify({
     w: WORKFLOW_VERSION, s: request.scene_signature, b: beat?.hash ?? null, d: storyDate, ctx: [objectives, request.runtime_seconds, request.tone, request.story_date_note],
     c: perspectives.map((p) => [p.id, p.profile_version, p.objective, p.research.map((r) => [r.item_id, r.version, r.use]), p.impressions.map((i) => [i.item_id, i.text])]),
     canon: hash(JSON.stringify(request.canon)), n: request.director_note, p: parent?.id ?? null,
+    ...(opts.events?.length ? { e: opts.events.map((e) => [e.id, e.version]) } : {}),
   }));
   const snapshot = perspectives.flatMap((p) => p.research.map((r) => ({ ...r, character_id: p.id })));
   return { ok: true, request, hash: fingerprint, snapshot };

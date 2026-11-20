@@ -18,6 +18,8 @@ export interface ProposalView {
   stale: { outline: boolean; scene: boolean };
   research: { item_id: string; version: number; title: string; use: string; reason: string; collection: string; character: string; current_version: number | null; url: string | null; source: string; date: string | null }[];
   updates: number;
+  /** Approved simulation events this draft dramatizes (exact versions). */
+  event_refs?: { id: string; version: number }[];
 }
 
 export async function researchUpdates(sb: Sb, projectId: string, p: { snapshot_id: string | null; decided_at: string | null; provenance: Record<string, unknown> }) {
@@ -51,7 +53,7 @@ export async function getDialogueDesk(projectId: string) {
   const [script, beats, ctx, props, settings, chars] = await Promise.all([
     latestScript(sb, projectId), outlineBeats(sb, projectId),
     sb.from("scene_contexts").select("scene_key, beat_id, story_date, story_date_note, objectives, runtime_seconds, tone, pinned_snapshot_id, version").eq("project_id", projectId),
-    sb.from("dialogue_proposals").select("id, scene_key, status, trigger, parent_id, director_note, created_at, finished_at, decided_at, error, snapshot_id, result, provenance, reviews, flags")
+    sb.from("dialogue_proposals").select("id, scene_key, status, trigger, parent_id, director_note, created_at, finished_at, decided_at, error, snapshot_id, result, provenance, reviews, flags, event_refs")
       .eq("project_id", projectId).order("created_at", { ascending: false }).limit(120),
     sb.from("dialogue_settings").select("auto_draft, paused").eq("project_id", projectId).maybeSingle(),
     sb.from("entities").select("id, name").eq("project_id", projectId).eq("kind", "character").is("archived_at", null).neq("status", "archived").order("name"),

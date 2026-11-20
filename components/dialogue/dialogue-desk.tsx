@@ -285,6 +285,7 @@ function Proposal({ projectId, canEdit, aiReady, scene, p, pinned, scriptVersion
         {p.director_note && <span>· Your note: &ldquo;{p.director_note}&rdquo;</span>}
       </p>
       {p.stale.outline && <p className="text-xs text-warn">The outline beat changed after this draft. Develop the scene again to draft from the new beat. This draft stays as it is.</p>}
+      {(p.event_refs?.length ?? 0) > 0 && <p className="text-xs text-muted">From {p.event_refs!.length} approved story event{p.event_refs!.length === 1 ? "" : "s"} in the <a className="text-accent" href={`/projects/${projectId}/simulation`}>World simulation</a>.</p>}
       {p.stale.scene && <p className="text-xs text-warn">The scene in your script changed after this draft. Compare carefully: accepting replaces the scene&apos;s dialogue.</p>}
       {(r.warnings ?? []).map((w, i) => <p key={i} className="text-xs text-warn">{w}</p>)}
 

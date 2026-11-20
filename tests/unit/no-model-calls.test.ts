@@ -11,7 +11,7 @@ const FORBIDDEN = [
   "lib/storyboard/provider.ts",               // the cloud image provider (OpenAI): never on the local path
   "lib/ai/client.ts", "lib/storyboard/suggest.ts", "lib/storyboard/run-job.ts", "lib/agents/run-partner-turn.ts",
   "lib/agents/run-story-breakdown.ts", "lib/agents/run-scene-plan.ts", "lib/agents/run-cast-scan.ts", "lib/agents/run-world-read.ts",
-  "lib/agents/run-character-talk.ts", "lib/dialogue/run.ts", "lib/agents/run-impression.ts",
+  "lib/agents/run-character-talk.ts", "lib/dialogue/run.ts", "lib/agents/run-impression.ts", "lib/sim/run.ts",
 ];
 const ROUTINE = [
   "app/projects/[projectId]/storyboard-actions.ts",          // every routine server action
@@ -43,6 +43,8 @@ const ROUTINE = [
   "lib/knowledge/connect-data.ts", "app/projects/[projectId]/connections/page.tsx",
   // World watches: free public sources, no model, no tokens.
   "lib/knowledge/watch.ts",
+  // World simulation: limits, knowledge checks, emotional bounds, approvals and the desk's data.
+  "lib/sim/rules.ts", "lib/sim/data.ts",
 ];
 
 function resolveImport(from: string, spec: string): string | null {
@@ -102,4 +104,15 @@ test("drafting dialogue is reachable only from the dialogue actions and the outl
   assert.ok([...d.keys()].some((f) => f.endsWith("lib/dialogue/run.ts")));
   assert.ok(!graph("lib/dialogue/scenes.ts").has(join(ROOT, "lib/ai/client.ts")));
   assert.ok(!graph("lib/dialogue/request.ts").has(join(ROOT, "lib/ai/client.ts")), "building a request (retrieval, rules) needs no model");
+});
+
+test("the world simulation can propose events but can't reach dialogue drafting", () => {
+  for (const entry of ["lib/sim/run.ts", "app/api/cron/simulation/route.ts"]) {
+    for (const [file, path] of graph(entry)) {
+      assert.ok(!file.endsWith("lib/dialogue/run.ts") && !file.endsWith("dialogue-actions.ts") && !file.endsWith("sim-actions.ts"),
+        `${entry} reaches ${file.replace(`${ROOT}/`, "")} via ${path.join(" → ")}`);
+    }
+  }
+  // Dialogue from events goes only through the approval-gated action.
+  assert.ok([...graph("app/projects/[projectId]/sim-actions.ts").keys()].some((f) => f.endsWith("lib/dialogue/run.ts")));
 });
