@@ -28,7 +28,7 @@ export interface EventData {
   characters: EventCharacter[]; rationale: string; fictional_date: string | null; flags?: string[];
 }
 
-export const FAMILY_LABEL: Record<Family, string> = { world: "World rule", character: "Character rule", story: "Story rule" };
+export const FAMILY_LABEL: Record<Family, string> = { world: "Pressure from the world", character: "Character tendency", story: "Story consequence" };
 export const FAMILY_HINT: Record<Family, string> = {
   world: "Conditions in the world that create pressure or relief.",
   character: "How one character tends to feel and respond.",
@@ -93,6 +93,28 @@ export function fictionalDate(start: string | null, day: number): string | null 
   const d = new Date(`${start}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + day - 1);
   return d.toISOString().slice(0, 10);
+}
+
+/** Day 1's date from her World & Time timeline (pure). An exact date she wrote is used as is;
+ *  a month means its first day; a story set in the present year starts today; another year
+ *  starts on January 1. No usable date → today. She can always choose another date. */
+export function dayOneFromTimeline(periods: { label: string; precision: string; start_year?: number | null }[] | undefined, today: string): { date: string; why: string } {
+  const p = (periods ?? []).find((x) => x.precision === "exact" || x.precision === "year") ?? (periods ?? [])[0];
+  if (!p) return { date: today, why: "today (no date in World & Time yet)" };
+  const label = p.label.trim();
+  const iso = /\b(\d{4})-(\d{2})-(\d{2})\b/.exec(label);
+  if (iso) return { date: `${iso[1]}-${iso[2]}-${iso[3]}`, why: `your timeline (${label})` };
+  const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  const m = new RegExp(`\\b(${MONTHS.join("|")})[a-z]*\\.?\\s+(?:(\\d{1,2})(?:st|nd|rd|th)?,?\\s+)?(\\d{4})\\b`, "i").exec(label);
+  if (m) {
+    const mm = String(MONTHS.indexOf(m[1].toLowerCase().slice(0, 3)) + 1).padStart(2, "0");
+    const dd = m[2] ? String(Math.min(31, Number(m[2]))).padStart(2, "0") : "01";
+    return { date: `${m[3]}-${mm}-${dd}`, why: `your timeline (${label})` };
+  }
+  const y = p.start_year;
+  if (y == null || !Number.isFinite(y) || y < 1 || y > 9999) return { date: today, why: `today (your timeline, "${label}", has no calendar date)` };
+  if (String(y) === today.slice(0, 4)) return { date: today, why: `today (your story is set in ${y})` };
+  return { date: `${String(y).padStart(4, "0")}-01-01`, why: `your timeline (${label})` };
 }
 
 /** The next run of the daily schedule (vercel.json cron "37 9 * * *", UTC; after the feed refresh at 9:17). */

@@ -15,7 +15,7 @@ import type { EventData } from "@/lib/sim/rules";
 
 export type SR = { ok: true; note?: string } | { ok: false; error: string };
 const fail = (e: { code?: string; message?: string } | null): SR => ({ ok: false, error: friendlyError(e).message });
-const touch = (projectId: string) => { revalidatePath(`/projects/${projectId}/simulation`); revalidatePath(`/projects/${projectId}/script`); };
+const touch = (projectId: string) => { revalidatePath(`/projects/${projectId}/world`); revalidatePath(`/projects/${projectId}/script`); };
 
 export async function simSaveSettings(input: { projectId: string; data: Record<string, unknown> }): Promise<SR> {
   const sb = await supabaseServer();

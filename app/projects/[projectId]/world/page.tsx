@@ -12,6 +12,8 @@ import { WorldDeeper } from "@/components/world-deeper";
 import { WorldReadAuto } from "@/components/world-read-auto";
 import { KnowledgeBase } from "@/components/knowledge/knowledge-base";
 import { getKnowledge } from "@/lib/knowledge/data";
+import { SimDesk } from "@/components/sim/sim-desk";
+import { getSimulation } from "@/lib/sim/data";
 import { PARTNERS, openingFor } from "@/lib/agents/partners";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
 import { getAiBudget, getAllReferences, getLatestVersions, getNotebook, getPartnerThreads, getProjectShell, getThreadMessages, getWorld, getWorldSentenceVersions } from "@/lib/data";
@@ -33,9 +35,9 @@ export default async function WorldPage({ params, searchParams }: {
   const caps = shell.caps;
   const base = `/projects/${projectId}/world`;
 
-  const [world, threads, budget, notebook, refs, latest, kb, sentenceVersions] = await Promise.all([
+  const [world, threads, budget, notebook, refs, latest, kb, sentenceVersions, sim] = await Promise.all([
     getWorld(projectId), getPartnerThreads(projectId, "world"), getAiBudget(projectId), getNotebook(projectId),
-    getAllReferences(projectId), getLatestVersions(projectId), getKnowledge(projectId), getWorldSentenceVersions(projectId),
+    getAllReferences(projectId), getLatestVersions(projectId), getKnowledge(projectId), getWorldSentenceVersions(projectId), getSimulation(projectId),
   ]);
   const current = fresh ? null : (threads.find((t) => t.id === thread) ?? threads[0] ?? null);
   const messages = current ? await getThreadMessages(projectId, current.id) : [];
@@ -59,7 +61,7 @@ export default async function WorldPage({ params, searchParams }: {
         <header className="flex flex-col gap-2">
           <p className="eyebrow">{shell.project.name}</p>
           <h1 className="display text-4xl leading-none sm:text-5xl">World &amp; Time</h1>
-          <p className="max-w-2xl text-muted">Where your story lives. When it unfolds.</p>
+          <p className="max-w-2xl text-muted">Where your story lives. When it unfolds. How it moves, day by day.</p>
         </header>
         <Flash error={error} notice={notice} />
 
@@ -100,6 +102,9 @@ export default async function WorldPage({ params, searchParams }: {
           </section>
         )}
 
+        <WorldDeeper projectId={projectId} version={world.version} value={world.confirmed.deeper?.value ?? {}} canEdit={!!caps.can_edit}
+          locationCount={locations.length} hasScript={hasScript} />
+
         <section id="world-knowledge" className="flex scroll-mt-6 flex-col gap-3" aria-labelledby="wk-h">
           <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line pb-2">
             <h2 id="wk-h" className="display text-2xl">World knowledge base</h2>
@@ -110,8 +115,16 @@ export default async function WorldPage({ params, searchParams }: {
             characters={kb.characters} selectedCharacter={null} impressions={kb.impressions} aiReady={aiConfigured()} worldOpen worldOnly />
         </section>
 
-        <WorldDeeper projectId={projectId} version={world.version} value={world.confirmed.deeper?.value ?? {}} canEdit={!!caps.can_edit}
-          locationCount={locations.length} hasScript={hasScript} />
+        <section id="simulation" className="flex scroll-mt-6 flex-col gap-3" aria-labelledby="sim-h">
+          <div className="flex flex-col gap-1 border-b border-line pb-2">
+            <h2 id="sim-h" className="display text-2xl">The world, day by day</h2>
+            <p className="max-w-3xl text-sm text-muted">
+              Each day, what&apos;s happening in your World and in your story can suggest a few small events: how your characters might feel, and what they might do next.
+              Nothing becomes part of the story until you approve it, and dialogue is only written from approved events.
+            </p>
+          </div>
+          <SimDesk projectId={projectId} canEdit={!!caps.can_edit} canApprove={!!caps.can_approve_canonical} aiReady={aiConfigured()} sim={sim} />
+        </section>
 
         <details className="panel p-5">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3">

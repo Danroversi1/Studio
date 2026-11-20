@@ -107,14 +107,14 @@ function Controls({ projectId, canEdit, canApprove, aiReady, sim, running, waiti
     <section className="panel flex flex-col gap-4 p-4" aria-labelledby="ctl-h">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h2 id="ctl-h" className="display text-lg">Today in the story</h2>
+          <h2 id="ctl-h" className="display text-2xl leading-none">Today in the story</h2>
           <p className="text-sm">
             <span className="font-semibold">Open day: {sim.openDay}{sim.openDate ? ` (${fmtDate(sim.openDate)})` : ""}</span>
             {st.clock_day > 0 && <span className="text-muted"> · last closed: day {st.clock_day}{sim.closedDate ? ` (${fmtDate(sim.closedDate)})` : ""}</span>}
             {st.paused && <> · <Badge tone="warn">Paused</Badge></>}
           </p>
           <p className="max-w-2xl text-xs text-muted">
-            Story time and real time are separate. Day 1 is {st.start_date ? fmtDate(st.start_date) : "the date of your first run (or the date you choose below)"}; the story moves
+            Story time and real time are separate. Day 1 is {st.start_date ? fmtDate(st.start_date) : `${fmtDate(sim.suggestedStart.date)}, from ${sim.suggestedStart.why}`}; the story moves
             forward one day each time you close a day. News dated after the story&apos;s date can only become an adaptation, never a story fact.
           </p>
           <p className="text-xs text-muted">
@@ -154,7 +154,7 @@ function Controls({ projectId, canEdit, canApprove, aiReady, sim, running, waiti
             <span className="text-xs font-medium">Day 1&apos;s date (story time)</span>
             <input type="date" defaultValue={st.start_date ?? ""} disabled={st.clock_day > 0} className="field min-h-9 w-44"
               onBlur={(e) => { if ((e.target.value || null) !== st.start_date) save({ start_date: e.target.value }); }} />
-            <span className="text-[11px] text-muted">{st.clock_day > 0 ? "Fixed once a day has been closed." : "Leave empty to start on the date of the first run."}</span>
+            <span className="text-[11px] text-muted">{st.clock_day > 0 ? "Fixed once a day has been closed." : "Leave empty to use your timeline above."}</span>
           </label>
           <div className="flex flex-col gap-1.5 text-xs">
             <label className="flex items-center gap-2"><input type="checkbox" checked={st.auto_daily} disabled={s.pending} onChange={(e) => save({ auto_daily: e.target.checked })} /> Prepare a new day each morning</label>
@@ -466,8 +466,8 @@ function Rules({ projectId, canEdit, sim }: { projectId: string; canEdit: boolea
   return (
     <section className="panel flex flex-col gap-3 p-4" aria-labelledby="rules-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="rules-h" className="display text-lg">Rules</h2>
-        <span className="text-xs text-muted">Tendencies, not guarantees. Changes apply from the next day; past days keep the rules they used.</span>
+        <h2 id="rules-h" className="display text-lg">How events affect characters</h2>
+        <span className="text-xs text-muted">Separate from your world rules above (facts about the setting). These are tendencies, not guarantees. Changes apply from the next day; past days keep the rules they used.</span>
       </div>
       <ul className="flex flex-col divide-y divide-line border-y border-line">
         {sim.rules.map((r) => (
@@ -484,7 +484,7 @@ function Rules({ projectId, canEdit, sim }: { projectId: string; canEdit: boolea
             )}
           </li>
         ))}
-        {!sim.rules.length && <li className="py-2 text-sm text-muted">No rules yet. The simulation still works from your characters&apos; profiles; rules make their reactions more yours.</li>}
+        {!sim.rules.length && <li className="py-2 text-sm text-muted">None yet. The simulation still works from your characters&apos; profiles; rules make their reactions more yours.</li>}
       </ul>
       {canEdit && (editing ? <RuleEditor key={editing === "new" ? "new" : editing.id} projectId={projectId} sim={sim} rule={editing === "new" ? null : editing} onDone={() => setEditing(null)} />
         : <button type="button" className="btn min-h-9 self-start text-xs" onClick={() => setEditing("new")}>Add a rule</button>)}

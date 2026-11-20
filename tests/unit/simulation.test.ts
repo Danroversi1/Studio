@@ -71,3 +71,15 @@ test("Simulation: story time and real time stay separate", () => {
   assert.equal(nextScheduled(new Date("2026-11-20T08:00:00Z")).toISOString(), "2026-11-20T09:37:00.000Z");
   assert.equal(nextScheduled(new Date("2026-11-20T10:00:00Z")).toISOString(), "2026-11-21T09:37:00.000Z");
 });
+
+import { dayOneFromTimeline } from "../../lib/sim/rules";
+test("Simulation: Day 1 comes from the World & Time timeline", () => {
+  const today = "2026-11-20";
+  assert.equal(dayOneFromTimeline([{ label: "March 3, 2026", precision: "exact", start_year: 2026 }], today).date, "2026-03-03");
+  assert.equal(dayOneFromTimeline([{ label: "November 2026", precision: "exact", start_year: 2026 }], today).date, "2026-11-01");
+  assert.equal(dayOneFromTimeline([{ label: "2026", precision: "year", start_year: 2026 }], today).date, "2026-11-20", "present year starts today");
+  assert.equal(dayOneFromTimeline([{ label: "1999", precision: "year", start_year: 1999 }], today).date, "1999-01-01");
+  assert.equal(dayOneFromTimeline([{ label: "2031-06-15", precision: "exact", start_year: 2031 }], today).date, "2031-06-15");
+  assert.equal(dayOneFromTimeline([{ label: "the summer before the flood", precision: "relative", start_year: null }], today).date, today);
+  assert.equal(dayOneFromTimeline(undefined, today).date, today);
+});

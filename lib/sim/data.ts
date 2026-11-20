@@ -3,7 +3,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { getCast } from "@/lib/data";
 import { latestScript } from "@/lib/knowledge/connect-data";
 import { splitScenes } from "@/lib/dialogue/scenes";
-import { bound, fictionalDate, nextScheduled, type EventData, type SimRule, type SimSettings } from "./rules";
+import { bound, dayOneFromTimeline, fictionalDate, nextScheduled, type EventData, type SimRule, type SimSettings } from "./rules";
 
 export interface SimEvent {
   id: string; day: number; status: "proposed" | "blocked" | "approved" | "rejected" | "deferred"; current_version: number; approved_version: number | null;
@@ -28,6 +28,9 @@ export async function getSimulation(projectId: string) {
     sb.from("sim_runs").select("id, day, trigger, status, proposed, note, error, started_at, finished_at, inputs").eq("project_id", projectId).order("started_at", { ascending: false }).limit(6),
     latestScript(sb, projectId),
   ]);
+  const { data: w } = await sb.from("story_world").select("data").eq("project_id", projectId).maybeSingle();
+  const periods = (w?.data as { confirmed?: { when?: { value?: { periods?: { label: string; precision: string; start_year?: number | null }[] } } } } | null)?.confirmed?.when?.value?.periods;
+  const suggestedStart = dayOneFromTimeline(periods, new Date().toISOString().slice(0, 10));
   const settings: SimSettings = s ? (s as SimSettings) : DEFAULTS;
   const eventRows = (evs ?? []) as Omit<SimEvent, "current" | "fresh" | "author" | "versions" | "dialogue">[];
   const ids = eventRows.map((e) => e.id);
@@ -62,7 +65,8 @@ export async function getSimulation(projectId: string) {
   const lastOk = runList.find((r) => r.status === "succeeded") ?? null;
   return {
     settings, rules: (rules ?? []) as SimRule[], characters, events, runs: runList,
-    openDay, openDate: fictionalDate(settings.start_date, openDay), closedDate: fictionalDate(settings.start_date, settings.clock_day),
+    suggestedStart,
+    openDay, openDate: fictionalDate(settings.start_date ?? suggestedStart.date, openDay), closedDate: fictionalDate(settings.start_date, settings.clock_day),
     lastSuccess: lastOk?.finished_at ?? null,
     nextRun: settings.auto_daily && !settings.paused ? nextScheduled(new Date()).toISOString() : null,
     scenes: splitScenes(script.body).map((x, i) => ({ key: x.key, label: `${i + 1}. ${x.heading}` })),

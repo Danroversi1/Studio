@@ -8,7 +8,7 @@ import { supabaseService } from "../supabase/server";
 import { friendlyError } from "../errors";
 import { eligibility, type LinkRule } from "../knowledge/eligibility";
 import { byRole, roleOf } from "../characters/roles";
-import { checkEvent, checkRun, fictionalDate, FLEXIBILITY_PROMPT, ruleSentence, stressLabel, happinessLabel, bound,
+import { checkEvent, checkRun, dayOneFromTimeline, fictionalDate, FLEXIBILITY_PROMPT, ruleSentence, stressLabel, happinessLabel, bound,
   type CheckContext, type EventData, type Material, type RawEvent, type SimRule } from "./rules";
 
 export const SIM_MODEL = "claude-haiku-5-5" as const; // smallest model: low cost
@@ -160,7 +160,9 @@ export async function advanceDay(input: { projectId: string; trigger: "manual" |
   const { data: st } = await db.from("sim_settings").select("*").eq("project_id", input.projectId).maybeSingle();
   // Day 1's date: if she hasn't chosen one, the story starts on today's date (policy shown on the page).
   if (st && !st.start_date && st.clock_day === 0) {
-    const today = new Date().toISOString().slice(0, 10);
+    const { data: w } = await db.from("story_world").select("data").eq("project_id", input.projectId).maybeSingle();
+    const periods = (w?.data as { confirmed?: { when?: { value?: { periods?: { label: string; precision: string; start_year?: number | null }[] } } } } | null)?.confirmed?.when?.value?.periods;
+    const today = dayOneFromTimeline(periods, new Date().toISOString().slice(0, 10)).date;
     if (input.userClient) await input.userClient.rpc("sim_settings_save", { p_project: input.projectId, p_data: { start_date: today } });
     else await db.from("sim_settings").update({ start_date: today }).eq("project_id", input.projectId);
   }
