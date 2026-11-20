@@ -45,6 +45,9 @@ const ROUTINE = [
   "lib/knowledge/watch.ts",
   // World simulation: limits, knowledge checks, emotional bounds, approvals and the desk's data.
   "lib/sim/rules.ts", "lib/sim/data.ts",
+  // Characters' daily media bubbles: the shared refresh, selection, snapshots and their screens.
+  "lib/bubbles/run.ts", "lib/bubbles/select.ts", "lib/bubbles/data.ts", "lib/knowledge/shared-fetch.ts",
+  "app/projects/[projectId]/bubble-actions.ts", "components/bubbles/bubble-panels.tsx",
 ];
 
 function resolveImport(from: string, spec: string): string | null {
@@ -115,4 +118,13 @@ test("the world simulation can propose events but can't reach dialogue drafting"
   }
   // Dialogue from events goes only through the approval-gated action.
   assert.ok([...graph("app/projects/[projectId]/sim-actions.ts").keys()].some((f) => f.endsWith("lib/dialogue/run.ts")));
+});
+
+test("the daily refresh can't reach the simulation or dialogue drafting", () => {
+  for (const entry of ["app/api/cron/knowledge/route.ts", "lib/bubbles/run.ts", "app/projects/[projectId]/bubble-actions.ts"]) {
+    const files = [...graph(entry).keys()].map((f) => f.replace(`${ROOT}/`, ""));
+    for (const bad of ["lib/sim/run.ts", "lib/dialogue/run.ts", "lib/dialogue/request.ts", "app/projects/[projectId]/sim-actions.ts"]) {
+      assert.ok(!files.includes(bad), `${entry} can reach ${bad}`);
+    }
+  }
 });

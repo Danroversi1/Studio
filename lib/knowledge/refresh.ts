@@ -5,6 +5,8 @@ import { supabaseService } from "../supabase/server";
 import { detectSource, type AdapterId } from "./adapters";
 import { discoverFeeds, parseFeed, type ParsedFeed } from "./feed";
 import { FetchError, fetchPublic } from "./fetch";
+import { fetchRetry, sharedFetch, type FetchCache } from "./shared-fetch";
+export type { FetchCache };
 import { isWatchFeed, parseHn, PER_SOURCE } from "./watch";
 import { parseWeather } from "./weather";
 
@@ -48,7 +50,7 @@ export interface RefreshOutcome { ok: boolean; skipped?: boolean; added?: number
 
 /** One refresh attempt for one feed. `force` = she asked for it (ignores the schedule, not
  *  the one-minute guard). */
-export async function refreshFeed(sourceId: string, force = false): Promise<RefreshOutcome> {
+export async function refreshFeed(sourceId: string, force = false, cache?: FetchCache): Promise<RefreshOutcome> {
   const db = supabaseService();
   const { data: claimed } = await db.rpc("kb_feed_claim", { p_source: sourceId, p_force: force });
   const src = (claimed as { id: string; feed_url: string; adapter: string; http_etag: string | null; http_last_modified: string | null }[] | null)?.[0];
@@ -63,7 +65,13 @@ export async function refreshFeed(sourceId: string, force = false): Promise<Refr
     if (src.http_last_modified) headers["If-Modified-Since"] = src.http_last_modified;
     const isJson = src.adapter === "hn" || src.adapter === "weather";
     const watch = isWatchFeed(src.adapter, src.feed_url);
-    const r = await fetchPublic(src.feed_url, { accept: isJson ? "application/json, text/plain;q=0.5" : FEED_ACCEPT, headers: isJson ? {} : headers, timeoutMs: 15_000 });
+    const accept = isJson ? "application/json, text/plain;q=0.5" : FEED_ACCEPT;
+    let r;
+    if (cache) {
+      r = await sharedFetch(cache, src.feed_url, { accept, timeoutMs: 15_000 });
+    } else {
+      r = await fetchRetry(src.feed_url, { accept, headers: isJson ? {} : headers, timeoutMs: 15_000 });
+    }
     if (r.status === 304) {
       await db.rpc("kb_feed_unchanged", { p_source: sourceId });
       return { ok: true, unchanged: true };
@@ -101,7 +109,7 @@ export async function refreshFeed(sourceId: string, force = false): Promise<Refr
 }
 
 /** Feeds that are due, oldest first (optionally for one film). Bounded by count and time. */
-export async function refreshDue(opts: { projectId?: string; limit?: number; budgetMs?: number } = {}): Promise<{ checked: number; ok: number; failed: number }> {
+export async function refreshDue(opts: { projectId?: string; limit?: number; budgetMs?: number; cache?: FetchCache } = {}): Promise<{ checked: number; ok: number; failed: number }> {
   const db = supabaseService();
   // Feeds of deleted films are never refreshed.
   let q = db.from("knowledge_sources").select("id, projects!inner(status)").neq("projects.status", "deleted").eq("kind", "feed").is("archived_at", null).is("disconnected_at", null)
@@ -112,7 +120,7 @@ export async function refreshDue(opts: { projectId?: string; limit?: number; bud
   let ok = 0, failed = 0, checked = 0;
   for (const row of data ?? []) {
     if (Date.now() - started > (opts.budgetMs ?? 45_000)) break;
-    const r = await refreshFeed(String(row.id));
+    const r = await refreshFeed(String(row.id), false, opts.cache);
     if (r.skipped) continue;
     checked++;
     if (r.ok) ok++; else failed++;

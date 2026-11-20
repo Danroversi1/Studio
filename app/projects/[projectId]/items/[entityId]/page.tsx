@@ -2,6 +2,8 @@ import { CharacterAgent } from "@/components/characters/character-agent";
 import { RoleButtons } from "@/components/characters/role-picker";
 import { CharacterFeelings } from "@/components/sim/character-feelings";
 import { getCharacterFeelings } from "@/lib/sim/data";
+import { CharacterBubblePanel } from "@/components/bubbles/bubble-panels";
+import { getCharacterBubble } from "@/lib/bubbles/data";
 import { ROLE_LABEL, roleOf } from "@/lib/characters/roles";
 import { getCharacterAgent } from "@/lib/characters/data";
 import Link from "next/link";
@@ -50,16 +52,17 @@ export default async function ItemWorkspace({
   searchParams,
 }: {
   params: Promise<{ projectId: string; entityId: string }>;
-  searchParams: Promise<{ v?: string; error?: string; notice?: string }>;
+  searchParams: Promise<{ v?: string; error?: string; notice?: string; day?: string }>;
 }) {
   const { projectId, entityId } = await params;
-  const { v, error, notice } = await searchParams;
+  const { v, error, notice, day } = await searchParams;
   const [shell, ws, user, budget, notebook, cast, board, sp] = await Promise.all([
     getProjectShell(projectId), getEntityWorkspace(projectId, entityId), currentUser(), getAiBudget(projectId),
     getNotebook(projectId), getCast(projectId), getBoard(projectId), getScreenplay(projectId),
   ]);
   const agent = ws?.entity.kind === "character" ? await getCharacterAgent(projectId, entityId) : null;
   const feelings = ws?.entity.kind === "character" ? await getCharacterFeelings(projectId, entityId, roleOf(ws.entity.metadata as Record<string, unknown> | null)) : null;
+  const bubble = ws?.entity.kind === "character" ? await getCharacterBubble(projectId, entityId, roleOf(ws.entity.metadata as Record<string, unknown> | null), day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : undefined) : null;
   const storyEntity = shell?.entities.find((e) => e.kind === "story");
   const storyRefs = storyEntity ? await getStoryReferences(projectId, storyEntity.id) : [];
   if (!shell || !ws) notFound();
@@ -457,6 +460,13 @@ export default async function ItemWorkspace({
           )}
           {kind === "character" && !feelings && caps.can_edit && (
             <p className="text-xs text-muted">Feelings in the story are tracked for protagonists, antagonists and supporting characters. Choose a role above to track {entity.name}&apos;s.</p>
+          )}
+
+          {kind === "character" && bubble?.eligible && (
+            <CharacterBubblePanel projectId={projectId} characterId={entityId} name={entity.name} canEdit={!!caps.can_edit} b={bubble} day={day} />
+          )}
+          {kind === "character" && bubble && !bubble.eligible && bubble.history > 0 && (
+            <p className="text-xs text-muted">{entity.name}&apos;s daily coverage is paused while they aren&apos;t a protagonist, antagonist or supporting character. {bubble.history} earlier day{bubble.history === 1 ? " is" : "s are"} kept; choose one of those roles to see them and resume.</p>
           )}
 
           {kind === "character" && agent && (

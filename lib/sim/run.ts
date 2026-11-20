@@ -104,15 +104,19 @@ async function material(db: Db, projectId: string, characters: CharCtx[], storyD
     .eq("project_id", projectId).is("archived_at", null).neq("purpose", "director_only");
   const ls = ((links ?? []) as (LinkRule & { character_id: string; collection_id: string })[]).filter((l) => characters.some((c) => c.id === l.character_id));
   const colIds = [...new Set(ls.map((l) => l.collection_id))];
-  if (!colIds.length) return { material: [] as Material[], access: {} as Record<string, string[]>, facts: new Map<string, { content: string }>(), stale: false };
+  // Characters' media bubbles: coverage proposed for exposure (never exposure itself) is
+  // material the day's event review can draw on, for that character only.
+  const bubble = await bubbleProposals(db, characters, onlyIds ? new Date(Date.now() - 30 * 86400_000).toISOString() : since);
+  if (!colIds.length && !bubble.length) return { material: [] as Material[], access: {} as Record<string, string[]>, facts: new Map<string, { content: string }>(), stale: false };
   const { data: mem } = await db.from("knowledge_collection_members").select("collection_id, source_id, item_id").in("collection_id", colIds);
   const members = (mem ?? []) as { collection_id: string; source_id: string | null; item_id: string | null }[];
   const srcIds = [...new Set(members.map((m) => m.source_id).filter(Boolean))] as string[];
   const itemIds = [...new Set(members.map((m) => m.item_id).filter(Boolean))] as string[];
   const sel = "id, version, title, url, published_at, retrieved_at, content, source_id, knowledge_sources!inner(title, origin, archived_at, last_success_at, status)";
+  const bubbleIds = [...new Set(bubble.map((x) => x.item_id))];
   const [a, b] = onlyIds ? [await db.from("knowledge_items").select(sel).in("id", onlyIds.length ? onlyIds : ["00000000-0000-0000-0000-000000000000"]), { data: [] }] : await Promise.all([
     srcIds.length ? db.from("knowledge_items").select(sel).in("source_id", srcIds).is("archived_at", null).gte("retrieved_at", since).order("retrieved_at", { ascending: false }).limit(60) : { data: [] },
-    itemIds.length ? db.from("knowledge_items").select(sel).in("id", itemIds).is("archived_at", null).gte("retrieved_at", since).limit(30) : { data: [] },
+    [...itemIds, ...bubbleIds].length ? db.from("knowledge_items").select(sel).in("id", [...new Set([...itemIds, ...bubbleIds])]).is("archived_at", null).limit(60) : { data: [] },
   ]);
   type Row = { id: string; version: number; title: string; url: string | null; published_at: string | null; retrieved_at: string; content: string; source_id: string;
     knowledge_sources: { title: string; origin: string | null; archived_at: string | null; last_success_at: string | null; status: string } };
@@ -125,12 +129,27 @@ async function material(db: Db, projectId: string, characters: CharCtx[], storyD
     access[r.id] = [...new Set(ls.filter((l) => cols.includes(l.collection_id)
       && eligibility(l, { title: r.title, content: r.content ?? "", published_at: r.published_at }, { story_date: storyDate, beat_id: null }, []).use === "in_world")
       .map((l) => l.character_id))];
+    for (const x of bubble) if (x.item_id === r.id && !access[r.id].includes(x.character_id)) access[r.id].push(x.character_id);
   }
   const stale = rows.length === 0;
   return {
     material: rows.map((r) => ({ id: r.id, version: r.version, title: r.title, url: r.url, published_at: r.published_at, retrieved_at: r.retrieved_at, source: r.knowledge_sources.origin ?? r.knowledge_sources.title })),
     access, facts: new Map(rows.map((r) => [r.id, { content: (r.content ?? "").slice(0, 240) }])), stale,
   };
+}
+
+/** Items the daily bubble refresh proposed for exposure (recent snapshots, active bubbles). */
+async function bubbleProposals(db: Db, characters: CharCtx[], since: string): Promise<{ character_id: string; item_id: string }[]> {
+  const ids = characters.filter((c) => isTracked(c.role)).map((c) => c.id);
+  if (!ids.length) return [];
+  const [{ data: snaps }, { data: off }] = await Promise.all([
+    db.from("bubble_snapshots").select("character_id, items").in("character_id", ids).gte("run_date", since.slice(0, 10)).order("run_date", { ascending: false }).limit(ids.length * 31),
+    db.from("character_bubbles").select("character_id").in("character_id", ids).eq("active", false),
+  ]);
+  const paused = new Set(((off ?? []) as { character_id: string }[]).map((x) => x.character_id));
+  return ((snaps ?? []) as { character_id: string; items: { item_id: string; propose?: boolean }[] }[])
+    .filter((s) => !paused.has(s.character_id))
+    .flatMap((s) => s.items.filter((e) => e.propose).map((e) => ({ character_id: s.character_id, item_id: e.item_id })));
 }
 
 async function history(db: Db, projectId: string) {
