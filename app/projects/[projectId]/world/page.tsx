@@ -14,8 +14,6 @@ import { KnowledgeBase } from "@/components/knowledge/knowledge-base";
 import { getKnowledge } from "@/lib/knowledge/data";
 import { SimDesk } from "@/components/sim/sim-desk";
 import { getSimulation } from "@/lib/sim/data";
-import { BubbleDeskPanel } from "@/components/bubbles/bubble-panels";
-import { getBubbleDesk } from "@/lib/bubbles/data";
 import { PARTNERS, openingFor } from "@/lib/agents/partners";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
 import { getAiBudget, getAllReferences, getLatestVersions, getNotebook, getPartnerThreads, getProjectShell, getThreadMessages, getWorld, getWorldSentenceVersions } from "@/lib/data";
@@ -37,9 +35,9 @@ export default async function WorldPage({ params, searchParams }: {
   const caps = shell.caps;
   const base = `/projects/${projectId}/world`;
 
-  const [world, threads, budget, notebook, refs, latest, kb, sentenceVersions, sim, bubbles] = await Promise.all([
+  const [world, threads, budget, notebook, refs, latest, kb, sentenceVersions, sim] = await Promise.all([
     getWorld(projectId), getPartnerThreads(projectId, "world"), getAiBudget(projectId), getNotebook(projectId),
-    getAllReferences(projectId), getLatestVersions(projectId), getKnowledge(projectId), getWorldSentenceVersions(projectId), getSimulation(projectId), getBubbleDesk(projectId),
+    getAllReferences(projectId), getLatestVersions(projectId), getKnowledge(projectId), getWorldSentenceVersions(projectId), getSimulation(projectId),
   ]);
   const current = fresh ? null : (threads.find((t) => t.id === thread) ?? threads[0] ?? null);
   const messages = current ? await getThreadMessages(projectId, current.id) : [];
@@ -125,7 +123,6 @@ export default async function WorldPage({ params, searchParams }: {
               Nothing becomes part of the story until you approve it, and dialogue is only written from approved events.
             </p>
           </div>
-          <BubbleDeskPanel projectId={projectId} d={bubbles} canEdit={!!caps.can_edit} />
           <SimDesk projectId={projectId} canEdit={!!caps.can_edit} canApprove={!!caps.can_approve_canonical} aiReady={aiConfigured()} sim={sim} />
         </section>
 
