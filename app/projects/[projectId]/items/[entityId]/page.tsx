@@ -1,7 +1,8 @@
 import { CharacterAgent } from "@/components/characters/character-agent";
 import { RoleButtons } from "@/components/characters/role-picker";
-import { CharacterFeelings } from "@/components/sim/character-feelings";
-import { getCharacterFeelings, getCharacterRules } from "@/lib/sim/data";
+import { MoodPanel } from "@/components/mood/mood-panel";
+import { getCharacterMood } from "@/lib/mood/data";
+import { getCharacterRules } from "@/lib/sim/data";
 import { RuleList } from "@/components/sim/rule-list";
 import { CharacterBubblePanel } from "@/components/bubbles/bubble-panels";
 import { getBubbleDesk, getCharacterBubble } from "@/lib/bubbles/data";
@@ -62,7 +63,7 @@ export default async function ItemWorkspace({
     getNotebook(projectId), getCast(projectId), getBoard(projectId), getScreenplay(projectId),
   ]);
   const agent = ws?.entity.kind === "character" ? await getCharacterAgent(projectId, entityId) : null;
-  const feelings = ws?.entity.kind === "character" ? await getCharacterFeelings(projectId, entityId, roleOf(ws.entity.metadata as Record<string, unknown> | null)) : null;
+  const feelings = ws?.entity.kind === "character" ? await getCharacterMood(projectId, entityId, roleOf(ws.entity.metadata as Record<string, unknown> | null)) : null;
   const charRules = ws?.entity.kind === "character" ? await getCharacterRules(projectId, entityId, roleOf(ws.entity.metadata as Record<string, unknown> | null)) : null;
   const bubbleDesk = ws?.entity.kind === "character" ? await getBubbleDesk(projectId) : null;
   const bubble = ws?.entity.kind === "character" ? await getCharacterBubble(projectId, entityId, roleOf(ws.entity.metadata as Record<string, unknown> | null), day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : undefined) : null;
@@ -459,17 +460,17 @@ export default async function ItemWorkspace({
             runtime={runtime} canEdit={!!caps.can_edit} back={`${base}/items/${entityId}`} />}
 
           {kind === "character" && feelings && (
-            <CharacterFeelings projectId={projectId} characterId={entityId} name={entity.name} canEdit={!!caps.can_edit} f={feelings} />
+            <MoodPanel projectId={projectId} characterId={entityId} name={entity.name} canEdit={!!caps.can_edit} m={feelings} />
           )}
           {kind === "character" && !feelings && caps.can_edit && (
-            <p className="text-xs text-muted">Feelings in the story are tracked for protagonists, antagonists and supporting characters. Choose a role above to track {entity.name}&apos;s.</p>
+            <p className="text-xs text-muted">How a character is doing (0–10) is tracked for protagonists, antagonists and supporting characters. Choose a role above to track {entity.name}&apos;s.</p>
           )}
 
           {kind === "character" && charRules && (
-            <RuleList projectId={projectId} canEdit={!!caps.can_edit} rules={charRules} families={["character"]} characters={[{ id: entityId, name: entity.name }]}
+            <div id="rules"><RuleList projectId={projectId} canEdit={!!caps.can_edit} rules={charRules} families={["character"]} characters={[{ id: entityId, name: entity.name }]}
               fixedCharacter={{ id: entityId, name: entity.name }} title={`How ${entity.name} reacts`}
               intro={`Your rules for how ${entity.name}'s feelings react to what reaches them: the news in their daily coverage, what other characters tell them, and what happens to them. The day-by-day simulation follows them when it suggests events; feelings only change when you approve an event. Changes apply from the next story day.`}
-              empty={`None yet. Without rules, the simulation goes by ${entity.name}'s profile.`} addLabel={`Add a rule for ${entity.name}`} />
+              empty={`None yet. Without rules, the simulation goes by ${entity.name}'s profile.`} addLabel={`Add a rule for ${entity.name}`} /></div>
           )}
           {kind === "character" && bubble?.eligible && (
             <CharacterBubblePanel projectId={projectId} characterId={entityId} name={entity.name} canEdit={!!caps.can_edit} b={bubble} day={day} desk={bubbleDesk!} />

@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseService } from "../supabase/server";
 import { refreshFeed, type FetchCache } from "../knowledge/refresh";
 import { roleOf } from "../characters/roles";
+import { queueMoods } from "../mood/run";
 import { DEFAULT_ATTENTION, eligible, selectFor, summarize, type BubbleEntry, type BubbleProfile, type CandidateItem } from "./select";
 
 type Db = SupabaseClient;
@@ -118,6 +119,8 @@ export async function refreshBubbles(input: { projectId: string; trigger: "manua
     const failed = Object.values(results).filter((r) => !r.ok).length;
     const status = failed && failed === Object.keys(results).length ? "failed" : failed ? "partial" : "succeeded";
     const note = !sources.length ? "No World watches yet — add some in World & Time." : !chars.length ? "No protagonist, antagonist or supporting characters yet." : null;
+    // Each main character's 0–10 mood for today waits for her computer to judge it.
+    try { await queueMoods(input.projectId, today); } catch { /* moods are best-effort; coverage is kept */ }
     await finish(status === "failed" && active.length ? "partial" : status, results, selected, note, failed ? `${failed} source${failed === 1 ? "" : "s"} couldn't be refreshed; earlier material kept.` : null);
     return { ok: true, runId, selected, sources: results };
   } catch (e) {

@@ -136,3 +136,55 @@ Automated tests (`python -m unittest discover -s tests`) run this program agains
 - refusing unknown workflows, bad sizes, non-HTTPS inputs, and a renderer that isn't on this computer.
 
 They do **not** test a real GPU, real model output, image quality, or generation time.
+
+---
+
+# STUDIO Mood Judge: "How {name} is doing", worked out on your computer
+
+Each morning (about 4:17 AM New York time) Studio picks the news that reached each main character. That's their daily coverage. This program, running on **your** computer, compares that news with the character's rules ("How Johnny reacts"). For each headline and rule it decides one of three things:
+
+- **in tune:** it would leave them calmer or happier;
+- **at odds:** it would leave them more stressed or sadder;
+- **unrelated.**
+
+Every in tune or at odds call comes with a short reason. Studio then turns those judgments into the 0–10 score with its own fixed formula. Approved story events still nudge the score, and you can override any day.
+
+What stays true:
+
+- **Judging happens on your computer** through Ollama, with a free, open model. Headlines and rules go to Ollama on `127.0.0.1` only. No cloud AI service is used and no tokens are spent.
+- **It only runs while this computer is on and the program is running.** Days wait in line until then, and each character's days are judged in order. A day that fails 3 times counts as a quiet day: no change except a slow drift back to the character's starting point.
+- **Studio never connects into your computer.** This program connects *out* to Studio, the same way as the Local Renderer. A computer that's already paired doesn't need to pair again.
+
+## What you need
+
+| Item | Notes |
+|---|---|
+| A computer you're allowed to install programs on | Mac (Apple Silicon is best), Windows or Linux. Not a locked-down work computer. |
+| Memory | 16 GB or more for an 8B model. With 8 GB, use a smaller model, such as `qwen3:4b`. |
+| Ollama | Free: <https://ollama.com>. Install it and leave it running. It listens on `127.0.0.1:11434`. |
+| A model | The default is **Qwen3 8B**, a reasoning model with an Apache-2.0 license: `ollama pull qwen3:8b` (about 5 GB). Other options: `qwen3:4b` (smaller), or `deepseek-r1:8b`. |
+| Python 3.9+ | Standard library only; nothing extra to install. |
+
+## Set up (once)
+
+1. Install Ollama, then pull the model: `ollama pull qwen3:8b`
+2. Copy `studio_judge.py` and `studio_renderer.py` into one folder.
+3. Check that everything is ready (nothing is sent to Studio): `python studio_judge.py check`
+4. If this computer isn't paired yet, open Studio → Storyboards → **Connect Local Renderer**. Make a pairing code, then run:
+   `python studio_judge.py pair ABCDE23456 --studio https://studio-one-omega-46.vercel.app`
+5. In Studio, open any main character's page. Under **How {name} is doing**, choose this computer as **Judged on**.
+6. Start it: `python studio_judge.py run`. Leave it running. On a Mac you can keep it going after login with `nohup python3 studio_judge.py run &`.
+
+To use another model, add `--model qwen3:4b` to `check` and `run`.
+
+## Tested so far
+
+Only against a fake Ollama and a fake Studio, in `tests/test_studio_judge.py`. Those tests cover:
+
+- only an Ollama on this computer is accepted;
+- judgments about headlines or rules that aren't in the job are dropped;
+- a headline that tries to give instructions is treated as data;
+- models without "thinking" are asked plainly;
+- a bad answer hands the day back.
+
+The first real run on your computer is the real acceptance test. Check that the reasons make sense for a few days, and override any score you disagree with.

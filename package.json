@@ -15,7 +15,7 @@
     "test:db": "scripts/db-test.sh",
     "test": "npm run test:unit && npm run test:renderer && npm run test:db",
     "prebuild": "node scripts/copy-renderer.mjs",
-    "test:renderer": "cd renderer && python3 -m unittest tests/test_studio_renderer.py"
+    "test:renderer": "cd renderer && python3 -m unittest tests/test_studio_renderer.py tests/test_studio_judge.py"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.8.0",
