@@ -469,7 +469,7 @@ export default async function ItemWorkspace({
           {kind === "character" && charRules && (
             <div id="rules"><RuleList projectId={projectId} canEdit={!!caps.can_edit} rules={charRules} families={["character"]} characters={[{ id: entityId, name: entity.name }]}
               fixedCharacter={{ id: entityId, name: entity.name }} title={`How ${entity.name} reacts`}
-              intro={`Your rules for how ${entity.name}'s feelings react to what reaches them: the news in their daily coverage, what other characters tell them, and what happens to them. The day-by-day simulation follows them when it suggests events; feelings only change when you approve an event. Changes apply from the next story day.`}
+              intro={`Your rules for how ${entity.name}'s feelings react to what reaches them: the news in their daily coverage, what other characters tell them, and what happens to them. Each morning the news is checked against these rules to work out how ${entity.name} is doing (0–10), and the day-by-day simulation follows them when it suggests events. Changes apply from the next day.`}
               empty={`None yet. Without rules, the simulation goes by ${entity.name}'s profile.`} addLabel={`Add a rule for ${entity.name}`} /></div>
           )}
           {kind === "character" && bubble?.eligible && (
