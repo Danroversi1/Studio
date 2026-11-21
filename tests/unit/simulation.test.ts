@@ -93,3 +93,11 @@ test("Tracked roles", () => {
   assert.ok(isTracked("protagonist") && isTracked("antagonist") && isTracked("supporting"));
   assert.ok(!isTracked("featured") && !isTracked(null));
 });
+
+test("How the world works: plain sentences, never a character's feeling rule", () => {
+  assert.equal(ruleSentence({ family: "periphery", when_text: "a big tech story breaks in San Francisco", stress: 0, happiness: 0, tend_text: "then it reaches Washington by the next morning.", relief_text: null }, null),
+    "When a big tech story breaks in San Francisco, it reaches Washington by the next morning.");
+  const c2: CheckContext = { ...ctx, rules: [...ctx.rules, { id: "w1", family: "periphery", character_id: null }] };
+  const a = checkEvent(ev({ characters: [{ name: "Johnny", involvement: "encounters_source", stress_step: 1, happiness_step: 0, feel: "", movement: "", rule_ids: ["r1", "w1"] }] }), c2)!;
+  assert.deepEqual(a.characters[0].rule_ids, ["r1"]);
+});

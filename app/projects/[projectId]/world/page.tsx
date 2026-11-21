@@ -13,6 +13,7 @@ import { WorldReadAuto } from "@/components/world-read-auto";
 import { KnowledgeBase } from "@/components/knowledge/knowledge-base";
 import { getKnowledge } from "@/lib/knowledge/data";
 import { SimDesk } from "@/components/sim/sim-desk";
+import { RuleList } from "@/components/sim/rule-list";
 import { getSimulation } from "@/lib/sim/data";
 import { PARTNERS, openingFor } from "@/lib/agents/partners";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
@@ -113,6 +114,10 @@ export default async function WorldPage({ params, searchParams }: {
           <KnowledgeBase projectId={projectId} canEdit={!!caps.can_edit} sources={kb.sources} items={kb.items}
             collections={kb.collections} members={kb.members} references={kb.references} used={kb.usedByCharacters}
             characters={kb.characters} selectedCharacter={null} impressions={kb.impressions} aiReady={aiConfigured()} worldOpen worldOnly />
+          <RuleList projectId={projectId} canEdit={!!caps.can_edit} rules={sim.rules} families={["periphery"]} characters={sim.characters}
+            title="How the world works"
+            intro="Your rules for the world around the story: how news spreads, what reaches whom, how people and institutions respond. The day-by-day simulation follows them when it suggests events. They never set anyone's feelings (that's each character's own rules). Changes apply from the next story day."
+            empty="None yet. Without rules, the simulation uses common sense about how news travels." addLabel="Add a world rule" />
         </section>
 
         <section id="simulation" className="flex scroll-mt-6 flex-col gap-3" aria-labelledby="sim-h">

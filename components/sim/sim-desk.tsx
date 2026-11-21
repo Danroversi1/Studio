@@ -7,7 +7,8 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { simAddEvent, simAdvance, simCancelRun, simCloseDay, simDecide, simDevelopDialogue, simEditEvent, simReassess, simRemoveRule,
   simSaveRule, simSaveSettings, simSetScene } from "@/app/projects/[projectId]/sim-actions";
-import { changeWords, FAMILY_HINT, FAMILY_LABEL, feelWords, FLEXIBILITY_LABEL, INTENSITY_LABEL, ruleSentence,
+import { RuleList } from "./rule-list";
+import { changeWords, FLEXIBILITY_LABEL, INTENSITY_LABEL, ruleSentence,
   type EventCharacter, type EventData, type Family, type SimRule } from "@/lib/sim/rules";
 import type { SimEvent, Simulation } from "@/lib/sim/data";
 
@@ -394,94 +395,13 @@ function History({ projectId, canEdit, aiReady, sim, approved }: { projectId: st
 
 // ---- Characters' emotional state ------------------------------------------------------------------
 // ---- Rules ---------------------------------------------------------------------------------------------
-const EXAMPLES: { family: Family; when_text: string; stress: number; happiness: number; tend_text: string; relief_text: string }[] = [
-  { family: "character", when_text: "he encounters evidence he cannot explain", stress: 1, happiness: 0, tend_text: "investigate", relief_text: "talking with his mentor" },
-  { family: "world", when_text: "the news is full of conflict between powerful countries", stress: 1, happiness: -1, tend_text: "", relief_text: "time with people they trust" },
-  { family: "story", when_text: "someone shares a secret with a character", stress: 1, happiness: 0, tend_text: "act on it, or hide it, depending on what they want", relief_text: "" },
-];
-const STEP_LABEL: Record<string, Record<number, string>> = {
-  stress: { [-2]: "much calmer", [-1]: "calmer", 0: "—", 1: "more stressed", 2: "much more stressed" },
-  happiness: { [-2]: "much sadder", [-1]: "sadder", 0: "—", 1: "happier", 2: "much happier" },
-};
-
 function Rules({ projectId, canEdit, sim }: { projectId: string; canEdit: boolean; sim: Simulation }) {
-  const s = useRun();
-  const [editing, setEditing] = useState<SimRule | "new" | null>(null);
-  const nameOf = (id: string | null) => (id ? sim.characters.find((c) => c.id === id)?.name ?? null : null);
+  const world = sim.rules.filter((r) => r.family === "periphery").length;
+  const chars = sim.rules.filter((r) => r.family === "character").length;
   return (
-    <section className="panel flex flex-col gap-3 p-4" aria-labelledby="rules-h">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="rules-h" className="display text-lg">How events affect characters</h2>
-        <span className="text-xs text-muted">Separate from your world rules above (facts about the setting). These are tendencies, not guarantees. Changes apply from the next day; past days keep the rules they used.</span>
-      </div>
-      <ul className="flex flex-col divide-y divide-line border-y border-line">
-        {sim.rules.map((r) => (
-          <li key={r.id} className="flex flex-wrap items-start gap-2 py-2 text-sm">
-            <Badge tone={r.enabled ? "ok" : "muted"}>{FAMILY_LABEL[r.family]}</Badge>
-            <p className={`min-w-0 flex-1 ${r.enabled ? "" : "text-muted line-through"}`}>{ruleSentence(r, nameOf(r.character_id))}</p>
-            {canEdit && (
-              <span className="flex gap-2 text-xs">
-                <button type="button" className="text-accent underline" disabled={s.pending}
-                  onClick={() => s.run(() => simSaveRule({ projectId, ruleId: r.id, data: { ...r, enabled: !r.enabled } }))}>{r.enabled ? "Turn off" : "Turn on"}</button>
-                <button type="button" className="text-accent underline" onClick={() => setEditing(r)}>Edit</button>
-                <button type="button" className="text-muted underline hover:text-danger" disabled={s.pending} onClick={() => s.run(() => simRemoveRule({ projectId, ruleId: r.id }))}>Remove</button>
-              </span>
-            )}
-          </li>
-        ))}
-        {!sim.rules.length && <li className="py-2 text-sm text-muted">None yet. The simulation still works from your characters&apos; profiles; rules make their reactions more yours.</li>}
-      </ul>
-      {canEdit && (editing ? <RuleEditor key={editing === "new" ? "new" : editing.id} projectId={projectId} sim={sim} rule={editing === "new" ? null : editing} onDone={() => setEditing(null)} />
-        : <button type="button" className="btn min-h-9 self-start text-xs" onClick={() => setEditing("new")}>Add a rule</button>)}
-      <Status msg={s.msg} />
-    </section>
-  );
-}
-
-function RuleEditor({ projectId, sim, rule, onDone }: { projectId: string; sim: Simulation; rule: SimRule | null; onDone: () => void }) {
-  const s = useRun();
-  const [r, setR] = useState({ family: rule?.family ?? "character" as Family, character_id: rule?.character_id ?? sim.characters[0]?.id ?? "", when_text: rule?.when_text ?? "",
-    stress: rule?.stress ?? 0, happiness: rule?.happiness ?? 0, tend_text: rule?.tend_text ?? "", relief_text: rule?.relief_text ?? "", enabled: rule?.enabled ?? true });
-  const who = r.family === "character" ? sim.characters.find((c) => c.id === r.character_id)?.name ?? null : null;
-  return (
-    <form className="flex flex-col gap-2 border border-line bg-panel-2 p-3 text-sm" onSubmit={(e) => { e.preventDefault(); s.run(() => simSaveRule({ projectId, ruleId: rule?.id ?? null,
-      data: { ...r, character_id: r.family === "character" ? r.character_id : null } }), onDone); }}>
-      <div className="flex flex-wrap gap-1" role="group" aria-label="Kind of rule">
-        {(["world", "character", "story"] as Family[]).map((f) => (
-          <button key={f} type="button" aria-pressed={r.family === f} title={FAMILY_HINT[f]} onClick={() => setR({ ...r, family: f })}
-            className={`border px-2 py-1 text-xs ${r.family === f ? "border-text bg-text text-panel-2" : "border-line hover:border-text"}`}>{FAMILY_LABEL[f]}</button>
-        ))}
-        {r.family === "character" && (
-          <select className="field min-h-8 w-auto text-xs" value={r.character_id} onChange={(e) => setR({ ...r, character_id: e.target.value })} aria-label="Character">
-            {sim.characters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        )}
-      </div>
-      <p className="text-[11px] text-muted">{FAMILY_HINT[r.family]}</p>
-      <label className="flex flex-col gap-1"><span className="font-medium">When…</span>
-        <input className="field" value={r.when_text} maxLength={300} required onChange={(e) => setR({ ...r, when_text: e.target.value })} placeholder="e.g. he encounters evidence he cannot explain" /></label>
-      <div className="flex flex-col gap-1"><span className="font-medium">They feel…</span>
-        {(["stress", "happiness"] as const).map((axis) => (
-          <div key={axis} className="flex flex-wrap gap-1" role="group" aria-label={axis}>
-            {[-2, -1, 0, 1, 2].map((v) => (
-              <button key={v} type="button" aria-pressed={r[axis] === v} onClick={() => setR({ ...r, [axis]: v })}
-                className={`border px-2 py-0.5 text-xs ${r[axis] === v ? "border-text bg-text text-panel-2" : "border-line hover:border-text"}`}>{STEP_LABEL[axis][v]}</button>
-            ))}
-          </div>
-        ))}
-      </div>
-      <label className="flex flex-col gap-1"><span className="font-medium">They tend to… <span className="font-normal text-muted">(optional)</span></span>
-        <input className="field" value={r.tend_text} maxLength={300} onChange={(e) => setR({ ...r, tend_text: e.target.value })} placeholder="e.g. investigate" /></label>
-      <label className="flex flex-col gap-1"><span className="font-medium">Relief comes from… <span className="font-normal text-muted">(optional)</span></span>
-        <input className="field" value={r.relief_text} maxLength={300} onChange={(e) => setR({ ...r, relief_text: e.target.value })} placeholder="e.g. talking with his mentor" /></label>
-      {r.when_text.trim().length > 1 && <p className="border-l-2 border-accent pl-2 text-sm">{ruleSentence(r, who)}</p>}
-      <p className="text-[11px] text-muted">
-        Examples (not added unless you save):{" "}
-        {EXAMPLES.map((x, i) => <button key={i} type="button" className="mr-2 text-accent underline" onClick={() => setR({ ...r, ...x, character_id: r.character_id })}>{FAMILY_LABEL[x.family].toLowerCase()} example</button>)}
-        · The feelings shown here: {feelWords(r.stress, r.happiness)}.
-      </p>
-      <div className="flex gap-2"><button className="btn-primary min-h-9 text-xs" disabled={s.pending}>{rule ? "Save rule" : "Add rule"}</button><button type="button" className="btn min-h-9 text-xs" onClick={onDone}>Cancel</button></div>
-      <Status msg={s.msg} />
-    </form>
+    <RuleList projectId={projectId} canEdit={canEdit} rules={sim.rules} families={["world", "story"]} characters={sim.characters}
+      title="Rules for everyone"
+      intro={<>Pressure from the world on all characters, and how responses lead to consequences. Each character&apos;s own reactions are on their character page ({chars} rule{chars === 1 ? "" : "s"}); how the world around the story works is under What&apos;s happening above ({world} rule{world === 1 ? "" : "s"}). Tendencies, not guarantees; changes apply from the next story day.</>}
+      empty="None yet. Each character's own rules and the world's rules still apply." />
   );
 }

@@ -7,7 +7,7 @@
 //   happiness: -100 very sad  … 0 neutral … +100 very happy
 // A character can be stressed and happy at the same time.
 
-export type Family = "world" | "character" | "story";
+export type Family = "world" | "character" | "story" | "periphery";
 export interface SimRule {
   id: string; family: Family; character_id: string | null; when_text: string; stress: number; happiness: number;
   tend_text: string | null; relief_text: string | null; enabled: boolean; version: number; effective_day: number;
@@ -33,11 +33,12 @@ export interface EventData {
 export const TRACKED_ROLES = ["protagonist", "antagonist", "supporting"] as const;
 export const isTracked = (role: string | null | undefined) => !!role && (TRACKED_ROLES as readonly string[]).includes(role);
 
-export const FAMILY_LABEL: Record<Family, string> = { world: "Pressure from the world", character: "Character tendency", story: "Story consequence" };
+export const FAMILY_LABEL: Record<Family, string> = { world: "Pressure from the world", character: "Character tendency", story: "Story consequence", periphery: "How the world works" };
 export const FAMILY_HINT: Record<Family, string> = {
   world: "Conditions in the world that create pressure or relief.",
   character: "How one character tends to feel and respond.",
   story: "How responses lead to possible actions and consequences.",
+  periphery: "How the world around the story operates: how news spreads, what reaches whom, how people and institutions respond. No feelings.",
 };
 export const INTENSITY_LABEL = { 1: "Gentle", 2: "Moderate", 3: "Strong" } as const;
 export const FLEXIBILITY_LABEL = { 1: "Steady", 2: "Some surprises", 3: "Open" } as const;
@@ -59,6 +60,11 @@ export function feelWords(stress: number, happiness: number): string {
 
 /** "When Johnny finds evidence he can't explain, he becomes more stressed and tends to investigate. Talking with his mentor can bring relief." */
 export function ruleSentence(r: Pick<SimRule, "family" | "when_text" | "stress" | "happiness" | "tend_text" | "relief_text">, who: string | null): string {
+  if (r.family === "periphery") {
+    const w = r.when_text.trim().replace(/[.]+$/, "");
+    const then = (r.tend_text ?? "").trim().replace(/^then,?\s+/i, "").replace(/[.]+$/, "");
+    return then ? `When ${w}, ${then}.` : `When ${w}.`;
+  }
   const subject = who ?? (r.family === "world" ? "characters" : "they");
   const when = r.when_text.trim().replace(/[.]+$/, "");
   const feel = feelWords(r.stress, r.happiness);
@@ -185,7 +191,7 @@ export function checkEvent(raw: RawEvent, ctx: CheckContext): EventData | null {
     }
     seen.add(id);
     const feels = !ctx.tracked || ctx.tracked.includes(id);
-    const ruleIds = [...new Set((c.rule_ids ?? []).filter((r) => { const x = ruleOk.get(r); return x && (x.family !== "character" || x.character_id === id); }))].slice(0, 4);
+    const ruleIds = [...new Set((c.rule_ids ?? []).filter((r) => { const x = ruleOk.get(r); return x && x.family !== "periphery" && (x.family !== "character" || x.character_id === id); }))].slice(0, 4);
     affected.push({
       character_id: id, name: ctx.characters.find((x) => x.id === id)!.name,
       d_stress: feels ? stepToPoints(c.stress_step, ctx.intensity) : 0, d_happiness: feels ? stepToPoints(c.happiness_step, ctx.intensity) : 0,

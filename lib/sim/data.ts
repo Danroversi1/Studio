@@ -92,3 +92,11 @@ export async function getCharacterFeelings(projectId: string, characterId: strin
   };
 }
 export type CharacterFeelings = NonNullable<Awaited<ReturnType<typeof getCharacterFeelings>>>;
+
+/** A main character's own rules (how their feelings react to what reaches them). */
+export async function getCharacterRules(projectId: string, characterId: string, role: string | null): Promise<SimRule[] | null> {
+  if (!isTracked(role)) return null;
+  const sb = await supabaseServer();
+  const { data } = await sb.from("sim_rules").select("*").eq("project_id", projectId).eq("character_id", characterId).eq("family", "character").is("archived_at", null).order("created_at");
+  return (data ?? []) as SimRule[];
+}
