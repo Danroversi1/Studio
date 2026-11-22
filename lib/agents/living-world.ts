@@ -2,6 +2,7 @@
 // base and rule set, as compact text for its snapshot. Plain reads, no model. The renderer is
 // pure (tested). It's live material, not canon: the partner grounds recommendations in it and
 // says what it drew on; nothing here becomes story until she decides.
+import { loadTimeline, renderForDirector } from "../knowledge/timeline-data";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { roleOf, ROLE_LABEL } from "../characters/roles";
 import { isTracked, ruleSentence, type SimRule } from "../sim/rules";
@@ -26,6 +27,8 @@ export interface LivingWorld {
   worldRules: string[];
   society: ReturnType<typeof forPrompt>; polls: { title: string; publisher: string; date: string | null }[];
   characters: LivingCharacter[];
+  /** The Knowledge Timeline as the Director sees it (who can know what, the gap, interventions). */
+  timeline?: string;
 }
 
 const KNOW_KEYS: [string, string][] = [["knows", "knows"], ["beliefs", "believes"], ["wants", "wants"], ["fears", "fears"], ["misbeliefs", "wrongly believes"], ["conceals", "hides"]];
@@ -118,6 +121,7 @@ export async function loadLivingWorld(db: Db, projectId: string): Promise<Living
     society: society ? forPrompt(society.moods).filter((x) => x.mood_0_10 !== null) : [],
     polls: (society?.reports ?? []).slice(0, 6).map((r) => ({ title: r.title, publisher: r.publisher, date: r.published_at?.slice(0, 10) ?? null })),
     characters,
+    timeline: await loadTimeline(db as unknown as Parameters<typeof loadTimeline>[0], projectId).then(renderForDirector).catch(() => undefined),
   };
 }
 
@@ -153,6 +157,10 @@ export function renderLivingWorld(w: LivingWorld): string {
     if (c.coverage?.titles.length) L.push(`  around them lately (${c.coverage.day}, not necessarily read): ${c.coverage.titles.map((t) => `“${cut(t, 90)}”`).join("; ")}`);
     for (const [k, v] of Object.entries(c.knows)) L.push(`  ${k}: ${v}`);
     if (c.collections.length) L.push(`  knowledge they draw on: ${c.collections.map((k) => `${k.name} (${PURPOSE[k.purpose] ?? k.purpose}, ${k.items} items)`).join("; ")}`);
+  }
+  if (w.timeline) {
+    L.push("", "Knowledge timeline (who can know what, on which story day). The protagonist is one story day behind the world: never put buffered or present-day news in his head unless he discovered it; the antagonist acts with advance knowledge only within his window; supporting characters know the present and treat what the antagonist tells them as claims. Headlines above dated after the world day are the future buffer.");
+    L.push(w.timeline);
   }
   return L.join("\n");
 }

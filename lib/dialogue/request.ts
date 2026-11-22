@@ -3,6 +3,8 @@
 // profiles and objectives, story canon, and ONLY the research each character may draw on in
 // this scene (retrieved by keyword, then filtered by the purpose/time rules). The request's
 // fingerprint makes an unchanged request reuse its existing draft instead of drafting again.
+import { loadTimeline, reachableDay, renderForCharacter } from "../knowledge/timeline-data";
+import { itemDay } from "../knowledge/timeline";
 import { createHash } from "node:crypto";
 import { parseIntake } from "../intake";
 import { eligibility, type LinkRule, type Use } from "../knowledge/eligibility";
@@ -22,6 +24,8 @@ export interface Perspective {
   confirmed: Record<string, string>; objective: string; research: ResearchRef[];
   /** Her accepted impressions (qualia) of World items available in this scene. */
   impressions: { item_id: string; title: string; text: string }[];
+  /** What they can know on the current story day (Knowledge Timeline). */
+  knowledge?: string;
 }
 export interface DialogueRequest {
   scene_key: string; heading: string; beat: { id: string; part: string; index: number; text: string; hash: string } | null;
@@ -92,6 +96,7 @@ export async function buildRequest(sb: Sb, projectId: string, sceneKey: string, 
     pinned = (snap?.items ?? null) as PinRow[] | null;
   }
   const perspectives: Perspective[] = [];
+  const tl = await loadTimeline(sb, projectId);
   const allRefs: ResearchRef[] = [];
   for (const p of people) {
     const prof = ((profiles ?? []) as { entity_id: string; version: number; confirmed: Record<string, string> }[]).find((x) => x.entity_id === p.id);
@@ -151,9 +156,20 @@ export async function buildRequest(sb: Sb, projectId: string, sceneKey: string, 
         if (impressions.length >= 4) break;
       }
     }
+    // The Knowledge Timeline: drop anything beyond what this character can reach today
+    // (the protagonist's routine knowledge is a day behind; only an antagonist with access
+    // sees ahead), unless they closed that gap themselves.
+    const ids = [...new Set([...research.map((r) => r.item_id), ...impressions.map((i) => i.item_id)])];
+    if (ids.length) {
+      const { data: dates } = await sb.from("knowledge_items").select("id, published_at, retrieved_at").in("id", ids);
+      const dayOf = new Map(((dates ?? []) as { id: string; published_at: string | null; retrieved_at: string }[]).map((d) => [d.id, itemDay(d, tl.anchor)]));
+      const ok = (id: string) => reachableDay(tl, p.id, dayOf.get(id) ?? Number.MAX_SAFE_INTEGER, id);
+      research = research.filter((r) => ok(r.item_id));
+      for (let i = impressions.length - 1; i >= 0; i--) if (!ok(impressions[i].item_id)) impressions.splice(i, 1);
+    }
     allRefs.push(...research);
     perspectives.push({ id: p.id, name: p.name, description: desc.slice(0, 1500), profile_version: prof?.version ?? 0,
-      confirmed: prof?.confirmed ?? {}, objective: objectives[p.id] ?? "", research, impressions });
+      confirmed: prof?.confirmed ?? {}, objective: objectives[p.id] ?? "", research, impressions, knowledge: renderForCharacter(tl, p.id).slice(0, 4000) });
   }
 
   const { data: storyEnt } = await sb.from("entities").select("id").eq("project_id", projectId).eq("kind", "story").limit(1).maybeSingle();

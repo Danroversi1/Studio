@@ -6,6 +6,9 @@ import { getCharacterRules } from "@/lib/sim/data";
 import { RulesBox } from "@/components/sim/rules-box";
 import { ruleSentence } from "@/lib/sim/rules";
 import { CharacterBubblePanel } from "@/components/bubbles/bubble-panels";
+import { supabaseServer } from "@/lib/supabase/server";
+import { loadTimeline } from "@/lib/knowledge/timeline-data";
+import { PROTAGONIST_LABEL } from "@/lib/knowledge/timeline";
 import { getBubbleDesk, getCharacterBubble } from "@/lib/bubbles/data";
 import { ROLE_LABEL, roleOf } from "@/lib/characters/roles";
 import { getCharacterAgent } from "@/lib/characters/data";
@@ -67,6 +70,9 @@ export default async function ItemWorkspace({
   const feelings = ws?.entity.kind === "character" ? await getCharacterMood(projectId, entityId, roleOf(ws.entity.metadata as Record<string, unknown> | null)) : null;
   const charRules = ws?.entity.kind === "character" ? await getCharacterRules(projectId, entityId, roleOf(ws.entity.metadata as Record<string, unknown> | null)) : null;
   const bubbleDesk = ws?.entity.kind === "character" ? await getBubbleDesk(projectId) : null;
+  const tlNow = ws?.entity.kind === "character" ? await supabaseServer().then((sb) => loadTimeline(sb, projectId)).catch(() => null) : null;
+  const knowing = tlNow?.characters.find((c) => c.id === entityId) ?? null;
+  const knowingDay = tlNow?.worldDay ?? 1;
   const bubble = ws?.entity.kind === "character" ? await getCharacterBubble(projectId, entityId, roleOf(ws.entity.metadata as Record<string, unknown> | null), day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : undefined) : null;
   const storyEntity = shell?.entities.find((e) => e.kind === "story");
   const storyRefs = storyEntity ? await getStoryReferences(projectId, storyEntity.id) : [];
@@ -461,6 +467,14 @@ export default async function ItemWorkspace({
           {isStory && <OutlineBox projectId={projectId} items={notebook.filter((n) => ["beginning", "middle", "ending"].includes(n.kind))}
             runtime={runtime} canEdit={!!caps.can_edit} back={`${base}/items/${entityId}`} />}
 
+          {kind === "character" && knowing && (knowing.tier !== "present" || knowing.role === "antagonist") && (
+            <section className="panel flex flex-col gap-1 p-4" aria-label="What they can know">
+              <span className="eyebrow">Knowledge timeline · world on Day {knowingDay}</span>
+              {knowing.tier === "behind" ? <p className="text-sm font-medium">{PROTAGONIST_LABEL}</p> : null}
+              <p className="text-sm text-muted">{knowing.role === "antagonist" && knowing.tier !== "ahead" ? `${entity.name} lives in the present. Future access is off; you can allow it in the Knowledge Timeline.` : knowing.label}</p>
+              <Link className="text-xs text-accent" href={`/projects/${projectId}/world#timeline`}>Open the Knowledge Timeline →</Link>
+            </section>
+          )}
           {kind === "character" && feelings && (
             <MoodPanel projectId={projectId} characterId={entityId} name={entity.name} canEdit={!!caps.can_edit} m={feelings} />
           )}

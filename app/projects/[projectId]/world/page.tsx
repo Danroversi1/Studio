@@ -13,6 +13,8 @@ import { WorldReadAuto } from "@/components/world-read-auto";
 import { KnowledgeBase } from "@/components/knowledge/knowledge-base";
 import { getKnowledge } from "@/lib/knowledge/data";
 import { SimDesk } from "@/components/sim/sim-desk";
+import { KnowledgeTimeline } from "@/components/timeline/knowledge-timeline";
+import { bufferFor, loadTimeline } from "@/lib/knowledge/timeline-data";
 import { RulesBox } from "@/components/sim/rules-box";
 import { ruleSentence } from "@/lib/sim/rules";
 import { SocietyPanel } from "@/components/society/society-panel";
@@ -40,10 +42,12 @@ export default async function WorldPage({ params, searchParams }: {
   const caps = shell.caps;
   const base = `/projects/${projectId}/world`;
 
-  const [world, threads, budget, notebook, refs, latest, kb, sentenceVersions, sim, society] = await Promise.all([
+  const [world, threads, budget, notebook, refs, latest, kb, sentenceVersions, sim, society, tl] = await Promise.all([
     getWorld(projectId), getPartnerThreads(projectId, "world"), getAiBudget(projectId), getNotebook(projectId),
     getAllReferences(projectId), getLatestVersions(projectId), getKnowledge(projectId), getWorldSentenceVersions(projectId), getSimulation(projectId), supabaseServer().then((sb) => getSociety(sb, projectId)),
+    supabaseServer().then((sb) => loadTimeline(sb, projectId)),
   ]);
+  const buffers = Object.fromEntries(tl.characters.filter((c) => c.tier === "ahead").map((c) => [c.id, bufferFor(tl, c.id)]));
   const current = fresh ? null : (threads.find((t) => t.id === thread) ?? threads[0] ?? null);
   const messages = current ? await getThreadMessages(projectId, current.id) : [];
   const story = shell.entities.find((e) => e.kind === "story");
@@ -137,6 +141,8 @@ export default async function WorldPage({ params, searchParams }: {
           </div>
           <SimDesk projectId={projectId} canEdit={!!caps.can_edit} canApprove={!!caps.can_approve_canonical} aiReady={aiConfigured()} sim={sim} />
         </section>
+
+        <KnowledgeTimeline projectId={projectId} canEdit={!!caps.can_edit} tl={tl} buffers={buffers} />
 
         <details className="panel p-5">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3">

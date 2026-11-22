@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { ReactNode } from "react";
+import { itemDay } from "@/lib/knowledge/timeline";
 import {
   kbAddFeed, kbAddNote, kbAnnotateItem, kbArchive, kbCollectionArchive, kbCollectionMember, kbCollectionSave, kbDocumentOwner,
   kbCharacterCollection, kbFeedUpdate, kbImportReference, kbPreviewFeed, kbRefreshDueOnOpen, kbRefreshNow, kbSaveDocument, kbSaveLink, type FeedPreview,
@@ -719,7 +720,7 @@ function ItemRow({ projectId, item, source, collections, members, canEdit, imp }
   );
 }
 
-export function KnowledgeBase({ projectId, canEdit, sources, items, collections, members, references, used, characters, selectedCharacter, impressions, aiReady, worldOpen, worldOnly = false, certain, bubble }: {
+export function KnowledgeBase({ projectId, canEdit, sources, items, collections, members, references, used, characters, selectedCharacter, impressions, aiReady, worldOpen, worldOnly = false, certain, bubble, reach }: {
   projectId: string; canEdit: boolean; sources: KSource[]; items: KItem[]; collections: KCollection[]; members: KMember[];
   references: { id: string; title: string | null; source_url: string | null; source_domain: string | null }[]; used: Record<string, number>;
   characters: KCharacter[]; selectedCharacter: string | null;
@@ -730,6 +731,8 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
   certain?: ReactNode;
   /** Selected character: their daily coverage (bubble), server-rendered. */
   bubble?: ReactNode;
+  /** Selected character's Knowledge Timeline reach: story days and Day 1's real date. */
+  reach?: { anchor: string; worldDay: number; through: number; label: string } | null;
 }) {
   const router = useRouter();
   const [active, setActive] = useState<string | null>(null);
@@ -818,11 +821,28 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
           <p className="text-xs text-muted">
             {worldLinked ? `The latest from the World everyone lives in. ${char.name} is connected to it, so they can draw on it.` : `The latest from the World everyone lives in. ${char.name} isn't connected to it right now, so they won't draw on it; connect it on the Connections desk.`}
           </p>
-          {worldForChar.length ? (
-            <ul className="flex flex-col divide-y divide-line">
-              {worldForChar.map((i) => <ItemRow key={i.id} projectId={projectId} item={i} source={byId.get(i.source_id)!} collections={collections} members={members} canEdit={canEdit} imp={imp} />)}
-            </ul>
-          ) : <p className="text-sm text-muted">Nothing in the World yet.</p>}
+          {reach && <p className="text-xs">World on Day {reach.worldDay}. {char.name}: {reach.label}</p>}
+          {worldForChar.length ? (() => {
+            const within = reach ? worldForChar.filter((i) => itemDay(i, reach.anchor) <= reach.through) : worldForChar;
+            const later = reach ? worldForChar.filter((i) => itemDay(i, reach.anchor) > reach.through) : [];
+            return (
+              <>
+                {within.length ? (
+                  <ul className="flex flex-col divide-y divide-line">
+                    {within.map((i) => <ItemRow key={i.id} projectId={projectId} item={i} source={byId.get(i.source_id)!} collections={collections} members={members} canEdit={canEdit} imp={imp} />)}
+                  </ul>
+                ) : <p className="text-sm text-muted">Nothing from the World within {char.name}&apos;s reach among the latest items.</p>}
+                {later.length > 0 && (
+                  <details>
+                    <summary className="cursor-pointer text-xs text-accent">Not in {char.name}&apos;s routine knowledge yet ({later.length}) — for you only</summary>
+                    <ul className="mt-1 flex flex-col gap-1 text-xs text-muted">
+                      {later.map((i) => <li key={i.id}>Day {itemDay(i, reach!.anchor)} · {i.title}</li>)}
+                    </ul>
+                  </details>
+                )}
+              </>
+            );
+          })() : <p className="text-sm text-muted">Nothing in the World yet.</p>}
         </section>
       )}
       {char && bubble}

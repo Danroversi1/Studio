@@ -1,6 +1,7 @@
 "use server";
 // Character agents: her confirmed facts (no model), and one optional partner turn (model).
 import { currentSynopsis } from "@/lib/agents/current-story";
+import { loadTimeline, renderForCharacter } from "@/lib/knowledge/timeline-data";
 import { revalidatePath } from "next/cache";
 import { aiConfigured } from "@/lib/ai/configured";
 import { friendlyError } from "@/lib/errors";
@@ -61,6 +62,8 @@ export async function talkAboutCharacter(input: { projectId: string; entityId: s
     story: storyBody, world: renderWorld(toWorld(world)),
     collections: ((links ?? []) as unknown as { purpose: Purpose; knowledge_collections: { name: string } | null }[]).map((l) => ({ name: l.knowledge_collections?.name ?? "", purpose: PURPOSE_LABEL[l.purpose] })),
     message: input.message,
+    // Only what this character may know on the current story day (never another's buffer).
+    timeline: await loadTimeline(sb, input.projectId).then((tl) => renderForCharacter(tl, input.entityId)).catch(() => ""),
     recent: ((runs ?? []) as { input_payload: { message?: string }; output_payload: { reply?: string } }[]).reverse().map((x) => ({ message: String(x.input_payload?.message ?? ""), reply: String(x.output_payload?.reply ?? "") })),
   });
   touch(input.projectId, input.entityId);

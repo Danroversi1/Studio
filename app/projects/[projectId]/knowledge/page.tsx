@@ -13,6 +13,7 @@ import { CharacterCertain } from "@/components/knowledge/character-certain";
 import { CharacterBubblePanel } from "@/components/bubbles/bubble-panels";
 import { getBubbleDesk, getCharacterBubble } from "@/lib/bubbles/data";
 import { roleOf } from "@/lib/characters/roles";
+import { loadTimeline } from "@/lib/knowledge/timeline-data";
 
 export const maxDuration = 120;
 
@@ -27,6 +28,8 @@ export default async function KnowledgePage({ params, searchParams }: { params: 
   // A character opened: their fixed knowledge, the World, and their daily coverage, together.
   const sel = world === "1" ? null : kb.characters.find((c) => c.id === character) ?? null;
   const selEnt = sel ? shell.entities.find((e) => e.id === sel.id) : undefined;
+  const tl = sel ? await supabaseServer().then((sb) => loadTimeline(sb, projectId)).catch(() => null) : null;
+  const tc = sel && tl ? tl.characters.find((c) => c.id === sel.id) : null;
   const [prof, bubble, desk] = sel ? await Promise.all([
     supabaseServer().then((sb) => sb.from("character_profiles").select("confirmed").eq("entity_id", sel.id).maybeSingle()).then((r) => (r.data?.confirmed ?? {}) as Record<string, string>),
     getCharacterBubble(projectId, sel.id, roleOf((selEnt?.metadata ?? null) as Record<string, unknown> | null)),
@@ -47,6 +50,7 @@ export default async function KnowledgePage({ params, searchParams }: { params: 
         collections={kb.collections} members={kb.members} references={kb.references} used={kb.usedByCharacters}
         characters={kb.characters} selectedCharacter={kb.characters.some((c) => c.id === character) ? character! : null}
         impressions={kb.impressions} aiReady={aiConfigured()} worldOpen={world === "1"}
+        reach={tl && tc ? { anchor: tl.anchor, worldDay: tl.worldDay, through: Math.min(tc.reach, tl.worldDay), label: tc.label } : null}
         certain={sel && prof ? <CharacterCertain projectId={projectId} characterId={sel.id} name={sel.name} confirmed={prof} /> : undefined}
         bubble={sel && bubble ? (bubble.eligible
           ? <CharacterBubblePanel projectId={projectId} characterId={sel.id} name={sel.name} canEdit={!!shell.caps.can_edit} b={bubble} desk={desk!} />

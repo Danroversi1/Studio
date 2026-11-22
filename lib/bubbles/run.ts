@@ -7,6 +7,8 @@ import { supabaseService } from "../supabase/server";
 import { refreshFeed, type FetchCache } from "../knowledge/refresh";
 import { roleOf } from "../characters/roles";
 import { queueMoods } from "../mood/run";
+import { loadTimeline } from "../knowledge/timeline-data";
+import { itemDay, realDateOf } from "../knowledge/timeline";
 import { DEFAULT_ATTENTION, eligible, selectFor, summarize, type BubbleEntry, type BubbleProfile, type CandidateItem } from "./select";
 
 type Db = SupabaseClient;
@@ -88,8 +90,16 @@ export async function refreshBubbles(input: { projectId: string; trigger: "manua
     const active = chars.filter((c) => prof.get(c.id)?.active !== false);
     const srcIds = sources.map((s) => s.id);
     const since = new Date(Date.now() - WINDOW_HOURS * 3600_000).toISOString();
+    // The Knowledge Timeline: each character's coverage stops at the story day they reach —
+    // the protagonist one day behind the world, everyone else at the current day. Coverage is
+    // routine news, so nobody's bubble ever carries the future buffer.
+    const tl = await loadTimeline(db, input.projectId);
+    const reachOf = new Map(tl.characters.map((c) => [c.id, Math.min(c.reach, tl.worldDay)]));
+    const minReach = Math.min(tl.worldDay, ...active.map((c) => reachOf.get(c.id) ?? tl.worldDay));
+    const storySince = realDateOf(minReach - 1, tl.anchor);
+    const qSince = storySince < since.slice(0, 10) ? storySince : since;
     const { data: rows } = srcIds.length ? await db.from("knowledge_items").select("id, version, title, url, content, published_at, retrieved_at, updated_at, source_id")
-      .in("source_id", srcIds).is("archived_at", null).or(`retrieved_at.gte.${since},updated_at.gte.${since}`).order("retrieved_at", { ascending: false }).limit(300) : { data: [] };
+      .in("source_id", srcIds).is("archived_at", null).or(`retrieved_at.gte.${qSince},updated_at.gte.${since},published_at.gte.${qSince}`).order("retrieved_at", { ascending: false }).limit(800) : { data: [] };
     const title = new Map(sources.map((s) => [s.id, s.title.replace(/^(Stopped: )?/, "")]));
     const items: CandidateItem[] = ((rows ?? []) as unknown as (Omit<CandidateItem, "source" | "content"> & { content: string | null })[]).map((r) => ({ ...r, content: r.content ?? "", source: title.get(r.source_id) ?? "A source" }));
     const seenSince = new Date(Date.now() - SEEN_DAYS * 86400_000).toISOString().slice(0, 10);
@@ -103,7 +113,12 @@ export async function refreshBubbles(input: { projectId: string; trigger: "manua
       const profile: BubbleProfile = { topics: p?.topics ?? [], avoid: p?.avoid ?? [], attention: p?.attention ?? DEFAULT_ATTENTION };
       const mine = charSources.get(c.id) ?? new Set<string>();
       const label = new Map(sources.map((x) => [x.id, (x.watch_query ?? x.title).replace(/^(Stopped: )?(News: |Reactions: )?/, "")]));
+      const reach = reachOf.get(c.id) ?? tl.worldDay;
       const pool_ = items.filter((i) => worldIds.has(i.source_id) || mine.has(i.source_id))
+        .filter((i) => {
+          const d = itemDay(i, tl.anchor);
+          return d <= reach && (d >= reach - 1 || String((i as { updated_at?: string }).updated_at ?? "") >= since);
+        })
         .map((i) => (mine.has(i.source_id) ? { ...i, own: label.get(i.source_id) } : i));
       const seen = new Map<string, number>();
       let todays: BubbleEntry[] = [];
