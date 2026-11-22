@@ -8,18 +8,70 @@ import {
   type Composition, type Layer, type Stroke,
 } from "@/lib/storyboard/compose";
 import { renderComposition, type ImageState } from "@/lib/storyboard/render";
+import { getTrace, pathsOf } from "@/lib/storyboard/trace-store";
+import { toBoxFraction } from "@/lib/storyboard/compose";
 
-export type Tool = "select" | "draw" | "erase";
+/** select · draw (her drawing) · note (arrows/annotations lane) · erase (deletes whole strokes
+ *  it touches: vectors, not paint) · lasso (draw a mask on the selected picture) · paths
+ *  (pick traced paths to delete or restyle). */
+export type Tool = "select" | "draw" | "note" | "erase" | "lasso" | "paths";
+
+let probe: CanvasRenderingContext2D | null = null;
+function probeCtx() { probe ??= document.createElement("canvas").getContext("2d"); return probe!; }
+
+/** Frame point → a traced layer's own path coordinates. */
+function toTrace(l: Layer, fx: number, fy: number): [number, number] | null {
+  const t = getTrace(l.traceId);
+  if (!t) return null;
+  const [bx, by] = toBoxFraction(l, fx, fy);
+  return [bx * t.width, by * t.height];
+}
+
+/** Topmost path of a traced layer under a point (fills by area, strokes within tolerance). */
+export function pathAt(l: Layer, fx: number, fy: number, tolerance: number): number | null {
+  const t = getTrace(l.traceId), p = toTrace(l, fx, fy);
+  if (!t || !p) return null;
+  const ps = pathsOf(t), ctx = probeCtx(), removed = new Set(l.removed ?? []);
+  const tol = tolerance * (t.width / l.w);
+  for (let i = ps.length - 1; i >= 0; i--) {
+    if (removed.has(i)) continue;
+    const d = t.paths[i];
+    if (d.f && d.f !== "none" && ctx.isPointInPath(ps[i], p[0], p[1], "evenodd")) return i;
+    if (d.s && d.s !== "none") { ctx.lineWidth = Math.max((l.weight ?? d.w ?? 2), tol * 2); if (ctx.isPointInStroke(ps[i], p[0], p[1])) return i; }
+  }
+  return null;
+}
+
+function segDist(px: number, py: number, ax: number, ay: number, bx: number, by: number) {
+  const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy, t = L ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L)) : 0;
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+/** Strokes of a drawing layer touched by a point (local coordinates). */
+function strokesTouched(l: Layer, lx: number, ly: number, r: number): number[] {
+  const out: number[] = [];
+  (l.strokes ?? []).forEach((s, i) => {
+    if (s.erase) return;
+    const p = s.pts, rr = r + s.width / 2;
+    if (p.length === 2 ? Math.hypot(lx - p[0], ly - p[1]) <= rr : p.some((_, k) => k % 2 === 0 && k + 3 < p.length && segDist(lx, ly, p[k], p[k + 1], p[k + 2], p[k + 3]) <= rr)) out.push(i);
+  });
+  return out;
+}
 export interface Pen { color: string; width: number }
 
 type Drag =
   | { kind: "move"; ids: string[]; sx: number; sy: number; start: Composition }
   | { kind: "resize"; id: string; handle: [number, number]; start: Composition; keep: boolean }
   | { kind: "rotate"; id: string; start: Composition }
-  | { kind: "draw"; id: string; start: Composition; erase: boolean };
+  | { kind: "draw"; id: string; start: Composition }
+  | { kind: "erase"; start: Composition }
+  | { kind: "lasso"; id: string; pts: number[]; frame: number[] };
 
-export function ComposeCanvas({ comp, images, selected, tool, pen, showLook, editable, onChange, onSelect, onTextEdit, captureWidthMm }: {
+export function ComposeCanvas({ comp, images, selected, tool, pen, showLook, editable, onChange, onSelect, onTextEdit, captureWidthMm,
+  maskMode = "keep", selectedPaths = [], onSelectPaths, onHint, display }: {
+  /** Display-only changes (trace preview, before/after, faded references): drawn, never edited or saved. */
+  display?: (c: Composition) => Composition;
   comp: Composition; images: Map<string, ImageState>; selected: string[]; tool: Tool; pen: Pen; showLook: boolean; editable: boolean;
+  maskMode?: "keep" | "remove"; selectedPaths?: number[]; onSelectPaths?: (layerId: string, paths: number[]) => void; onHint?: (text: string) => void;
   /** commit=false during a drag (preview only); commit=true once, with the state before the edit. */
   onChange: (next: Composition, commit: false | { before: Composition }) => void;
   onSelect: (ids: string[]) => void;
@@ -33,6 +85,7 @@ export function ComposeCanvas({ comp, images, selected, tool, pen, showLook, edi
   const [width, setWidth] = useState(800);
   const [guides, setGuides] = useState<{ x?: number; y?: number }[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [lasso, setLasso] = useState<number[] | null>(null);
   const H = frameH(comp);
 
   useEffect(() => {
@@ -48,11 +101,12 @@ export function ComposeCanvas({ comp, images, selected, tool, pen, showLook, edi
     const c = pic.current;
     if (!c) return;
     const px = Math.min(2400, Math.round(width * (window.devicePixelRatio || 1)));
-    renderComposition(c, comp, images, px, { look: false, preview: true, captureWidthMm });
+    const shown = display ? display(comp) : comp;
+    renderComposition(c, shown, images, px, { look: false, preview: true, captureWidthMm });
     if (!showLook || dragging) return;
-    const t = setTimeout(() => renderComposition(c, comp, images, px, { look: true, preview: true, captureWidthMm }), 120);
+    const t = setTimeout(() => renderComposition(c, shown, images, px, { look: true, preview: true, captureWidthMm }), 120);
     return () => clearTimeout(t);
-  }, [comp, images, width, showLook, dragging, captureWidthMm]);
+  }, [comp, images, width, showLook, dragging, captureWidthMm, display]);
 
   const unit = width / FRAME_W; // CSS px per frame unit
   const m = framingMatrix(comp);
@@ -85,6 +139,25 @@ export function ComposeCanvas({ comp, images, selected, tool, pen, showLook, edi
       if (g.y !== undefined) { const [, y] = toScreen(0, g.y); ctx.moveTo(0, y); ctx.lineTo(W, y); }
       ctx.stroke();
     }
+    if (lasso && lasso.length >= 4) {
+      ctx.strokeStyle = maskMode === "keep" ? "#1f9d55" : "#d33"; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      for (let i = 0; i < lasso.length; i += 2) { const [x, y] = toScreen(lasso[i], lasso[i + 1]); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+      ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+    }
+    const vec = comp.layers.find((l) => selected.length === 1 && l.id === selected[0] && l.type === "vector");
+    const tr = vec ? getTrace(vec.traceId) : undefined;
+    if (vec && tr && selectedPaths.length) {
+      const ps = pathsOf(tr);
+      ctx.save();
+      const [ox, oy] = toScreen(...toFrame(vec, 0, 0));
+      ctx.translate(ox, oy); ctx.rotate((vec.rot * Math.PI) / 180);
+      const k = unit * m.s; ctx.scale((vec.flipX ? -1 : 1) * k, (vec.flipY ? -1 : 1) * k);
+      ctx.translate(-vec.w / 2, -vec.h / 2); ctx.scale(vec.w / tr.width, vec.h / tr.height);
+      ctx.strokeStyle = "#2f6fdf"; ctx.fillStyle = "rgba(47,111,223,0.35)"; ctx.lineWidth = 3 * (tr.width / vec.w) / k;
+      for (const i of selectedPaths) if (ps[i]) { if (tr.paths[i].f) ctx.fill(ps[i], "evenodd"); ctx.stroke(ps[i]); }
+      ctx.restore();
+    }
     const sel = comp.layers.filter((l) => selected.includes(l.id) && !l.hidden);
     for (const l of sel) {
       const pts = corners(l).map(([x, y]) => toScreen(x, y));
@@ -99,7 +172,7 @@ export function ComposeCanvas({ comp, images, selected, tool, pen, showLook, edi
         ctx.beginPath(); ctx.arc(rx, ry, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       }
     }
-  }, [comp, selected, guides, width, toScreen, unit, m.s, tool, editable]);
+  }, [comp, selected, guides, width, toScreen, unit, m.s, tool, editable, lasso, maskMode, selectedPaths]);
 
   function framePoint(e: React.PointerEvent): [number, number] {
     const r = over.current!.getBoundingClientRect();
@@ -112,19 +185,48 @@ export function ComposeCanvas({ comp, images, selected, tool, pen, showLook, edi
     if (!editable) return;
     const [fx, fy] = framePoint(e);
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    if (tool === "draw" || tool === "erase") {
+    if (tool === "draw" || tool === "note") {
       let c = comp;
-      let target = comp.layers.find((l) => selected.includes(l.id) && l.type === "drawing" && !l.locked && !l.hidden);
+      const note = tool === "note";
+      let target = comp.layers.find((l) => selected.includes(l.id) && l.type === "drawing" && !l.locked && !l.hidden && (l.role === "annotation") === note)
+        ?? comp.layers.slice().reverse().find((l) => l.type === "drawing" && !l.locked && !l.hidden && (l.role === "annotation") === note);
       if (!target) {
-        const res = addLayer(c, { type: "drawing", name: "Drawing", x: FRAME_W / 2, y: H / 2, w: FRAME_W, h: H, rot: 0, strokes: [] });
+        const res = addLayer(c, { type: "drawing", name: note ? "Arrows & notes" : "My drawing", role: note ? "annotation" : undefined, x: FRAME_W / 2, y: H / 2, w: FRAME_W, h: H, rot: 0, strokes: [] });
         c = res.comp; target = c.layers.find((l) => l.id === res.id)!;
-        onSelect([res.id]);
       }
+      onSelect([target.id]);
       const [lx, ly] = toLocal(target, fx, fy);
-      const stroke: Stroke = { color: pen.color, width: tool === "erase" ? pen.width * 3 : pen.width, erase: tool === "erase" || undefined, pts: [lx, ly] };
-      drag.current = { kind: "draw", id: target.id, start: comp, erase: tool === "erase" };
+      const stroke: Stroke = { color: pen.color, width: pen.width, pts: [lx, ly] };
+      drag.current = { kind: "draw", id: target.id, start: comp };
       setDragging(true);
       onChange(update(c, [target.id], (l) => ({ strokes: [...(l.strokes ?? []), stroke] })), false);
+      return;
+    }
+    if (tool === "erase") {
+      drag.current = { kind: "erase", start: comp }; setDragging(true);
+      eraseAt(comp, fx, fy);
+      return;
+    }
+    if (tool === "lasso") {
+      const img = comp.layers.find((l) => selected.length === 1 && l.id === selected[0] && l.type === "image" && !l.locked) ?? pick(comp, fx, fy);
+      if (!img || img.type !== "image" || img.locked) { onHint?.("Select a picture first, then draw around what you want to keep (or cut away)."); return; }
+      onSelect([img.id]);
+      drag.current = { kind: "lasso", id: img.id, pts: [...toBoxFraction(img, fx, fy)], frame: [fx, fy] };
+      setLasso([fx, fy]); setDragging(true);
+      return;
+    }
+    if (tool === "paths") {
+      const tol = 6 / (unit * m.s);
+      const layers = comp.layers.filter((l) => l.type === "vector" && !l.hidden && !l.locked).reverse();
+      for (const l of layers) {
+        const i = pathAt(l, fx, fy, tol);
+        if (i === null) continue;
+        onSelect([l.id]);
+        const cur = selected.length === 1 && selected[0] === l.id ? selectedPaths : [];
+        onSelectPaths?.(l.id, e.shiftKey ? (cur.includes(i) ? cur.filter((x) => x !== i) : [...cur, i]) : [i]);
+        return;
+      }
+      onSelectPaths?.(selected[0] ?? "", []);
       return;
     }
     const one = comp.layers.find((l) => selected.length === 1 && l.id === selected[0] && !l.locked);
@@ -150,10 +252,33 @@ export function ComposeCanvas({ comp, images, selected, tool, pen, showLook, edi
     setDragging(true);
   }
 
+  /** Delete the strokes the eraser touches (in every visible, unlocked drawing layer). */
+  function eraseAt(c: Composition, fx: number, fy: number) {
+    const r = pen.width * 1.5;
+    let next = c, changed = false;
+    for (const l of c.layers) {
+      if (l.type !== "drawing" || l.hidden || l.locked) continue;
+      const [lx, ly] = toLocal(l, fx, fy);
+      const hit = strokesTouched(l, lx, ly, r);
+      if (hit.length) { changed = true; next = update(next, [l.id], (x) => ({ strokes: (x.strokes ?? []).filter((_, i) => !hit.includes(i)) })); }
+    }
+    if (changed) onChange(next, false);
+  }
+
   function move(e: React.PointerEvent) {
     const d = drag.current;
     if (!d) return;
     const [fx, fy] = framePoint(e);
+    if (d.kind === "erase") { eraseAt(comp, fx, fy); return; }
+    if (d.kind === "lasso") {
+      const l = comp.layers.find((x) => x.id === d.id);
+      if (!l) return;
+      const n = d.frame.length;
+      if (Math.hypot(fx - d.frame[n - 2], fy - d.frame[n - 1]) < 4 / (unit * m.s)) return;
+      d.frame.push(fx, fy); d.pts.push(...toBoxFraction(l, fx, fy));
+      setLasso([...d.frame]);
+      return;
+    }
     if (d.kind === "draw") {
       const l = comp.layers.find((x) => x.id === d.id);
       if (!l) return;
@@ -186,6 +311,13 @@ export function ComposeCanvas({ comp, images, selected, tool, pen, showLook, edi
     setDragging(false);
     setGuides([]);
     if (!d) return;
+    if (d.kind === "lasso") {
+      setLasso(null);
+      if (d.pts.length < 6) return;
+      const pts = d.pts.map((v) => Math.round(v * 10000) / 10000);
+      onChange(update(comp, [d.id], (l) => ({ masks: [...(l.masks ?? []), { mode: maskMode, pts }] })), { before: comp });
+      return;
+    }
     if (JSON.stringify(d.start.layers) !== JSON.stringify(comp.layers)) onChange(comp, { before: d.start });
   }
 

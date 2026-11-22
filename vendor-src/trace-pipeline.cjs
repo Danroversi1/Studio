@@ -10,7 +10,7 @@
 (function (root) {
   "use strict";
 
-  var LIMITS = { paths: 6000, chars: 2500000 };
+  var LIMITS = { paths: 6000, chars: 2000000 };
 
   function clamp01(v, d) { v = Number(v); return isFinite(v) ? Math.min(1, Math.max(0, v)) : d; }
   function settingsOf(s) {

@@ -1,16 +1,15 @@
 "use client";
 // Side panels for Compose. All local editing: no model calls.
+import { getTrace } from "@/lib/storyboard/trace-store";
 import { useEffect, useRef, useState } from "react";
 import {
   archiveLens, archiveLibraryItem, libraryUsage, replaceLibrarySource, restoreVersion, saveLens, saveLibraryItem,
 } from "@/app/projects/[projectId]/storyboard-actions";
 import { FORMATS, depthOfField, distanceForFraming, fieldOfView, formatOf, round } from "@/lib/storyboard/camera";
 import {
-  FRAME_W, frameH, group, reorder, removeLayers, ungroup, update, withGroup, DEFAULT_LOOK,
+  FRAME_W, frameH, group, laneOf, reorder, removeLayers, ungroup, update, withGroup, DEFAULT_LOOK,
   type Composition, type Layer, type Look,
 } from "@/lib/storyboard/compose";
-import { RefVisual } from "@/components/look/parts";
-import type { LookRef } from "@/lib/look/types";
 import { lensFromLink } from "@/lib/storyboard/lens-link";
 import { LOOK_PRESETS } from "@/lib/storyboard/look";
 import { SHAPES, type BuiltinShape } from "@/lib/storyboard/shapes";
@@ -288,20 +287,35 @@ function LibraryEditor({ projectId, entityId, item, onDone, onMessage }: { proje
 }
 
 // ---- Layers ------------------------------------------------------------------------------
-export function LayersPanel({ comp, selected, editable, library, onSelect, edit }: {
+const LANES: { id: ReturnType<typeof laneOf>; label: string; icon: string }[] = [
+  { id: "reference", label: "References", icon: "▣" }, { id: "trace", label: "Traced lines", icon: "≈" },
+  { id: "drawing", label: "My drawing", icon: "✎" }, { id: "annotation", label: "Arrows & notes", icon: "➜" },
+];
+
+export function LayersPanel({ comp, selected, editable, library, onSelect, edit, selectedPaths = [], onSelectPaths }: {
   comp: Composition; selected: string[]; editable: boolean; library: LibItem[]; onSelect: (ids: string[]) => void; edit: Edit;
+  selectedPaths?: number[]; onSelectPaths?: (ids: number[]) => void;
 }) {
-  const list = [...comp.layers].reverse();
+  const [lane, setLane] = useState<ReturnType<typeof laneOf> | "all">("all");
+  const list = [...comp.layers].reverse().filter((l) => lane === "all" || laneOf(l) === lane);
   const sel = comp.layers.filter((l) => selected.includes(l.id));
   const one = sel.length === 1 ? sel[0] : null;
   const set = (patch: Partial<Layer>) => one && edit((c) => update(c, [one.id], () => patch));
   return (
     <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap gap-1" role="group" aria-label="Show layers">
+        {([{ id: "all", label: "All" }, ...LANES] as { id: typeof lane; label: string }[]).map((x) => (
+          <button key={x.id} type="button" aria-pressed={lane === x.id} onClick={() => setLane(x.id)}
+            className={`badge border ${lane === x.id ? "border-text bg-text text-panel-2" : "border-line text-muted"}`}>{x.label}</button>
+        ))}
+      </div>
       <ol className="flex flex-col border border-line" aria-label="Layers, top first">
         {list.map((l) => (
           <li key={l.id} className={`flex items-center gap-1 border-b border-line px-1.5 py-1 text-xs last:border-b-0 ${selected.includes(l.id) ? "bg-panel-2" : ""}`}>
-            <button type="button" className="min-w-0 flex-1 truncate text-left" onClick={(e) => onSelect(e.shiftKey ? [...selected, l.id] : [l.id])} aria-pressed={selected.includes(l.id)}>
-              <span className="text-muted">{l.type === "image" ? "▣" : l.type === "text" ? "T" : l.type === "drawing" ? "✎" : "◆"}</span> {l.name}{l.group ? <span className="text-muted"> · grouped</span> : null}
+            <button type="button" className="min-w-0 flex-1 truncate text-left" onClick={(e) => onSelect(e.shiftKey ? [...selected, l.id] : [l.id])} aria-pressed={selected.includes(l.id)}
+              title={LANES.find((x) => x.id === laneOf(l))?.label}>
+              <span className="text-muted">{l.type === "text" ? "T" : l.type === "shape" ? "◆" : LANES.find((x) => x.id === laneOf(l))?.icon}</span> {l.name}
+              {l.masks?.length ? <span className="text-muted"> · cut out</span> : null}{l.group ? <span className="text-muted"> · grouped</span> : null}
             </button>
             <button type="button" className="px-1" disabled={!editable} onClick={() => edit((c) => update(c, [l.id], () => ({ hidden: !l.hidden || undefined })))} aria-label={l.hidden ? `Show ${l.name}` : `Hide ${l.name}`}>{l.hidden ? "◌" : "◉"}</button>
             <button type="button" className="px-1" disabled={!editable} onClick={() => edit((c) => update(c, [l.id], () => ({ locked: !l.locked || undefined })))} aria-label={l.locked ? `Unlock ${l.name}` : `Lock ${l.name}`}>{l.locked ? "🔒" : "🔓"}</button>
@@ -365,7 +379,47 @@ export function LayersPanel({ comp, selected, editable, library, onSelect, edit 
               </div>
             </div>
           )}
-          {one.type === "drawing" && <p className="text-xs text-muted">{one.strokes?.length ?? 0} strokes. Use Draw or Erase with this layer selected to change it.</p>}
+          {one.type === "image" && (
+            <div className="flex flex-col gap-1 text-xs">
+              <p className="label">Cutouts</p>
+              <p className="text-muted">{one.masks?.length ? `${one.masks.length} drawn ${one.masks.length === 1 ? "cutout" : "cutouts"}. ` : ""}Use the Lasso to draw around what to keep, or switch it to Cut away. You draw the edge; nothing is detected automatically. The original picture is never changed.</p>
+              {!!one.masks?.length && (
+                <span className="flex flex-wrap gap-1">
+                  <button type="button" className="btn min-h-8 px-2 text-xs" onClick={() => set({ masks: one.masks!.slice(0, -1).length ? one.masks!.slice(0, -1) : undefined })}>Remove last cutout</button>
+                  <button type="button" className="btn min-h-8 px-2 text-xs" onClick={() => set({ masks: undefined })}>Clear cutouts</button>
+                </span>
+              )}
+            </div>
+          )}
+          {one.type === "vector" && (() => {
+            const t = getTrace(one.traceId);
+            const total = t?.paths.length ?? 0, gone = one.removed?.length ?? 0;
+            return (
+              <div className="flex flex-col gap-1.5 text-xs">
+                <p className="text-muted">{{ outline: "Outline", ink: "Ink", three_tone: "Three-tone" }[one.treatment ?? "outline"]} · {total - gone} of {total} paths
+                  {one.sourceIds?.length ? ` · from ${one.sourceIds.map((id) => comp.layers.find((x) => x.id === id)?.name ?? "a removed reference").join(", ")}` : ""}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="flex items-center gap-1">Ink <input type="color" value={one.ink ?? String(t?.settings.ink ?? "#141414")} onChange={(e) => set({ ink: e.target.value })} /></label>
+                  {one.treatment === "three_tone" && <label className="flex items-center gap-1">Mid <input type="color" value={one.mid ?? String(t?.settings.mid ?? "#9a9a9a")} onChange={(e) => set({ mid: e.target.value })} /></label>}
+                </div>
+                {one.treatment === "outline" && (
+                  <label className="flex flex-col gap-0.5"><span>Line weight {one.weight ?? (t?.paths[0]?.w ?? 2)}</span>
+                    <input type="range" min={0.5} max={12} step={0.5} value={one.weight ?? (t?.paths[0]?.w ?? 2)} onChange={(e) => set({ weight: Number(e.target.value) })} /></label>
+                )}
+                <p className="text-muted">Use the Paths tool to pick lines (Shift for several), then delete them. Deleting removes the vector paths themselves.</p>
+                <span className="flex flex-wrap gap-1">
+                  {selectedPaths.length > 0 && <button type="button" className="btn min-h-8 px-2 text-xs" onClick={() => { set({ removed: [...new Set([...(one.removed ?? []), ...selectedPaths])] }); onSelectPaths?.([]); }}>Delete {selectedPaths.length} selected {selectedPaths.length === 1 ? "path" : "paths"}</button>}
+                  {gone > 0 && <button type="button" className="btn min-h-8 px-2 text-xs" onClick={() => set({ removed: undefined })}>Bring back {gone} deleted</button>}
+                </span>
+              </div>
+            );
+          })()}
+          {one.type === "drawing" && (
+            <div className="flex flex-col gap-1 text-xs">
+              <p className="text-muted">{one.strokes?.length ?? 0} strokes. Draw adds strokes; Erase deletes the strokes it touches.</p>
+              <label className="flex items-center gap-1"><input type="checkbox" checked={one.role === "annotation"} onChange={(e) => set({ role: e.target.checked ? "annotation" : undefined })} /> Arrows &amp; notes (a separate lane from your drawing)</label>
+            </div>
+          )}
         </fieldset>
       )}
     </div>
@@ -407,12 +461,33 @@ export function FramePanel({ frame, number, canEdit, onSave, onNotes, onState, o
         </div>
       )}
       <form className="flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); onSave(c); }}>
-        <label className="flex flex-col gap-1 text-xs"><span className="label">What should we notice?</span>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="flex flex-col gap-1 text-xs"><span className="label">Scene</span>
+            <input className="field py-1.5 text-sm" value={c.sceneNumber ?? ""} onChange={(e) => setC({ ...c, sceneNumber: e.target.value || undefined })} readOnly={ro} maxLength={12} placeholder="12" /></label>
+          <label className="flex flex-col gap-1 text-xs"><span className="label">Shot</span>
+            <input className="field py-1.5 text-sm" value={c.shotNumber ?? ""} onChange={(e) => setC({ ...c, shotNumber: e.target.value || undefined })} readOnly={ro} maxLength={12} placeholder={String(number)} /></label>
+          <label className="flex flex-col gap-1 text-xs"><span className="label">Framing</span>
+            <select className="field py-1.5 text-sm" value={c.size ?? ""} disabled={ro} onChange={(e) => setC({ ...c, size: (e.target.value || undefined) as ShotContent["size"] })}>
+              <option value="">—</option>{SIZES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+          <label className="flex flex-col gap-1 text-xs"><span className="label">Angle</span>
+            <select className="field py-1.5 text-sm" value={c.angle ?? ""} disabled={ro} onChange={(e) => setC({ ...c, angle: (e.target.value || undefined) as ShotContent["angle"] })}>
+              <option value="">—</option>{ANGLES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+        </div>
+        <label className="flex flex-col gap-1 text-xs"><span className="label">Description (what should we notice?)</span>
           <input className="field py-1.5 text-sm" value={c.notice ?? ""} onChange={(e) => setC({ ...c, notice: e.target.value || undefined })} readOnly={ro} placeholder="e.g. the cup shaking before anyone reacts" maxLength={400} /></label>
         <label className="flex flex-col gap-1 text-xs"><span className="label">Action</span>
           <textarea className="field text-sm" rows={3} value={c.action} onChange={(e) => setC({ ...c, action: e.target.value })} readOnly={ro} maxLength={1200} /></label>
         <label className="flex flex-col gap-1 text-xs"><span className="label">Dialogue (optional)</span>
           <textarea className="field text-sm" rows={2} value={c.dialogue ?? ""} onChange={(e) => setC({ ...c, dialogue: e.target.value || undefined })} readOnly={ro} maxLength={1200} /></label>
+        <label className="flex flex-col gap-1 text-xs"><span className="label">Sound notes (optional)</span>
+          <input className="field py-1.5 text-sm" value={c.sound ?? ""} onChange={(e) => setC({ ...c, sound: e.target.value || undefined })} readOnly={ro} maxLength={600} placeholder="e.g. rain on the window, a phone buzzing" /></label>
+        <label className="flex flex-col gap-1 text-xs"><span className="label">Camera movement</span>
+          <input className="field py-1.5 text-sm" value={c.movement ?? ""} onChange={(e) => setC({ ...c, movement: e.target.value || undefined })} readOnly={ro} maxLength={300} placeholder="e.g. slow push in" /></label>
+        <label className="flex flex-col gap-1 text-xs"><span className="label">Characters (comma-separated)</span>
+          <input className="field py-1.5 text-sm" value={(c.characters ?? []).join(", ")} readOnly={ro}
+            onChange={(e) => setC({ ...c, characters: e.target.value.split(",").map((x) => x.trimStart()).filter((x, i, a) => x || i === a.length - 1).slice(0, 12) })} /></label>
+        <label className="flex flex-col gap-1 text-xs"><span className="label">Location</span>
+          <input className="field py-1.5 text-sm" value={c.location ?? ""} onChange={(e) => setC({ ...c, location: e.target.value || undefined })} readOnly={ro} maxLength={120} /></label>
         <label className="flex flex-col gap-1 text-xs"><span className="label">Proposed duration (seconds)</span>
           <input type="number" min={0.2} step={0.5} className="field py-1.5 text-sm" value={c.durationS ?? ""} onChange={(e) => setC({ ...c, durationS: e.target.value ? Number(e.target.value) : undefined })} readOnly={ro} /></label>
         {c.source?.excerpt && <p className="text-xs text-muted">From {c.source.kind === "script" ? `the script (${c.source.heading})` : "your description"}: “{c.source.excerpt.slice(0, 200)}{c.source.excerpt.length > 200 ? "…" : ""}”</p>}
@@ -745,63 +820,3 @@ export function LookPanel({ comp, editable, edit, stocks, frames, onApplyAll }: 
   );
 }
 
-// ---- Reference tray ------------------------------------------------------------------------
-export function ReferenceTray({ open, onToggle, library, editable, onPlace, look }: {
-  open: boolean; onToggle: () => void; library: LibItem[]; editable: boolean; onPlace: (it: LibItem) => void;
-  look?: { refs: LookRef[]; label: string; tracing: string | null; onTrace: (r: LookRef | null) => void; onPlace: (r: LookRef) => void; onOpen: () => void };
-}) {
-  const refs = library.filter((i) => i.kind === "reference" || i.usage === "reference_only");
-  return (
-    <section className="panel" aria-label="References">
-      <button type="button" className="flex w-full items-center justify-between px-3 py-2 text-sm" onClick={onToggle} aria-expanded={open}>
-        <span className="font-semibold">References ({refs.length + (look?.refs.length ?? 0)})</span><span className="text-muted">{open ? "Hide" : "Show"}</span>
-      </button>
-      {open && look && (look.refs.length > 0 || look.label) && (
-        <div className="border-t border-line p-2">
-          <p className="mb-1 flex flex-wrap items-baseline justify-between gap-2 text-xs">
-            <span><b>Look &amp; Feel</b>{look.label ? ` · ${look.label}` : ""} <span className="text-muted">(how it should look, not who or where)</span></span>
-            <button type="button" className="underline" onClick={look.onOpen}>Change in Refs</button>
-          </p>
-          <ul className="flex gap-2 overflow-x-auto">
-            {look.refs.map((r) => (
-              <li key={r.id} className="w-40 shrink-0 text-xs">
-                <div className="aspect-[4/3] overflow-hidden"><RefVisual r={r} /></div>
-                <p className="truncate font-medium">{r.title}</p>
-                {r.useFor && <p className="line-clamp-1"><span className="text-muted">Use:</span> {r.useFor}</p>}
-                {r.leaveOut && <p className="line-clamp-1"><span className="text-muted">Leave out:</span> {r.leaveOut}</p>}
-                <span className="mt-1 flex flex-wrap gap-1">
-                  {(r.assetId || r.crop) && <button type="button" aria-pressed={look.tracing === r.id} className={`btn min-h-7 px-2 text-[11px] ${look.tracing === r.id ? "border-brand bg-brand/10" : ""}`}
-                    onClick={() => look.onTrace(look.tracing === r.id ? null : r)}>{look.tracing === r.id ? "Hide guide" : "Trace"}</button>}
-                  {r.assetId && editable && <button type="button" className="btn min-h-7 px-2 text-[11px]" onClick={() => look.onPlace(r)}>Place as a layer</button>}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {open && (
-        refs.length ? (
-          <ul className="flex gap-2 overflow-x-auto border-t border-line p-2">
-            {refs.map((r) => (
-              <li key={r.id} className="w-40 shrink-0 text-xs">
-                <div className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-panel-2">
-                  {r.assetId
-                    // eslint-disable-next-line @next/next/no-img-element
-                    ? <img src={`/api/assets/${r.assetId}`} alt={r.name} className="max-h-full max-w-full object-contain" loading="lazy" />
-                    : <a href={r.sourceUrl ?? "#"} target="_blank" rel="noreferrer" className="p-2 text-center underline">Open link</a>}
-                </div>
-                <p className="truncate font-medium">{r.name}</p>
-                {r.purpose && <p className="text-muted">{PURPOSES.find(([k]) => k === r.purpose)?.[1]}</p>}
-                {r.note && <p className="line-clamp-2">“{r.note}”</p>}
-                {r.attribution && <p className="truncate text-muted">© {r.attribution}</p>}
-                {r.usage === "composition" && r.assetId
-                  ? <button type="button" className="btn mt-1 min-h-8 px-2 text-[11px]" disabled={!editable} onClick={() => onPlace(r)}>Use in frame</button>
-                  : <p className="text-[10px] text-muted">Reference only</p>}
-              </li>
-            ))}
-          </ul>
-        ) : <p className="help border-t border-line p-3">Add references in Assets → Add to the library (images or links), with what you like about each one.</p>
-      )}
-    </section>
-  );
-}

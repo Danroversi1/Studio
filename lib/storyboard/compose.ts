@@ -4,7 +4,11 @@
 
 export const FRAME_W = 1600; // frame units across; height = FRAME_W / aspect
 
-export type LayerType = "image" | "shape" | "text" | "drawing";
+export type LayerType = "image" | "shape" | "text" | "drawing" | "vector";
+export type Treatment = "outline" | "ink" | "three_tone";
+/** A hand-drawn cutout on a reference: polygon points as fractions of the layer box (0..1,
+ *  before flip/rotation). "keep" polygons keep only what's inside; "remove" cuts it away. */
+export interface Mask { mode: "keep" | "remove"; pts: number[] }
 export interface Crop { l: number; t: number; r: number; b: number } // fractions trimmed from each side
 export interface Stroke { color: string; width: number; erase?: boolean; pts: number[] } // x,y pairs in frame units
 
@@ -29,8 +33,25 @@ export interface Layer {
   fill?: string; stroke?: string; strokeWidth?: number;
   // text
   text?: string; fontSize?: number; color?: string; box?: boolean; align?: "left" | "center" | "right";
-  // drawing
+  masks?: Mask[];
+  // drawing ("annotation" = arrows/notes lane; otherwise her drawing)
   strokes?: Stroke[];
+  role?: "annotation";
+  // vector: a saved trace (storyboard_traces) drawn into this box
+  traceId?: string;
+  treatment?: Treatment;
+  sourceIds?: string[];          // the reference layers it was traced from
+  removed?: number[];            // paths she deleted (indexes into the trace)
+  ink?: string; mid?: string;    // colour overrides
+  weight?: number;               // outline stroke width override (trace pixels) — changes real strokes
+}
+
+/** Which lane a layer sits in, for the layer list: references, traced lines, drawing, notes. */
+export function laneOf(l: Layer): "reference" | "trace" | "drawing" | "annotation" {
+  if (l.type === "image") return "reference";
+  if (l.type === "vector") return "trace";
+  if (l.type === "drawing" && l.role !== "annotation") return "drawing";
+  return "annotation";
 }
 
 export interface Look {
@@ -75,6 +96,22 @@ const num = (x: unknown, d: number, lo = -1e6, hi = 1e6) => (typeof x === "numbe
 const str = (x: unknown, n: number) => (typeof x === "string" ? x.slice(0, n) : undefined);
 const color = (x: unknown) => (typeof x === "string" && /^#[0-9a-f]{3,8}$/i.test(x) ? x : undefined);
 
+export function cleanMasks(x: unknown): Mask[] {
+  return (Array.isArray(x) ? x : []).slice(0, 40).map((m) => {
+    const M = (m && typeof m === "object" ? m : {}) as Record<string, unknown>;
+    const pts = (Array.isArray(M.pts) ? M.pts : []).slice(0, 2000).map((p) => Math.round(num(p, 0, -0.5, 1.5) * 10000) / 10000);
+    return { mode: M.mode === "remove" ? "remove" : "keep", pts: pts.length % 2 ? pts.slice(0, -1) : pts } as Mask;
+  }).filter((m) => m.pts.length >= 6);
+}
+
+/** Frame point → fraction of a layer's box (0..1), undoing rotation and flips: where a lasso
+ *  point lands on the picture itself. */
+export function toBoxFraction(l: Layer, px: number, py: number): [number, number] {
+  const [lx, ly] = toLocal(l, px, py);
+  const fx = (l.flipX ? -lx : lx) / l.w + 0.5, fy = (l.flipY ? -ly : ly) / l.h + 0.5;
+  return [fx, fy];
+}
+
 /** Accept stored or pasted data safely; fill defaults; drop anything unknown. */
 export function cleanComposition(x: unknown, fallbackAspect = 16 / 9): Composition {
   const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
@@ -84,7 +121,7 @@ export function cleanComposition(x: unknown, fallbackAspect = 16 / 9): Compositi
   const fr = (o.framing && typeof o.framing === "object" ? o.framing : {}) as Record<string, unknown>;
   const layers = (Array.isArray(o.layers) ? o.layers : []).slice(0, 300).map((l): Layer | null => {
     const L = (l && typeof l === "object" ? l : {}) as Record<string, unknown>;
-    const type = ["image", "shape", "text", "drawing"].includes(String(L.type)) ? (L.type as LayerType) : null;
+    const type = ["image", "shape", "text", "drawing", "vector"].includes(String(L.type)) ? (L.type as LayerType) : null;
     if (!type) return null;
     const out: Layer = {
       id: str(L.id, 40) || newId(), type, name: str(L.name, 80) ?? type,
@@ -100,6 +137,18 @@ export function cleanComposition(x: unknown, fallbackAspect = 16 / 9): Compositi
       out.libraryId = str(L.libraryId, 40); out.assetId = str(L.assetId, 40);
       const c = (L.crop && typeof L.crop === "object" ? L.crop : null) as Record<string, unknown> | null;
       if (c) out.crop = { l: num(c.l, 0, 0, 0.95), t: num(c.t, 0, 0, 0.95), r: num(c.r, 0, 0, 0.95), b: num(c.b, 0, 0, 0.95) };
+      const ms = cleanMasks(L.masks);
+      if (ms.length) out.masks = ms;
+    }
+    if (type === "vector") {
+      out.traceId = str(L.traceId, 40);
+      if (!out.traceId) return null;
+      out.treatment = L.treatment === "ink" || L.treatment === "three_tone" ? L.treatment : "outline";
+      out.sourceIds = (Array.isArray(L.sourceIds) ? L.sourceIds : []).slice(0, 20).map((x) => str(x, 40)).filter((x): x is string => !!x);
+      const rm = (Array.isArray(L.removed) ? L.removed : []).slice(0, 6000).map((x) => Math.round(num(x, -1, -1, 6000))).filter((x) => x >= 0);
+      if (rm.length) out.removed = [...new Set(rm)];
+      out.ink = color(L.ink); out.mid = color(L.mid);
+      if (L.weight !== undefined) out.weight = num(L.weight, 2, 0.25, 50);
     }
     if (type === "shape") { out.shape = str(L.shape, 40) ?? "rect"; out.fill = color(L.fill) ?? "#3a3a3a"; out.stroke = color(L.stroke); out.strokeWidth = num(L.strokeWidth, 0, 0, 100); }
     if (type === "text") { out.text = str(L.text, 1000) ?? ""; out.fontSize = num(L.fontSize, 48, 6, 600); out.color = color(L.color) ?? "#111111"; out.box = !!L.box; out.align = L.align === "left" || L.align === "right" ? L.align : "center"; }
@@ -109,6 +158,7 @@ export function cleanComposition(x: unknown, fallbackAspect = 16 / 9): Compositi
         const pts = (Array.isArray(S.pts) ? S.pts : []).slice(0, 4000).map((p) => num(p, 0)).map((p) => Math.round(p * 10) / 10);
         return { color: color(S.color) ?? "#111111", width: num(S.width, 4, 0.5, 200), erase: !!S.erase || undefined, pts: pts.length % 2 ? pts.slice(0, -1) : pts };
       }).filter((s) => s.pts.length >= 2);
+      if (L.role === "annotation") out.role = "annotation";
     }
     return out;
   }).filter((l): l is Layer => !!l);

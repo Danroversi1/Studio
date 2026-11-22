@@ -12,10 +12,14 @@ function loadCv() {
       try {
         importScripts(base + "opencv/opencv.js");
         // The Emscripten module is a thenable that resolves to itself: never resolve a promise
-        // with it directly. Wait for the runtime, then box it.
-        var c = self.cv;
-        if (c && c.Mat) ok({ cv: c });
-        else c.onRuntimeInitialized = function () { ok({ cv: self.cv }); };
+        // with it directly. Wait until its runtime is ready (Mat exists), then box it.
+        var t0 = Date.now();
+        (function wait() {
+          var c = self.cv;
+          if (c && c.Mat) return ok({ cv: c });
+          if (Date.now() - t0 > 45000) return fail(new Error("The tracing tools took too long to start."));
+          setTimeout(wait, 20);
+        })();
       } catch (e) { fail(e); }
     });
   }

@@ -4,13 +4,14 @@
 import { useEffect, useState } from "react";
 import type { Composition } from "@/lib/storyboard/compose";
 import { loadAll, renderComposition } from "@/lib/storyboard/render";
+import { putTraces, type TraceData } from "@/lib/storyboard/trace-store";
 import type { ShotContent } from "@/lib/storyboard/shot";
 import { ANGLES, SIZES, formatSeconds, labelOf } from "@/lib/storyboard/shot";
 
 export interface PrintFrame { id: string; content: ShotContent; picture?: string | null; lensName?: string | null; composition: Composition; notes: string; state: string; locked: boolean }
 
-export function PrintSheet({ project, title, brief, frames, totals, credits }: {
-  project: string; title: string; brief: string; frames: PrintFrame[]; totals: string; credits: string[];
+export function PrintSheet({ project, title, brief, frames, totals, credits, traces = [] }: {
+  traces?: TraceData[]; project: string; title: string; brief: string; frames: PrintFrame[]; totals: string; credits: string[];
 }) {
   const [urls, setUrls] = useState<(string | null)[]>([]);
   const [problems, setProblems] = useState<string[]>([]);
@@ -21,6 +22,7 @@ export function PrintSheet({ project, title, brief, frames, totals, credits }: {
   const anyPicture = frames.some((f) => f.picture);
   useEffect(() => {
     let live = true;
+    putTraces(traces);
     (async () => {
       const ids = [...new Set(frames.flatMap((f) => f.composition.layers.filter((l) => !l.hidden && l.assetId).map((l) => l.assetId!)))];
       const images = await loadAll(ids);
@@ -35,7 +37,7 @@ export function PrintSheet({ project, title, brief, frames, totals, credits }: {
       if (live) { setUrls(out); setProblems(bad); }
     })();
     return () => { live = false; };
-  }, [frames]);
+  }, [frames, traces]);
   return (
     <main className="mx-auto max-w-5xl bg-white p-6 text-black print:max-w-none print:p-0">
       <style>{`@media print { @page { size: landscape; margin: 12mm; } .no-print { display: none !important; } .frame { break-inside: avoid; } }`}</style>

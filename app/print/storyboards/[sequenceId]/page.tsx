@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PrintSheet } from "@/components/storyboard/print-sheet";
 import { cleanComposition, libraryUse } from "@/lib/storyboard/compose";
 import { cleanShot, sequenceTiming } from "@/lib/storyboard/shot";
+import { loadTraces } from "@/lib/storyboard/traces-data";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export default async function PrintStoryboard({ params }: { params: Promise<{ sequenceId: string }> }) {
@@ -29,5 +30,6 @@ export default async function PrintStoryboard({ params }: { params: Promise<{ se
   const lensesUsed = new Set(frames.map((f) => f.content.lensId).filter(Boolean));
   const lensCredits = (lensRows ?? []).filter((l) => lensesUsed.has(l.id) && l.source_url).map((l) => `Lens: ${l.name} — via ${l.source_name || "link"} (${l.source_url})`);
   const credits = [...used].map((id) => byId.get(id)).filter((i) => i && (i.attribution || i.source_url)).map((i) => `${i!.name}${i!.attribution ? ` — ${i!.attribution}` : ""}${i!.source_url ? ` (${i!.source_url})` : ""}`);
-  return <PrintSheet project={project?.name ?? ""} title={seq.title} brief={seq.brief} frames={frames} totals={sequenceTiming(frames).label} credits={[...credits, ...lensCredits]} />;
+  const traces = await loadTraces(sb, frames.map((f) => f.composition));
+  return <PrintSheet traces={traces} project={project?.name ?? ""} title={seq.title} brief={seq.brief} frames={frames} totals={sequenceTiming(frames).label} credits={[...credits, ...lensCredits]} />;
 }

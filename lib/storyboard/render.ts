@@ -2,9 +2,10 @@
 // so what you see is what you export. Draws locally on a canvas; no model calls. Images are
 // loaded from asset storage with CORS so the canvas can still be exported; anything that
 // can't be loaded or would block export is reported by name, never silently dropped.
-import { FRAME_W, frameH, framingMatrix, type Composition, type Layer } from "./compose";
+import { bounds, FRAME_W, frameH, framingMatrix, type Composition, type Layer } from "./compose";
 import { applyLook, isNeutral } from "./look";
 import { shapeById } from "./shapes";
+import { getTrace, pathsOf } from "./trace-store";
 
 export type ImageState = { img: HTMLImageElement; ok: true } | { ok: false; error: string };
 const cache = new Map<string, Promise<ImageState>>();
@@ -35,6 +36,43 @@ export async function loadAll(ids: string[]): Promise<Map<string, ImageState>> {
 
 export interface RenderResult { missing: { layer: string; assetId: string; error: string }[]; tainted: boolean }
 
+/** Polygon of a mask (fractions of the box) in the layer's drawing space (centred, pre-flip). */
+function maskPath(pts: number[], w: number, h: number): Path2D {
+  const p = new Path2D();
+  for (let i = 0; i < pts.length; i += 2) {
+    const x = (pts[i] - 0.5) * w, y = (pts[i + 1] - 0.5) * h;
+    if (i === 0) p.moveTo(x, y); else p.lineTo(x, y);
+  }
+  p.closePath();
+  return p;
+}
+
+/** Draw a vector (traced) layer: its saved paths scaled into the layer box, minus the ones she
+ *  deleted, with colour and line-weight overrides applied to the real strokes. */
+export function drawVector(ctx: CanvasRenderingContext2D, l: Layer, onMissing?: () => void) {
+  const t = getTrace(l.traceId);
+  const w = l.w, h = l.h;
+  if (!t) { onMissing?.(); return; }
+  const ps = pathsOf(t), removed = new Set(l.removed ?? []);
+  ctx.save();
+  ctx.translate(-w / 2, -h / 2);
+  ctx.scale(w / t.width, h / t.height);
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  for (let i = 0; i < ps.length; i++) {
+    if (removed.has(i)) continue;
+    const p = t.paths[i];
+    if (p.f && p.f !== "none") {
+      ctx.fillStyle = l.mid && p.f === (t.settings.mid as string) ? l.mid : l.ink && p.f === (t.settings.ink as string) ? l.ink : p.f;
+      ctx.fill(ps[i], "evenodd");
+    }
+    if (p.s && p.s !== "none") {
+      ctx.strokeStyle = l.ink ?? p.s; ctx.lineWidth = l.weight ?? p.w ?? 2;
+      ctx.stroke(ps[i]);
+    }
+  }
+  ctx.restore();
+}
+
 function wrap(ctx: CanvasRenderingContext2D, text: string, width: number): string[] {
   const lines: string[] = [];
   for (const para of text.split("\n")) {
@@ -60,7 +98,19 @@ function drawLayer(ctx: CanvasRenderingContext2D, l: Layer, images: Map<string, 
     if (st?.ok) {
       const iw = st.img.naturalWidth, ih = st.img.naturalHeight, c = l.crop ?? { l: 0, t: 0, r: 0, b: 0 };
       const sx = c.l * iw, sy = c.t * ih, sw = Math.max(1, iw * (1 - c.l - c.r)), sh = Math.max(1, ih * (1 - c.t - c.b));
-      ctx.drawImage(st.img, sx, sy, sw, sh, -w / 2, -h / 2, w, h);
+      if (l.masks?.length) {
+        // Masks cut the picture on its own small canvas, so nothing underneath is erased.
+        const cw = Math.max(1, Math.ceil(w * unit)), chh = Math.max(1, Math.ceil(h * unit));
+        const off = document.createElement("canvas"); off.width = cw; off.height = chh;
+        const o = off.getContext("2d")!;
+        o.scale(cw / w, chh / h); o.translate(w / 2, h / 2);
+        const keeps = l.masks.filter((m) => m.mode === "keep");
+        if (keeps.length) { const k = new Path2D(); for (const m of keeps) k.addPath(maskPath(m.pts, w, h)); o.clip(k); }
+        o.drawImage(st.img, sx, sy, sw, sh, -w / 2, -h / 2, w, h);
+        o.globalCompositeOperation = "destination-out";
+        for (const m of l.masks) if (m.mode === "remove") o.fill(maskPath(m.pts, w, h));
+        ctx.drawImage(off, -w / 2, -h / 2, w, h);
+      } else ctx.drawImage(st.img, sx, sy, sw, sh, -w / 2, -h / 2, w, h);
     } else {
       if (l.assetId) res.missing.push({ layer: l.name, assetId: l.assetId, error: st && !st.ok ? st.error : "is still loading" });
       if (preview) {
@@ -96,6 +146,8 @@ function drawLayer(ctx: CanvasRenderingContext2D, l: Layer, images: Map<string, 
     const x = l.align === "left" ? -w / 2 + pad : l.align === "right" ? w / 2 - pad : 0;
     let y = -total / 2;
     for (const line of lines) { ctx.fillText(line, x, y); y += lh; }
+  } else if (l.type === "vector") {
+    drawVector(ctx, l, () => { if (preview) { ctx.strokeStyle = "#999"; ctx.setLineDash([8 / unit, 8 / unit]); ctx.strokeRect(-w / 2, -h / 2, w, h); } });
   } else if (l.type === "drawing" && l.strokes?.length) {
     // Strokes are drawn on their own layer so the eraser only erases this drawing.
     const scale = unit;
@@ -115,6 +167,23 @@ function drawLayer(ctx: CanvasRenderingContext2D, l: Layer, images: Map<string, 
     ctx.drawImage(off, -w / 2, -h / 2, w, h);
   }
   ctx.restore();
+}
+
+/** Draw just some layers (with their crops, flips and masks) onto a transparent canvas that
+ *  covers their combined bounds, at most maxSide pixels on its long edge: the picture that is
+ *  traced. Returns the box in frame units so the result can be placed exactly over it. */
+export function rasterLayers(layers: Layer[], images: Map<string, ImageState>, maxSide: number):
+  { canvas: HTMLCanvasElement; box: { x0: number; y0: number; x1: number; y1: number }; missing: string[] } {
+  const b = bounds(layers);
+  const bw = Math.max(1, b.x1 - b.x0), bh = Math.max(1, b.y1 - b.y0);
+  const scale = maxSide / Math.max(bw, bh);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bw * scale)); canvas.height = Math.max(1, Math.round(bh * scale));
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  ctx.setTransform(scale, 0, 0, scale, -b.x0 * scale, -b.y0 * scale);
+  const res: RenderResult = { missing: [], tainted: false };
+  for (const l of layers) drawLayer(ctx, l, images, res, scale, false);
+  return { canvas, box: b, missing: res.missing.map((m) => m.layer) };
 }
 
 /** Render a composition to a canvas of the given pixel width (height follows the aspect). */

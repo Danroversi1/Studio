@@ -18,7 +18,9 @@ const ROUTINE = [
   "components/storyboard/studio.tsx",                         // the Compose screen (canvas, panels, autosave, export)
   "components/storyboard/compose-canvas.tsx", "components/storyboard/panels.tsx",
   "components/storyboard/print-sheet.tsx", "components/storyboard/card-thumb.tsx",
-  "components/storyboard/trace-panel.tsx", "lib/storyboard/trace-run.ts", "lib/storyboard/trace.ts", // tracing: classic filters + VTracer
+  // The Storyboard Desk's photo-to-vector workflow: references, treatment, tracing, SVG export.
+  "components/storyboard/treatment-panel.tsx", "components/storyboard/desk-references.tsx", "lib/storyboard/trace-run.ts",
+  "lib/storyboard/trace-store.ts", "lib/storyboard/traces-data.ts", "lib/storyboard/svg-export.ts",
   "app/projects/[projectId]/storyboards/page.tsx",
   "app/projects/[projectId]/storyboards/[sequenceId]/page.tsx",   // opening a storyboard
   "app/print/storyboards/[sequenceId]/page.tsx",
@@ -136,4 +138,16 @@ test("the daily refresh can't reach the simulation or dialogue drafting", () => 
       assert.ok(!files.includes(bad), `${entry} can reach ${bad}`);
     }
   }
+});
+
+// The tracing worker runs OpenCV.js and ImageTracer.js on pixels in her browser. Its own code
+// must not talk to any server or model: it only loads those two libraries from this site.
+test("the trace worker and pipeline make no network or model calls", () => {
+  for (const f of ["vendor-src/trace-worker.js", "vendor-src/trace-pipeline.cjs"]) {
+    const src = readFileSync(join(ROOT, f), "utf8");
+    assert.doesNotMatch(src, /\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon|EventSource|anthropic|openai|https?:\/\//i, `${f} reaches the network`);
+  }
+  const worker = readFileSync(join(ROOT, "vendor-src/trace-worker.js"), "utf8");
+  const scripts = [...worker.matchAll(/base \+ "([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(scripts.sort(), ["imagetracer/imagetracer.js", "opencv/opencv.js", "trace/trace-pipeline.js"]);
 });

@@ -1,75 +1,81 @@
-// BROWSER. Runs a tracing treatment on a picture already loaded on the page: pixels are read
-// from a canvas, processed here (lib/storyboard/trace.ts) or in the VTracer Web Worker
-// (public/vendor/vtracer/), and returned as a transparent PNG. Nothing is sent anywhere
-// until she places the result, which then uploads like any other image. No AI.
-import type { Crop } from "./compose";
-import { pencil, tones, toPalette, vectorOptions, workingSize, type Treatment } from "./trace";
+// BROWSER. Turns the chosen reference layers into editable vector paths, entirely on this
+// device: the layers are drawn (with crops, flips and masks) onto a canvas, its pixels go to a
+// Web Worker (public/vendor/trace/) running OpenCV.js + ImageTracer.js, and plain path data
+// comes back. Nothing leaves the browser until she keeps the result. No AI, no model calls.
+//   - Preview runs at PREVIEW_SIDE; the kept trace at FINAL_SIDE (bounded input size).
+//   - Only the latest request matters: an older job is cancelled when a new one starts.
+import type { Layer, Treatment } from "./compose";
+import { loadAll, rasterLayers } from "./render";
+import type { TracePath } from "./trace-store";
 
-export interface TreatmentSettings { detail: number; weight: number; levels: number; palette: string[]; dither: boolean }
+export const PREVIEW_SIDE = 640;
+export const FINAL_SIDE = 1600;
 
-function sourcePixels(img: HTMLImageElement, crop?: Crop) {
-  const c = crop ?? { l: 0, t: 0, r: 0, b: 0 };
-  const sx = img.naturalWidth * c.l, sy = img.naturalHeight * c.t;
-  const sw = img.naturalWidth * (1 - c.l - c.r), sh = img.naturalHeight * (1 - c.t - c.b);
-  const { w, h } = workingSize(sw, sh);
-  const canvas = document.createElement("canvas");
-  canvas.width = w; canvas.height = h;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) throw new Error("This browser can't read the picture.");
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
-  try {
-    return ctx.getImageData(0, 0, w, h);
-  } catch {
-    throw new Error("This picture can't be read for tracing (it isn't stored in Studio). Upload it to your library first.");
-  }
+/** The controls she adjusts. Detail, contrast, simplify and shadow are 0..1. */
+export interface TraceSettings {
+  treatment: Treatment; detail: number; contrast: number; simplify: number; shadow: number;
+  weight: number; ink: string; mid: string;
+}
+export const DEFAULT_TRACE: TraceSettings = { treatment: "outline", detail: 0.5, contrast: 0.5, simplify: 0.4, shadow: 0.5, weight: 3, ink: "#141414", mid: "#9a9a9a" };
+
+export interface TraceResult {
+  width: number; height: number; paths: TracePath[]; tooComplex: boolean; stats: { paths: number; chars: number };
+  box: { x0: number; y0: number; x1: number; y1: number }; ms: number;
 }
 
-function toPng(rgba: Uint8ClampedArray, w: number, h: number): Promise<Blob> {
-  const canvas = document.createElement("canvas");
-  canvas.width = w; canvas.height = h;
-  canvas.getContext("2d")!.putImageData(new ImageData(new Uint8ClampedArray(rgba), w, h), 0, 0);
-  return new Promise((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error("The result couldn't be made."))), "image/png"));
-}
+type Msg = { type: "progress"; id: number; stage: string; pct: number } | { type: "done"; id: number; result: Omit<TraceResult, "box" | "ms"> } | { type: "error"; id: number; message: string };
 
 let worker: Worker | null = null;
-function vectorize(px: ImageData, options: object): Promise<string> {
-  worker ??= new Worker("/vendor/vtracer/worker.js");
-  const w = worker;
-  return new Promise((ok, fail) => {
-    const timer = setTimeout(() => { w.terminate(); worker = null; fail(new Error("Vector tracing took too long. Try less detail.")); }, 60_000);
-    w.onmessage = (e: MessageEvent<{ ok: boolean; svg?: string; error?: string }>) => {
-      clearTimeout(timer);
-      if (e.data.ok && e.data.svg) ok(e.data.svg); else fail(new Error(e.data.error || "Vector tracing failed."));
-    };
-    w.onerror = () => { clearTimeout(timer); w.terminate(); worker = null; fail(new Error("The vector tracer couldn't start in this browser.")); };
-    const copy = new Uint8Array(px.data); // transfer a copy; keep the original pixels
-    w.postMessage({ rgba: copy.buffer, width: px.width, height: px.height, options }, [copy.buffer]);
-  });
+let seq = 0;
+const waiting = new Map<number, { ok: (r: Omit<TraceResult, "box" | "ms">) => void; fail: (e: Error) => void; progress?: (stage: string, pct: number) => void }>();
+
+function getWorker(): Worker {
+  if (worker) return worker;
+  // Loaded only when she first traces: OpenCV.js is ~11 MB and is fetched from this site.
+  worker = new Worker("/vendor/trace/trace-worker.js");
+  worker.onmessage = (e: MessageEvent<Msg>) => {
+    const m = e.data, w = waiting.get(m.id);
+    if (!w) return;
+    if (m.type === "progress") w.progress?.(m.stage, m.pct);
+    else { waiting.delete(m.id); if (m.type === "done") w.ok(m.result); else w.fail(new Error(m.message)); }
+  };
+  worker.onerror = () => { for (const w of waiting.values()) w.fail(new Error("The tracing tool couldn't start in this browser.")); waiting.clear(); worker = null; };
+  return worker;
 }
 
-async function svgToPng(svg: string, w: number, h: number): Promise<Blob> {
-  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+export const STAGES: Record<string, string> = {
+  loading: "Loading the tracing tools…", prepare: "Preparing the picture…", edges: "Finding edges…", lines: "Linking edges into lines…",
+  shapes: "Finding shapes…", tones: "Separating tones…", trace: "Tracing paths…", finish: "Finishing…",
+};
+
+/** Trace these layers. Starting a new trace cancels any older one still running. */
+export async function traceLayers(layers: Layer[], settings: TraceSettings, side: number, progress?: (stage: string, pct: number) => void): Promise<TraceResult> {
+  const t0 = performance.now();
+  const ids = [...new Set(layers.map((l) => l.assetId).filter((x): x is string => !!x))];
+  const images = await loadAll(ids);
+  const bad = ids.filter((id) => !images.get(id)?.ok);
+  if (bad.length) throw new Error("A reference picture couldn't be loaded. Upload it from your computer and try again.");
+  const { canvas, box } = rasterLayers(layers, images, side);
+  let data: ImageData;
   try {
-    const img = await new Promise<HTMLImageElement>((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => fail(new Error("The traced shapes couldn't be drawn.")); i.src = url; });
-    const canvas = document.createElement("canvas");
-    canvas.width = w * 2; canvas.height = h * 2; // crisper edges for the smooth shapes
-    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-    return await new Promise((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error("The result couldn't be made."))), "image/png"));
-  } finally { URL.revokeObjectURL(url); }
+    data = canvas.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, canvas.width, canvas.height);
+  } catch {
+    throw new Error("This picture comes from another site that doesn't allow tracing. Download it, then use Upload to add it here.");
+  }
+  canvas.width = canvas.height = 0; // release the bitmap
+  const w = getWorker();
+  for (const [id] of waiting) { w.postMessage({ type: "cancel", id }); }
+  const id = ++seq;
+  const result = await new Promise<Omit<TraceResult, "box" | "ms">>((ok, fail) => {
+    waiting.set(id, { ok, fail, progress });
+    w.postMessage({ type: "trace", id, data: data.data.buffer, width: data.width, height: data.height, settings }, [data.data.buffer]);
+  });
+  return { ...result, box, ms: Math.round(performance.now() - t0) };
 }
 
-/** Run one treatment. Returns a PNG and an object URL for previewing it. */
-export async function runTreatment(kind: Treatment, img: HTMLImageElement, crop: Crop | undefined, s: TreatmentSettings): Promise<{ blob: Blob; preview: string; svg?: string }> {
-  const px = sourcePixels(img, crop);
-  let blob: Blob, svg: string | undefined;
-  if (kind === "vector") {
-    svg = await vectorize(px, vectorOptions(s.palette, s.detail));
-    blob = await svgToPng(svg, px.width, px.height);
-  } else {
-    const out = kind === "pencil" ? pencil(px, { detail: s.detail, weight: s.weight })
-      : kind === "tones" ? tones(px, s.levels)
-      : toPalette(px, s.palette, { dither: s.dither });
-    blob = await toPng(out, px.width, px.height);
-  }
-  return { blob, preview: URL.createObjectURL(blob), svg };
+/** Cancel whatever is running (e.g. she closed the panel). */
+export function cancelTraces() {
+  if (!worker) return;
+  for (const [id, w] of waiting) { worker.postMessage({ type: "cancel", id }); w.fail(new Error("cancelled")); }
+  waiting.clear();
 }

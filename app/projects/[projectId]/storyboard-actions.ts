@@ -90,6 +90,32 @@ export async function saveComposition(input: { shotId: string; composition: unkn
   return error ? fail(error) : { ok: true, n: data as number };
 }
 
+/** Keep a trace made in her browser: plain vector paths plus the settings and references it
+ *  came from, so it can be made again. The database refuses anything but path data. */
+export async function saveTrace(input: {
+  projectId: string; shotId: string | null; treatment: string; settings: Record<string, unknown>; source: unknown[];
+  width: number; height: number; paths: { d: string; f?: string; s?: string; w?: number }[];
+}): Promise<R> {
+  const sb = await supabaseServer();
+  const paths = input.paths.map((p) => {
+    const o: Record<string, unknown> = { d: String(p.d) };
+    if (p.f) o.f = p.f; if (p.s) o.s = p.s; if (typeof p.w === "number") o.w = Math.round(p.w * 100) / 100;
+    return o;
+  });
+  const { data, error } = await sb.rpc("storyboard_trace_save", {
+    p_project: input.projectId, p_shot: input.shotId, p_treatment: input.treatment, p_settings: input.settings, p_source: input.source,
+    p_width: Math.round(input.width), p_height: Math.round(input.height), p_paths: paths,
+  });
+  return error ? fail(error) : { ok: true, id: data as string };
+}
+
+/** The film's treatment preset, used across boards. */
+export async function saveTreatmentPreset(input: { projectId: string; settings: Record<string, unknown>; expectedVersion: number | null }): Promise<R> {
+  const sb = await supabaseServer();
+  const { data, error } = await sb.rpc("storyboard_treatment_save", { p_project: input.projectId, p_settings: input.settings, p_expected_version: input.expectedVersion });
+  return error ? fail(error) : { ok: true, n: data as number };
+}
+
 /** "Save": record a version of the frame. */
 export async function saveVersion(input: { shotId: string }): Promise<R> {
   const sb = await supabaseServer();

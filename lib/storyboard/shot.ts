@@ -24,6 +24,9 @@ export interface ShotSource { kind: "text" | "script" | "image"; scene?: number;
 
 export interface ShotContent {
   action: string;              // what happens (her words or close to them)
+  sceneNumber?: string;        // e.g. "12" or "12A"
+  shotNumber?: string;         // e.g. "3" or "3B"
+  sound?: string;              // sound notes (effects, music, room tone)
   dialogue?: string;           // lines spoken, if any
   notice?: string;             // "What should we notice?"
   cameraNotes?: string;        // notes for the real shoot
@@ -53,6 +56,9 @@ export function cleanShot(x: unknown): ShotContent {
   const cam = (o.camera && typeof o.camera === "object" ? o.camera : null) as Record<string, unknown> | null;
   const out: ShotContent = { action: clip(o.action, 1200) ?? "" };
   const d = clip(o.dialogue, 1200); if (d) out.dialogue = d;
+  const scn = clip(o.sceneNumber, 12)?.trim(); if (scn) out.sceneNumber = scn;
+  const shn = clip(o.shotNumber, 12)?.trim(); if (shn) out.shotNumber = shn;
+  const snd = clip(o.sound, 600); if (snd) out.sound = snd;
   const nt = clip(o.notice, 400); if (nt) out.notice = nt;
   const cn = clip(o.cameraNotes, 600); if (cn) out.cameraNotes = cn;
   if (src && ["text", "script", "image"].includes(String(src.kind))) {
