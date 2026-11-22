@@ -21,7 +21,12 @@ select tests.throws(format($q$select public.society_set_regions(%L, array['Mars'
 select tests.ok((select value = 51.5 from public.society_points where series = 'us.umich.sentiment' and period = '2026-11-01'), 'public survey data is readable');
 select tests.throws($q$insert into public.society_points (series, period, value, source_id) values ('x.y', '2026-01-01', 1, 'umich')$q$, '42501', 'users can''t write survey data');
 
+:as_dir
+select public.rename_project(tests.v('SO'), '  Emergence  ');
+select tests.ok((select name = 'Emergence' from public.projects where id = tests.v('SO')), 'a film can be renamed');
+select tests.throws(format($q$select public.rename_project(%L, '')$q$, tests.v('SO')), '22023', 'a film needs a name');
 :as_outsider
+select tests.throws(format($q$select public.rename_project(%L, 'Mine')$q$, tests.v('SO')), 'PT404', 'outsiders can''t rename a film');
 select tests.throws(format($q$select public.society_set_regions(%L, array['EU'])$q$, tests.v('SO')), 'PT404', 'outsiders can''t change a film''s societies');
 
 :as_owner

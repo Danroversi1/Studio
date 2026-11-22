@@ -172,12 +172,14 @@ export async function simDevelopDialogue(input: { projectId: string; sceneKey: s
   return { ok: true, note: "Draft ready on the Script desk, in that scene. Your script changes only if you accept it." };
 }
 
-/** A character's rules as one box of bullet points: one rule per bullet, saved as versions. */
-export async function simSaveCharacterBullets(input: { projectId: string; characterId: string; text: string }): Promise<{ ok: true; note: string } | { ok: false; error: string }> {
+/** Rules as one box of bullet points (a character's, or the world's): one rule per bullet, saved as versions. */
+export async function simSaveBullets(input: { projectId: string; family: "character" | "periphery"; characterId?: string | null; text: string }): Promise<{ ok: true; note: string } | { ok: false; error: string }> {
   const sb = await supabaseServer();
   const bullets = parseBullets(input.text);
-  const { data: cur, error: e1 } = await sb.from("sim_rules").select("id, when_text, stress, happiness, tend_text, relief_text, enabled")
-    .eq("project_id", input.projectId).eq("character_id", input.characterId).eq("family", "character").is("archived_at", null).order("created_at");
+  let q = sb.from("sim_rules").select("id, when_text, stress, happiness, tend_text, relief_text, enabled")
+    .eq("project_id", input.projectId).eq("family", input.family).is("archived_at", null).order("created_at");
+  q = input.family === "character" ? q.eq("character_id", input.characterId ?? "") : q.is("character_id", null);
+  const { data: cur, error: e1 } = await q;
   if (e1) return { ok: false, error: friendlyError(e1).message };
   const rows = (cur ?? []) as { id: string; when_text: string; stress: number; happiness: number; tend_text: string | null; relief_text: string | null; enabled: boolean }[];
   let changed = 0;
@@ -192,7 +194,7 @@ export async function simSaveCharacterBullets(input: { projectId: string; charac
     const plain = r && r.when_text === b && !r.stress && !r.happiness && !r.tend_text && !r.relief_text && r.enabled;
     if (plain) continue;
     const { error } = await sb.rpc("sim_rule_save", { p_project: input.projectId, p_rule: r?.id ?? null,
-      p_data: { family: "character", character_id: input.characterId, when_text: b, stress: 0, happiness: 0, tend_text: "", relief_text: "", enabled: true } });
+      p_data: { family: input.family, character_id: input.family === "character" ? input.characterId : null, when_text: b, stress: 0, happiness: 0, tend_text: "", relief_text: "", enabled: true } });
     if (error) return { ok: false, error: friendlyError(error).message };
     changed++;
   }

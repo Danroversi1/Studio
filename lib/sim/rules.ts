@@ -63,7 +63,9 @@ export function ruleSentence(r: Pick<SimRule, "family" | "when_text" | "stress" 
   if (r.family === "periphery") {
     const w = r.when_text.trim().replace(/[.]+$/, "");
     const then = (r.tend_text ?? "").trim().replace(/^then,?\s+/i, "").replace(/[.]+$/, "");
-    return then ? `When ${w}, ${then}.` : `When ${w}.`;
+    if (then) return `When ${w}, ${then}.`;
+    const t = r.when_text.trim();   // a plain bullet reads as she wrote it
+    return /[.!?]$/.test(t) ? capital(t) : `${capital(t)}.`;
   }
   // A character rule written as a plain bullet point reads exactly as she wrote it.
   if (r.family === "character" && !r.stress && !r.happiness && !r.tend_text?.trim() && !r.relief_text?.trim()) {

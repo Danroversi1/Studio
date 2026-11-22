@@ -125,7 +125,7 @@ select tests.throws(format($q$select public.sim_state_set(%L, %L, 1, 1, null)$q$
 select tests.put('rp', public.sim_rule_save(tests.v('SA'), null, jsonb_build_object('family', 'periphery', 'character_id', tests.v('jo'),
   'when_text', 'news about chips breaks', 'tend_text', 'it reaches Washington the same day', 'stress', 2, 'happiness', -2, 'relief_text', 'x')));
 select tests.ok((select stress = 0 and happiness = 0 and character_id is null and relief_text is null from public.sim_rules where id = tests.v('rp')), 'world rules carry no feelings and aren''t about one character');
-select tests.throws(format($q$select public.sim_rule_save(%L, null, '{"family":"periphery","when_text":"news breaks"}')$q$, tests.v('SA')), '22023', 'a world rule says what happens');
+select tests.ok(public.sim_rule_save(tests.v('SA'), null, '{"family":"periphery","when_text":"News about AI reaches Washington within a day"}') is not null, 'a world rule can be a plain bullet');
 select tests.throws(format($q$select public.sim_rule_save(%L, null, '{"family":"nonsense","when_text":"news breaks"}')$q$, tests.v('SA')), '22023', 'unknown kinds refused');
 
 :as_owner

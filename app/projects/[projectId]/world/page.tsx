@@ -13,7 +13,8 @@ import { WorldReadAuto } from "@/components/world-read-auto";
 import { KnowledgeBase } from "@/components/knowledge/knowledge-base";
 import { getKnowledge } from "@/lib/knowledge/data";
 import { SimDesk } from "@/components/sim/sim-desk";
-import { RuleList } from "@/components/sim/rule-list";
+import { RulesBox } from "@/components/sim/rules-box";
+import { ruleSentence } from "@/lib/sim/rules";
 import { SocietyPanel } from "@/components/society/society-panel";
 import { getSociety } from "@/lib/society/data";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -118,10 +119,12 @@ export default async function WorldPage({ params, searchParams }: {
             collections={kb.collections} members={kb.members} references={kb.references} used={kb.usedByCharacters}
             characters={kb.characters} selectedCharacter={null} impressions={kb.impressions} aiReady={aiConfigured()} worldOpen worldOnly />
           <SocietyPanel projectId={projectId} canEdit={!!caps.can_edit} s={society} />
-          <RuleList projectId={projectId} canEdit={!!caps.can_edit} rules={sim.rules} families={["periphery"]} characters={sim.characters}
+          <RulesBox projectId={projectId} family="periphery" name="the world" canEdit={!!caps.can_edit}
+            key={sim.rules.filter((r) => r.family === "periphery").map((r) => `${r.id}:${r.version}`).join(",")}
+            initial={sim.rules.filter((r) => r.family === "periphery").map((r) => ruleSentence(r, null))}
             title="How the world works"
-            intro="Your rules for the world around the story: how news spreads, what reaches whom, how people and institutions respond. The day-by-day simulation follows them when it suggests events. They never set anyone's feelings (that's each character's own rules). Changes apply from the next story day."
-            empty="None yet. Without rules, the simulation uses common sense about how news travels." addLabel="Add a world rule" />
+            intro="Your rules for the world around the story, as bullet points, one per line: how news spreads, what reaches whom, how people and institutions respond. The day-by-day simulation follows them when it suggests events. They never set anyone's feelings (that's each character's own rules). Changes apply from the next day."
+            placeholder={"- Big tech news from San Francisco reaches Washington by the next morning\n- Governments respond to AI breakthroughs within days\n- Ordinary people hear about research papers only through the news"} />
         </section>
 
         <section id="simulation" className="flex scroll-mt-6 flex-col gap-3" aria-labelledby="sim-h">

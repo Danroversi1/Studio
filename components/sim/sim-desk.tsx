@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { simAddEvent, simAdvance, simCancelRun, simCloseDay, simDecide, simDevelopDialogue, simEditEvent, simReassess, simRemoveRule,
   simSaveRule, simSaveSettings, simSetScene } from "@/app/projects/[projectId]/sim-actions";
-import { RuleList } from "./rule-list";
 import { changeWords, FLEXIBILITY_LABEL, INTENSITY_LABEL, ruleSentence,
   type EventCharacter, type EventData, type Family, type SimRule } from "@/lib/sim/rules";
 import type { SimEvent, Simulation } from "@/lib/sim/data";
@@ -74,7 +73,6 @@ export function SimDesk({ projectId, canEdit, canApprove, aiReady, sim }: { proj
 
       <History projectId={projectId} canEdit={canEdit} aiReady={aiReady} sim={sim} approved={approved} />
       <p className="text-xs text-muted">How each protagonist, antagonist and supporting character is feeling lives on their own character page.</p>
-      <Rules projectId={projectId} canEdit={canEdit} sim={sim} />
 
       <details className="panel p-4 text-sm">
         <summary className="cursor-pointer font-semibold">Recent runs (details)</summary>
@@ -395,13 +393,3 @@ function History({ projectId, canEdit, aiReady, sim, approved }: { projectId: st
 
 // ---- Characters' emotional state ------------------------------------------------------------------
 // ---- Rules ---------------------------------------------------------------------------------------------
-function Rules({ projectId, canEdit, sim }: { projectId: string; canEdit: boolean; sim: Simulation }) {
-  const world = sim.rules.filter((r) => r.family === "periphery").length;
-  const chars = sim.rules.filter((r) => r.family === "character").length;
-  return (
-    <RuleList projectId={projectId} canEdit={canEdit} rules={sim.rules} families={["world", "story"]} characters={sim.characters}
-      title="Rules for everyone"
-      intro={<>Pressure from the world on all characters, and how responses lead to consequences. Each character&apos;s own reactions are on their character page ({chars} rule{chars === 1 ? "" : "s"}); how the world around the story works is under What&apos;s happening above ({world} rule{world === 1 ? "" : "s"}). Tendencies, not guarantees; changes apply from the next story day.</>}
-      empty="None yet. Each character's own rules and the world's rules still apply." />
-  );
-}
