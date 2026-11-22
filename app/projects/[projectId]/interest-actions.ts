@@ -52,6 +52,7 @@ export async function interestsSuggest(input: { projectId: string; characterId: 
   }
   if (text.trim().length < 3) return { ok: false, error: "There's nothing to read there." };
   const suggestions = await suggestInterests({ projectId: input.projectId, uid, character: input.name, text, from: input.from });
+  if (suggestions.failed && !feed) return { ok: false, error: "Studio couldn't read that right now. Try again, or add interests yourself below." };
   return { ok: true, suggestions, feed, note: suggestions.via === "simple" ? "Read without AI (split into topics)." : undefined };
 }
 

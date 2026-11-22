@@ -9,13 +9,13 @@ import { supabaseService } from "../supabase/server";
 import { planWatches } from "../knowledge/plan";
 
 export const INTEREST_MODEL = "claude-haiku-5-5" as const;
-export interface InterestSuggestions { interests: { label: string; why: string }[]; avoid: string[]; via: "ai" | "simple" }
+export interface InterestSuggestions { interests: { label: string; why: string }[]; avoid: string[]; via: "ai" | "simple"; failed?: boolean }
 
 const SCHEMA = {
   type: "object", additionalProperties: false, required: ["interests", "avoid"],
   properties: {
-    interests: { type: "array", maxItems: 10, items: { type: "object", additionalProperties: false, required: ["label", "why"], properties: { label: { type: "string" }, why: { type: "string" } } } },
-    avoid: { type: "array", maxItems: 6, items: { type: "string" } },
+    interests: { type: "array", items: { type: "object", additionalProperties: false, required: ["label", "why"], properties: { label: { type: "string" }, why: { type: "string" } } } },
+    avoid: { type: "array", items: { type: "string" } },
   },
 } as const;
 
@@ -53,8 +53,9 @@ export async function suggestInterests(input: { projectId: string; uid: string; 
       avoid: [...new Set((out.avoid ?? []).map((a) => cleanLabel(String(a))).filter((a) => a.length >= 2))].slice(0, 6),
       via: "ai",
     };
-  } catch {
+  } catch (e) {
+    console.error("character interests: suggestion failed", e instanceof Error ? e.message : e);
     await db.rpc("sim_charge", { p_project: input.projectId, p_uid: input.uid, p_task: "character_interests", p_usage: usage, p_cost_usd: costUsd(INTEREST_MODEL, usage), p_model: INTEREST_MODEL, p_ok: false });
-    return { interests: planWatches(text.slice(0, 2000), []).filter((t) => !t.weather).slice(0, 10).map((t) => ({ label: cleanLabel(t.label), why: "From the text." })).filter((t) => t.label.length >= 2), avoid: [], via: "simple" };
+    return { interests: [], avoid: [], via: "ai", failed: true };
   }
 }
