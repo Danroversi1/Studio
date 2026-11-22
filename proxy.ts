@@ -39,5 +39,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // dev-storage URLs carry their own signature and are excluded.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/dev-storage).*)"],
+  // vendor/ holds public open-source files (the VTracer worker), served as-is.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/dev-storage|vendor/).*)"],
 };
