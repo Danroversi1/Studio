@@ -46,7 +46,7 @@
 
 @layer base {
   html { color-scheme: dark; -webkit-text-size-adjust: 100%; background: var(--color-ink); }
-  body { background: var(--color-ink); color: var(--color-text); font-family: var(--font-sans); font-size: 15px; line-height: 1.6; }
+  body { background: var(--color-ink); color: var(--color-text); font-family: var(--font-sans); font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; overflow-x: clip; }
   ::selection { background: var(--color-brand); color: var(--color-ink); }
   :focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
   :root[data-theme="dark"] { color-scheme: dark; }
