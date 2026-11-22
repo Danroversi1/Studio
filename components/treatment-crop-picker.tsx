@@ -210,7 +210,7 @@ export function TreatmentCropPicker({ projectId, entityId, entityName, entityKin
       </div>
       <div className="flex flex-wrap items-end gap-4">
         <div className="w-40">
-          <p className="mb-1 text-[11px] tracking-[0.1em] text-muted uppercase">Preview</p>
+          <p className="mb-1 text-[11px] text-muted">Preview</p>
           <ThumbView source={{ kind: "crop", crop: { file_id: fileId, slide, slide_id: slideId, ...win } }} alt={`${entityName} preview`} className="aspect-[4/3] w-full border border-line" />
         </div>
         <div className="flex flex-col gap-2">

@@ -10,11 +10,11 @@ function Item({ href, active, icon, children, badge }: {
 }) {
   return (
     <Link href={href} aria-current={active ? "page" : undefined}
-      className={`flex min-h-11 items-center gap-3 border px-3 text-sm tracking-[0.04em] transition-colors ${
-        active ? "border-text bg-text font-medium text-panel-2" : "border-transparent text-text/80 hover:border-line hover:bg-panel-2 hover:text-text"}`}>
-      <span className={active ? "text-brand" : "text-muted"}>{icon}</span>
+      className={`flex min-h-11 items-center gap-3 rounded-full border px-3.5 text-sm transition-colors ${
+        active ? "border-line-strong bg-panel-2 font-medium text-text" : "border-transparent text-soft hover:border-line hover:text-text"}`}>
+      <span className={active ? "text-accent" : "text-muted"}>{icon}</span>
       <span className="flex-1 truncate">{children}</span>
-      {badge ? <span className="badge bg-brand font-semibold text-text">{badge}</span> : null}
+      {badge ? <span className="badge bg-ember font-semibold text-ink">{badge}</span> : null}
     </Link>
   );
 }
@@ -28,9 +28,9 @@ function SubList({ projectId, items, path }: { projectId: string; items: NavEnti
         return (
           <li key={e.id}>
             <Link href={href} className={`flex min-h-10 items-center justify-between gap-2 rounded-lg px-2 text-sm ${
-              path === href ? "font-medium text-text underline decoration-brand decoration-2 underline-offset-4" : "text-muted hover:text-text"}`}>
+              path === href ? "font-medium text-text underline decoration-brand decoration-1 underline-offset-4" : "text-muted hover:text-text"}`}>
               <span className="truncate">{e.name}</span>
-              {!e.approved && <span className="size-1.5 shrink-0 bg-brand" title="Not approved yet" />}
+              {!e.approved && <span className="size-1.5 shrink-0 rounded-full bg-warn" title="Not approved yet" aria-label="Not approved yet" />}
             </Link>
           </li>
         );
@@ -48,7 +48,7 @@ export function SidebarNav({ projectId, storyId, characters, locations, pendingS
   return (
     <nav aria-label="Project" className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <p className="eyebrow mb-2 px-3">Workspace</p>
+        <p className="eyebrow mb-2 px-3.5">Workspace</p>
         <Item href={base} active={path === base || path === `${base}/add`} icon={<IconOverview />}>Overview</Item>
         {storyId && (
           <Item href={`${base}/items/${storyId}`} active={path === `${base}/items/${storyId}`} icon={<IconStory />}>
@@ -72,7 +72,7 @@ export function SidebarNav({ projectId, storyId, characters, locations, pendingS
       </div>
       {showAgents && (
         <div className="flex flex-col gap-1">
-          <p className="eyebrow mb-2 px-3">Your partners</p>
+          <p className="eyebrow mb-2 px-3.5">Your partners</p>
           <Item href={`${base}/partners/story`} active={path === `${base}/partners/story`} icon={<IconChat />}>Storybuilder</Item>
           <Item href={`${base}/partners/world`} active={path === `${base}/partners/world`} icon={<IconGlobe />}>World Builder</Item>
           <Item href={`${base}/partners/dialogue`} active={path === `${base}/partners/dialogue`} icon={<IconScript />}>Dialogue partner</Item>
@@ -81,7 +81,7 @@ export function SidebarNav({ projectId, storyId, characters, locations, pendingS
         </div>
       )}
       <div className="flex flex-col gap-1">
-        <p className="eyebrow mb-2 px-3">Develop</p>
+        <p className="eyebrow mb-2 px-3.5">Develop</p>
         <Item href={`${base}#characters`} active={false} icon={<IconCharacter />}>Characters</Item>
         <SubList projectId={projectId} items={characters} path={path} />
         <Item href={`${base}#locations`} active={false} icon={<IconLocation />}>Locations</Item>

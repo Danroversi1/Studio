@@ -2,38 +2,16 @@
 // World simulation desk: status and controls, proposed events to review, approved history,
 // characters' emotional states (fictional writing controls), and plain-language rules.
 // Proposals change nothing until she approves them; dialogue only comes from approved events.
+import { ActionStatus as Status, useAction, type ActionResult } from "@/components/use-action";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { simAddEvent, simAdvance, simCancelRun, simCloseDay, simDecide, simDevelopDialogue, simEditEvent, simReassess, simRemoveRule,
-  simSaveRule, simSaveSettings, simSetScene } from "@/app/projects/[projectId]/sim-actions";
-import { changeWords, FLEXIBILITY_LABEL, INTENSITY_LABEL, ruleSentence,
-  type EventCharacter, type EventData, type Family, type SimRule } from "@/lib/sim/rules";
+import { useState } from "react";
+import { simAddEvent, simAdvance, simCancelRun, simCloseDay, simDecide, simDevelopDialogue, simEditEvent, simReassess, simSaveSettings, simSetScene } from "@/app/projects/[projectId]/sim-actions";
+import { changeWords, FLEXIBILITY_LABEL, INTENSITY_LABEL, ruleSentence, type EventCharacter } from "@/lib/sim/rules";
 import type { SimEvent, Simulation } from "@/lib/sim/data";
 
-type Res = { ok: true; note?: string } | { ok: false; error: string };
-type Msg = { kind: "ok" | "error"; text: string } | null;
-function useRun() {
-  const router = useRouter();
-  const [msg, setMsg] = useState<Msg>(null);
-  const [pending, start] = useTransition();
-  function run(fn: () => Promise<Res>, after?: () => void) {
-    setMsg(null);
-    start(async () => {
-      let r: Res;
-      try { r = await fn(); } catch { r = { ok: false, error: "That didn't save. Check your connection and try again." }; }
-      if (r.ok) { setMsg({ kind: "ok", text: r.note ?? "Saved." }); after?.(); router.refresh(); } else setMsg({ kind: "error", text: r.error });
-    });
-  }
-  return { run, msg, pending };
-}
-function Status({ msg }: { msg: Msg }) {
-  if (!msg) return null;
-  return <p role={msg.kind === "error" ? "alert" : "status"} className={`text-xs ${msg.kind === "error" ? "text-danger" : "text-muted"}`}>{msg.text}</p>;
-}
 const TONE = { ok: "border-ok text-ok", warn: "border-warn text-warn", muted: "border-line text-muted", accent: "border-accent text-accent" } as const;
 function Badge({ tone = "muted", children }: { tone?: keyof typeof TONE; children: React.ReactNode }) {
-  return <span className={`border px-1.5 py-0.5 text-[10px] font-semibold tracking-[0.08em] uppercase ${TONE[tone]}`}>{children}</span>;
+  return <span className={`border px-1.5 py-0.5 text-[10px] font-semibold ${TONE[tone]}`}>{children}</span>;
 }
 const fmtDate = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "");
 const fmtTime = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/New_York" }) + " (New York)" : "never");
@@ -55,7 +33,7 @@ export function SimDesk({ projectId, canEdit, canApprove, aiReady, sim }: { proj
 
       <section className="panel flex flex-col gap-3 p-4" aria-labelledby="prop-h">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="prop-h" className="display text-lg">Day {sim.openDay}{sim.openDate ? ` · ${fmtDate(sim.openDate)}` : ""}: proposed events</h2>
+          <h2 id="prop-h" className="display text-[22px]">Day {sim.openDay}{sim.openDate ? ` · ${fmtDate(sim.openDate)}` : ""}: proposed events</h2>
           <span className="text-xs text-muted">Proposals change nothing until you approve them.</span>
         </div>
         {open.length ? open.map((e) => <EventCard key={`${e.id}:${e.current_version}`} projectId={projectId} canEdit={canEdit} canApprove={canApprove} aiReady={aiReady} e={e} sim={sim} />)
@@ -66,7 +44,7 @@ export function SimDesk({ projectId, canEdit, canApprove, aiReady, sim }: { proj
 
       {deferred.length > 0 && (
         <section className="panel flex flex-col gap-3 p-4" aria-labelledby="def-h">
-          <h2 id="def-h" className="display text-lg">Deferred</h2>
+          <h2 id="def-h" className="display text-[22px]">Deferred</h2>
           {deferred.map((e) => <EventCard key={e.id} projectId={projectId} canEdit={canEdit} canApprove={canApprove} aiReady={aiReady} e={e} sim={sim} />)}
         </section>
       )}
@@ -94,6 +72,12 @@ export function SimDesk({ projectId, canEdit, canApprove, aiReady, sim }: { proj
   );
 }
 
+/** This desk calls run(fn, after): the shared hook with its success text from the result. */
+function useRun() {
+  const a = useAction();
+  return { ...a, run: (fn: () => Promise<ActionResult>, after?: () => void) => a.run(fn, undefined, after ? () => after() : undefined) };
+}
+
 // ---- Status and controls ----------------------------------------------------------------------
 function Controls({ projectId, canEdit, canApprove, aiReady, sim, running, waiting, preparedToday }: {
   projectId: string; canEdit: boolean; canApprove: boolean; aiReady: boolean; sim: Simulation; running: Simulation["runs"][number] | null; waiting: number; preparedToday: boolean;
@@ -106,7 +90,7 @@ function Controls({ projectId, canEdit, canApprove, aiReady, sim, running, waiti
     <section className="panel flex flex-col gap-4 p-4" aria-labelledby="ctl-h">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h2 id="ctl-h" className="display text-2xl leading-none">Today in the story</h2>
+          <h2 id="ctl-h" className="display text-3xl leading-none">Today in the story</h2>
           <p className="text-sm">
             <span className="font-semibold">Open day: {sim.openDay}{sim.openDate ? ` (${fmtDate(sim.openDate)})` : ""}</span>
             {st.clock_day > 0 && <span className="text-muted"> · last closed: day {st.clock_day}{sim.closedDate ? ` (${fmtDate(sim.closedDate)})` : ""}</span>}
@@ -216,7 +200,7 @@ function EventCard({ projectId, canEdit, canApprove, aiReady, e, sim }: { projec
             <ul className="flex flex-col gap-1.5">
               {d.characters.map((c) => (
                 <li key={c.character_id} className="border-l-2 border-line pl-2 text-sm">
-                  <span className="font-semibold uppercase">{c.name}</span> <span className="text-xs text-muted">({c.channel})</span>
+                  <span className="font-semibold">{c.name}</span> <span className="text-xs text-muted">({c.channel})</span>
                   {sim.characters.find((x) => x.id === c.character_id)?.tracked !== false && <p><span className="text-muted">How might they feel? </span>{changeWords(c.d_stress, c.d_happiness)}{c.feel ? ` (${c.feel})` : ""}</p>}
                   {c.movement && <p><span className="text-muted">What might they do next? </span>{c.movement}</p>}
                 </li>
@@ -267,7 +251,7 @@ function CharacterChanges({ chars, setChars, sim }: { chars: EventCharacter[]; s
     <div className="flex flex-col gap-2">
       {chars.map((c, i) => (
         <div key={c.character_id} className="flex flex-col gap-1 border-l-2 border-line pl-2">
-          <div className="flex items-center justify-between gap-2"><span className="text-sm font-semibold uppercase">{c.name}</span>
+          <div className="flex items-center justify-between gap-2"><span className="text-sm font-semibold">{c.name}</span>
             <button type="button" className="text-xs text-muted hover:text-danger" onClick={() => setChars(chars.filter((_, j) => j !== i))}>Remove</button></div>
           {sim.characters.find((x) => x.id === c.character_id)?.tracked ? (<>
           <Slider label="Stress" left="calmer" right="more stressed" value={c.d_stress} min={-25} max={25} onChange={(v) => set(i, { d_stress: v })} />
@@ -346,7 +330,7 @@ function History({ projectId, canEdit, aiReady, sim, approved }: { projectId: st
   return (
     <section className="panel flex flex-col gap-3 p-4" aria-labelledby="hist-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="hist-h" className="display text-lg">The story so far</h2>
+        <h2 id="hist-h" className="display text-[22px]">The story so far</h2>
         <span className="text-xs text-muted">Approved events are history: they&apos;re never rewritten. Change things going forward with a new event.</span>
       </div>
       {canEdit && approved.length > 0 && (
@@ -364,7 +348,7 @@ function History({ projectId, canEdit, aiReady, sim, approved }: { projectId: st
       )}
       {days.length ? days.map((day) => (
         <div key={day} className="flex flex-col gap-1">
-          <p className="text-xs font-semibold tracking-[0.08em] uppercase text-muted">Day {day}</p>
+          <p className="text-xs font-semibold text-muted">Day {day}</p>
           <ul className="flex flex-col divide-y divide-line border-y border-line">
             {approved.filter((e) => e.day === day).map((e) => (
               <li key={e.id} className="flex flex-wrap items-start gap-2 py-2 text-sm">

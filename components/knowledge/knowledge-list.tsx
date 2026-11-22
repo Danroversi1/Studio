@@ -60,7 +60,7 @@ export function KnowledgeList({ projectId, canEdit, characters, collections, lin
   return (
     <section className="panel flex flex-col gap-3 p-5" aria-labelledby="kl-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="kl-h" className="display text-lg">Knowledge Base</h2>
+        <h2 id="kl-h" className="display text-[22px]">Knowledge Base</h2>
         <input className="field min-h-9 w-60 text-sm" placeholder="Search research" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search research" />
       </div>
       <p className="max-w-3xl text-sm text-muted">

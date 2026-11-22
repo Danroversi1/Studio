@@ -174,7 +174,7 @@ function LocalDialog(p: LocalProps & { mine: LocalJob[]; onClose: () => void; on
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-2 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) p.onClose(); }}>
       <div ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="local-h" className="panel flex w-full max-w-5xl flex-col gap-4 bg-panel p-4 outline-none sm:p-5">
         <div className="flex items-start justify-between gap-3">
-          <div><p className="eyebrow">Frame {p.frameIndex + 1}</p><h2 id="local-h" className="display text-2xl">Generate Locally</h2></div>
+          <div><p className="eyebrow">Frame {p.frameIndex + 1}</p><h2 id="local-h" className="display text-3xl">Generate Locally</h2></div>
           <button type="button" className="btn min-h-9 px-3 text-xs" onClick={p.onClose}>Close (back to the editable frame)</button>
         </div>
 
@@ -185,7 +185,7 @@ function LocalDialog(p: LocalProps & { mine: LocalJob[]; onClose: () => void; on
           ) : (<>
             <label className="flex items-center gap-1">Computer
               <select className="field w-auto py-1" value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>{ready.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
-            <span className={`border px-1.5 py-0.5 text-[10px] font-semibold tracking-[0.1em] uppercase ${online ? "border-brand bg-brand text-white" : "border-line text-muted"}`}>{online ? "Connected" : "Not running"}</span>
+            <span className={`border px-1.5 py-0.5 text-[10px] font-semibold ${online ? "border-brand bg-brand text-ink" : "border-line text-muted"}`}>{online ? "Connected" : "Not running"}</span>
             {device?.report.gpus?.[0] && <span className="text-xs text-muted">{device.report.gpus[0].name}{device.report.gpus[0].vramTotalMb ? ` · ${(device.report.gpus[0].vramTotalMb / 1024).toFixed(0)} GB` : ""}</span>}
             {workflows.length > 0 && (
               <label className="flex items-center gap-1">Workflow

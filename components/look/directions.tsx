@@ -66,7 +66,7 @@ export function Directions({ projectId, canEdit, refs, directions, entities, sce
     <div className="flex flex-col gap-3 border-t border-line pt-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h3 className="display text-lg">Visual directions</h3>
+          <h3 className="display text-[22px]">Visual directions</h3>
           <p className="text-xs text-muted">Group references into a named look, like a feeling for part of the film. One approved direction can be the film&apos;s default; others can be set for scenes, characters or places, or kept to compare.</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -96,7 +96,7 @@ export function Directions({ projectId, canEdit, refs, directions, entities, sce
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-semibold">{d.name}</span>
                 <StatusBadge status={d.status} />
-                {d.isDefault && <span className="border border-brand px-1.5 py-0.5 text-[10px] font-semibold tracking-[0.1em] text-brand uppercase">Film default</span>}
+                {d.isDefault && <span className="border border-brand px-1.5 py-0.5 text-[10px] font-semibold text-brand">Film default</span>}
                 <span className="text-xs text-muted">{scopeLabel(d.scope, entities)} · version {d.version}</span>
                 <label className="ml-auto flex items-center gap-1 text-xs"><input type="checkbox" checked={compare.includes(d.id)}
                   onChange={(e) => setCompare((c) => (e.target.checked ? [...c, d.id].slice(-3) : c.filter((x) => x !== d.id)))} /> Compare</label>

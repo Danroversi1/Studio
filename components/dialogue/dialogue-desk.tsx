@@ -1,11 +1,10 @@
 "use client";
 // Script desk: scenes from the outline, proposed dialogue and her decisions. Proposals sit
 // beside her script; accepting writes a new revision and changes only that scene.
+import { ActionStatus as Status, useAction as useRun } from "@/components/use-action";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import {
-  acceptDialogue, cancelDialogue, checkDialogueResearch, continueDrafts, decideDialogue, developDialogue, pinSceneResearch, reviewDialogue, saveAutoDraft, type DR,
-} from "@/app/projects/[projectId]/dialogue-actions";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { acceptDialogue, cancelDialogue, checkDialogueResearch, continueDrafts, decideDialogue, developDialogue, pinSceneResearch, reviewDialogue, saveAutoDraft } from "@/app/projects/[projectId]/dialogue-actions";
 import { saveSceneContext } from "@/app/projects/[projectId]/connect-actions";
 import type { ProposalView } from "@/lib/dialogue/data";
 import { renderElements, type DialogueElement } from "@/lib/dialogue/scenes";
@@ -30,24 +29,9 @@ const scriptDirty = () => typeof document !== "undefined" && document.getElement
 
 function Badge({ s }: { s: string }) {
   const x = STATUS[s] ?? { label: s, cls: "border-line" };
-  return <span className={`border px-1.5 py-0.5 text-[10px] font-semibold tracking-[0.08em] uppercase ${x.cls}`}>{x.label}</span>;
+  return <span className={`border px-1.5 py-0.5 text-[10px] font-semibold ${x.cls}`}>{x.label}</span>;
 }
 
-function useRun() {
-  const router = useRouter();
-  const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
-  const [pending, start] = useTransition();
-  const run = (fn: () => Promise<DR>, okText?: string, after?: () => void) => {
-    setMsg(null);
-    start(async () => {
-      const r: DR = await fn().catch((): DR => ({ ok: false, error: "That didn't go through. Check your connection and try again." }));
-      if (r.ok) { setMsg({ kind: "ok", text: r.note ?? okText ?? "Done." }); after?.(); router.refresh(); }
-      else setMsg({ kind: "error", text: r.error });
-    });
-  };
-  return { run, msg, setMsg, pending };
-}
-const Status = ({ msg }: { msg: { kind: "ok" | "error"; text: string } | null }) => msg ? <p role={msg.kind === "error" ? "alert" : "status"} className={`text-xs ${msg.kind === "error" ? "text-danger" : "text-muted"}`}>{msg.text}</p> : null;
 
 export function DialogueDesk({ projectId, canEdit, aiReady, provider, scenes, contexts, proposals, settings, characters, scriptVersionId }: {
   projectId: string; canEdit: boolean; aiReady: boolean; provider: string; scenes: SceneRow[]; contexts: Ctx[]; proposals: ProposalView[];
@@ -90,7 +74,7 @@ export function DialogueDesk({ projectId, canEdit, aiReady, provider, scenes, co
     <section ref={deskRef} id="develop-scenes" className="panel flex scroll-mt-6 flex-col gap-4 p-4" aria-labelledby="dlg-h">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h2 id="dlg-h" className="display text-lg">Develop scenes</h2>
+          <h2 id="dlg-h" className="display text-[22px]">Develop scenes</h2>
           <p className="max-w-2xl text-xs text-muted">
             Click a scene, here or in your script, to develop it: Develop scene drafts its action and dialogue from your outline beat, your characters and the research they may draw on.
             It&apos;s a proposal: your script only changes when you accept.
@@ -163,7 +147,7 @@ function SceneSetup({ projectId, canEdit, scene, ctx, characters }: { projectId:
   const [tone, setTone] = useState(ctx?.tone ?? "");
   return (
     <details className="border border-line bg-panel-2 p-3" open={!ctx}>
-      <summary className="cursor-pointer list-none text-xs font-semibold tracking-[0.08em] uppercase">Scene setup: story time, objectives, length</summary>
+      <summary className="cursor-pointer list-none text-xs font-semibold">Scene setup: story time, objectives, length</summary>
       <form className="mt-3 flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); s.run(() => saveSceneContext({ projectId, sceneKey: scene.key, data: {
         beat_id: scene.beatId ?? "", story_date: date, story_date_note: dateNote, objectives: Object.fromEntries(Object.entries(obj).filter(([, v]) => v.trim())),
         runtime_seconds: secs, tone } }), "Scene setup saved."); }}>
@@ -209,7 +193,7 @@ function SceneDetail({ projectId, canEdit, aiReady, scene, ctx, characters, prop
       <SceneSetup projectId={projectId} canEdit={canEdit} scene={scene} ctx={ctx} characters={characters} />
       {ctx?.pinned_snapshot_id && (
         <p className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="border border-[#2f6fd6] px-1.5 py-0.5 text-[10px] font-semibold text-[#2f6fd6] uppercase">Research pinned</span>
+          <span className="border border-[#2f6fd6] px-1.5 py-0.5 text-[10px] font-semibold text-[#2f6fd6]">Research pinned</span>
           New drafts for this scene use exactly the research of a pinned draft, even if feeds update.
           {canEdit && <button type="button" className="text-accent underline" disabled={s.pending} onClick={() => s.run(() => pinSceneResearch({ projectId, sceneKey: scene.key, snapshotId: null }))}>Unpin</button>}
         </p>
@@ -312,23 +296,23 @@ function Proposal({ projectId, canEdit, aiReady, scene, p, pinned, scriptVersion
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <div className="flex flex-col gap-1">
-          <p className="text-[11px] font-semibold tracking-[0.08em] text-muted uppercase">Your scene now</p>
-          <pre className="max-h-[28rem] overflow-y-auto border border-line bg-white p-3 font-mono text-[11.5px] leading-[1.45] whitespace-pre-wrap text-black">{scene.text}</pre>
+          <p className="text-[11px] font-semibold text-muted">Your scene now</p>
+          <pre className="max-h-[28rem] overflow-y-auto border border-line bg-paper p-3 font-mono text-[11.5px] leading-[1.45] whitespace-pre-wrap text-paper-ink">{scene.text}</pre>
         </div>
         <div className="flex flex-col gap-1">
-          <p className="text-[11px] font-semibold tracking-[0.08em] text-muted uppercase">Proposed{edited ? " (with your edits)" : ""} · tick lines to adopt only those</p>
-          <ol className="flex max-h-[28rem] flex-col gap-1.5 overflow-y-auto border border-line bg-white p-3 font-mono text-[11.5px] leading-[1.45] text-black">
+          <p className="text-[11px] font-semibold text-muted">Proposed{edited ? " (with your edits)" : ""} · tick lines to adopt only those</p>
+          <ol className="flex max-h-[28rem] flex-col gap-1.5 overflow-y-auto border border-line bg-paper p-3 font-mono text-[11.5px] leading-[1.45] text-paper-ink">
             {els.map((e, i) => (
               <li key={i} className="flex gap-2">
                 {editable && <input type="checkbox" className="mt-1" aria-label={`Adopt line ${i + 1}`} checked={picked.has(i)} onChange={() => setPicked((x) => { const n = new Set(x); if (n.has(i)) n.delete(i); else n.add(i); return n; })} />}
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-1.5 font-sans text-[10px]">
-                    {e.type === "dialogue" ? <b className="font-mono text-[11.5px]">{e.speaker}</b> : <span className="text-black/50">action</span>}
+                    {e.type === "dialogue" ? <b className="font-mono text-[11.5px]">{e.speaker}</b> : <span className="text-paper-ink/50">action</span>}
                     {e.parenthetical && <span className="font-mono text-[11.5px]">({e.parenthetical})</span>}
                     <span className={`px-1 ${BASIS[e.basis]?.cls ?? ""}`}>{BASIS[e.basis]?.label ?? e.basis}</span>
                   </p>
                   {editable ? (
-                    <textarea className="w-full resize-y border border-transparent bg-transparent p-0 font-mono text-[11.5px] hover:border-black/10 focus:border-black/30" rows={Math.max(1, Math.ceil(e.text.length / 60))}
+                    <textarea className="w-full resize-y border border-transparent bg-transparent p-0 font-mono text-[11.5px] text-paper-ink hover:border-black/10 focus:border-black/30" rows={Math.max(1, Math.ceil(e.text.length / 60))}
                       value={e.text} onChange={(ev) => setEls(els.map((x, j) => (j === i ? { ...x, text: ev.target.value } : x)))} aria-label={`Line ${i + 1}`} />
                   ) : <p className="whitespace-pre-wrap">{e.text}</p>}
                 </div>
@@ -340,14 +324,14 @@ function Proposal({ projectId, canEdit, aiReady, scene, p, pinned, scriptVersion
 
       {(r.assumptions.length > 0 || r.open_choices.length > 0 || r.note) && (
         <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
-          {r.assumptions.length > 0 && <div><p className="text-[11px] font-semibold tracking-[0.08em] text-muted uppercase">Assumptions it made</p><ul className="list-disc pl-5">{r.assumptions.map((a, i) => <li key={i}>{a}</li>)}</ul></div>}
-          {r.open_choices.length > 0 && <div><p className="text-[11px] font-semibold tracking-[0.08em] text-muted uppercase">Choices for you</p><ul className="list-disc pl-5">{r.open_choices.map((a, i) => <li key={i}>{a}</li>)}</ul></div>}
+          {r.assumptions.length > 0 && <div><p className="text-[11px] font-semibold text-muted">Assumptions it made</p><ul className="list-disc pl-5">{r.assumptions.map((a, i) => <li key={i}>{a}</li>)}</ul></div>}
+          {r.open_choices.length > 0 && <div><p className="text-[11px] font-semibold text-muted">Choices for you</p><ul className="list-disc pl-5">{r.open_choices.map((a, i) => <li key={i}>{a}</li>)}</ul></div>}
           {r.note && <p className="text-xs text-muted md:col-span-2">Tested: {r.note}</p>}
         </div>
       )}
       {r.new_facts.length > 0 && editable && (
         <fieldset className="flex flex-col gap-1 text-sm">
-          <legend className="text-[11px] font-semibold tracking-[0.08em] text-muted uppercase">If you accept the whole draft, it would establish (ticked ones go to the Story desk as ideas to confirm)</legend>
+          <legend className="text-[11px] font-semibold text-muted">If you accept the whole draft, it would establish (ticked ones go to the Story desk as ideas to confirm)</legend>
           {r.new_facts.map((f, i) => (
             <label key={i} className="flex items-start gap-2">
               <input type="checkbox" className="mt-1" checked={facts.has(i)} onChange={() => setFacts((x) => { const n = new Set(x); if (n.has(i)) n.delete(i); else n.add(i); return n; })} />
@@ -398,7 +382,7 @@ function Proposal({ projectId, canEdit, aiReady, scene, p, pinned, scriptVersion
       )}
 
       <details className="border border-line p-3">
-        <summary className="cursor-pointer list-none text-xs font-semibold tracking-[0.08em] uppercase">Research behind this draft ({p.research.length})</summary>
+        <summary className="cursor-pointer list-none text-xs font-semibold">Research behind this draft ({p.research.length})</summary>
         {p.research.length ? (
           <ul className="mt-2 flex flex-col divide-y divide-line text-sm">
             {p.research.map((x) => (
@@ -415,7 +399,7 @@ function Proposal({ projectId, canEdit, aiReady, scene, p, pinned, scriptVersion
         ) : <p className="mt-2 text-sm text-muted">No research was given to this draft. Connect collections to characters on the Connections desk.</p>}
       </details>
       <details className="border border-line p-3">
-        <summary className="cursor-pointer list-none text-xs font-semibold tracking-[0.08em] uppercase">How this draft was made</summary>
+        <summary className="cursor-pointer list-none text-xs font-semibold">How this draft was made</summary>
         <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
           <dt className="text-muted">Model</dt><dd>{prov.provider} {prov.model} · {prov.location}</dd>
           <dt className="text-muted">Workflow</dt><dd>{prov.workflow_version}</dd>

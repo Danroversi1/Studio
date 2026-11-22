@@ -6,9 +6,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import {
-  addFrame, clearReview, duplicateFrame, moveFrame, removeFrame, saveComposition, saveFrameDetails, saveFrameNotes, saveVersion, setFrameState, updateStoryboard,
-} from "@/app/projects/[projectId]/storyboard-actions";
+import { addFrame, clearReview, duplicateFrame, moveFrame, removeFrame, saveComposition, saveFrameDetails, saveFrameNotes, saveVersion, setFrameState } from "@/app/projects/[projectId]/storyboard-actions";
 import {
   FRAME_W, History, addLayer, cleanComposition, copyForNewFrame, duplicateLayers, emptyComposition, frameH, removeLayers, reorder, setAspect, tipFor, update,
   type Composition, type Layer,
@@ -382,7 +380,7 @@ export function StoryboardStudio(props: {
           <div role="tablist" aria-label="Panels" className="grid grid-cols-6 border-b border-line">
             {(["assets", "layers", "frame", "camera", "look", "refs"] as const).map((t) => (
               <button key={t} role="tab" type="button" aria-selected={tab === t} onClick={() => setTab(t)}
-                className={`min-h-11 px-1 text-[11px] font-medium tracking-[0.06em] uppercase ${tab === t ? "bg-text text-panel-2" : "text-muted hover:text-text"}`}>{t}</button>
+                className={`min-h-11 px-1 text-[11px] font-medium ${tab === t ? "bg-text text-panel-2" : "text-muted hover:text-text"}`}>{t}</button>
             ))}
           </div>
           <div role="tabpanel" className="flex max-h-[78vh] flex-col gap-3 overflow-y-auto p-3">

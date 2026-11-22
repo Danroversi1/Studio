@@ -53,7 +53,7 @@ export function SocietyPanel({ projectId, canEdit, s }: { projectId: string; can
       {!s.regions.length && <p className="text-sm text-muted">Choose the United States, the European Union or both.</p>}
       {s.regions.map((region) => (
         <div key={region} className="flex flex-col gap-2">
-          <h4 className="text-sm font-semibold uppercase tracking-[0.08em]">{REGION_LABEL[region]}</h4>
+          <h4 className="text-sm font-semibold">{REGION_LABEL[region]}</h4>
           <div className="grid gap-2 sm:grid-cols-2">
             {s.moods.filter((m) => m.region === region).map((m) => {
               const k = `${m.region}.${m.theme}`;

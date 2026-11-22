@@ -75,23 +75,6 @@ export async function getSimulation(projectId: string) {
 export type Simulation = Awaited<ReturnType<typeof getSimulation>>;
 
 /** One character's feelings (for their character page): only for tracked roles. */
-export async function getCharacterFeelings(projectId: string, characterId: string, role: string | null) {
-  if (!isTracked(role)) return null;
-  const sb = await supabaseServer();
-  const [{ data: start }, { data: changes }, { data: st }] = await Promise.all([
-    sb.from("sim_char_states").select("start_stress, start_happiness").eq("character_id", characterId).maybeSingle(),
-    sb.from("sim_state_changes").select("d_stress, d_happiness, day, kind, note, created_at").eq("project_id", projectId).eq("character_id", characterId).order("created_at"),
-    sb.from("sim_settings").select("clock_day, start_date").eq("project_id", projectId).maybeSingle(),
-  ]);
-  const ch = (changes ?? []) as { d_stress: number; d_happiness: number; day: number; kind: string; note: string | null; created_at: string }[];
-  const s0 = { stress: start?.start_stress ?? 0, happiness: start?.start_happiness ?? 0 };
-  return {
-    start: s0,
-    now: { stress: bound(s0.stress + ch.reduce((a, x) => a + x.d_stress, 0)), happiness: bound(s0.happiness + ch.reduce((a, x) => a + x.d_happiness, 0)) },
-    changes: ch.slice(-8).reverse(), hasHistory: ch.length > 0, day: st?.clock_day ?? 0,
-  };
-}
-export type CharacterFeelings = NonNullable<Awaited<ReturnType<typeof getCharacterFeelings>>>;
 
 /** A main character's own rules (how their feelings react to what reaches them). */
 export async function getCharacterRules(projectId: string, characterId: string, role: string | null): Promise<SimRule[] | null> {

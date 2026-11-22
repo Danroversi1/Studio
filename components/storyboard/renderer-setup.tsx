@@ -30,7 +30,7 @@ export function RendererSetup({ initial }: { initial: DeviceRow[] }) {
   return (
     <div className="flex flex-col gap-5">
       <section className="panel flex flex-col gap-2 p-5 text-sm">
-        <h2 className="display text-xl">What this needs</h2>
+        <h2 className="display text-[26px]">What this needs</h2>
         <ul className="list-disc pl-5">
           <li><b>A computer with a suitable graphics card</b>, where you&apos;re allowed to install programs. The first workflow uses FLUX.2 [klein] 4B: Black Forest Labs says it fits in about 13 GB of graphics memory; ComfyUI measured 8.4 GB on a top-end card. Less memory may fail with an “out of memory” error, which Studio reports without losing your frame.</li>
           <li><b>ComfyUI</b> (free, open source) running on that computer, and the model files (several GB, downloaded by you, under the Apache-2.0 license). Studio never downloads or installs anything on your computer.</li>
@@ -40,7 +40,7 @@ export function RendererSetup({ initial }: { initial: DeviceRow[] }) {
       </section>
 
       <section className="panel flex flex-col gap-3 p-5">
-        <h2 className="display text-xl">Connect a computer</h2>
+        <h2 className="display text-[26px]">Connect a computer</h2>
         <ol className="flex list-decimal flex-col gap-2 pl-5 text-sm">
           <li>On that computer: install ComfyUI and the workflow (setup guide, steps 1–4), then start ComfyUI.</li>
           <li>
@@ -70,7 +70,7 @@ function Device({ d, onChanged }: { d: DeviceRow; onChanged: () => void }) {
     <section className="panel flex flex-col gap-3 p-5" aria-label={`Computer ${d.name}`}>
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="text-lg font-semibold">{d.name}</h3>
-        <span className={`border px-1.5 py-0.5 text-[10px] font-semibold tracking-[0.1em] uppercase ${online ? "border-brand bg-brand text-white" : "border-line text-muted"}`}>{online ? "Connected" : "Not running"}</span>
+        <span className={`border px-1.5 py-0.5 text-[10px] font-semibold ${online ? "border-brand bg-brand text-ink" : "border-line text-muted"}`}>{online ? "Connected" : "Not running"}</span>
         <span className="text-xs text-muted">{d.lastSeenAt ? `last checked in ${new Date(d.lastSeenAt).toLocaleString()}` : "never checked in"}</span>
         <button type="button" className="btn ml-auto min-h-8 px-2 text-xs text-danger" onClick={async () => { const x = await revokeDevice({ deviceId: d.id }); if (x.ok) onChanged(); else setMsg(x.error); }}>Disconnect this computer</button>
       </div>

@@ -27,14 +27,14 @@ export function RoleButtons({ projectId, entityId, name, role }: { projectId: st
   const r = useRole(projectId, entityId, role);
   return (
     <div className="flex flex-col gap-1.5" role="group" aria-label={`${name}'s role`}>
-      <span className="text-xs font-semibold tracking-wide text-muted uppercase">Role in the film</span>
+      <span className="text-xs font-semibold tracking-wide text-muted">Role in the film</span>
       <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
         {ROLES.map((x) => {
           const on = r.value === x;
           return (
             <button key={x} type="button" aria-pressed={on} disabled={r.pending} onClick={() => r.choose(on ? null : x)}
               className={`flex flex-col items-start border px-2.5 py-1.5 text-left transition-colors ${on ? "border-text bg-text text-panel-2" : "border-line bg-panel-2 hover:border-text"}`}>
-              <span className="text-xs font-semibold uppercase">{ROLE_LABEL[x]}</span>
+              <span className="text-xs font-semibold">{ROLE_LABEL[x]}</span>
               <span className={`text-[11px] ${on ? "text-panel-2/80" : "text-muted"}`}>{ROLE_HINT[x]}</span>
             </button>
           );
@@ -52,7 +52,7 @@ export function RoleSelect({ projectId, entityId, name, role }: { projectId: str
     <span className="inline-flex items-center gap-2">
       <label className="sr-only" htmlFor={`role-${entityId}`}>{name}&apos;s role</label>
       <select id={`role-${entityId}`} value={r.value ?? ""} disabled={r.pending} onChange={(e) => r.choose((e.target.value || null) as CastRole | null)}
-        className="min-h-8 border border-line bg-panel-2 px-2 text-xs tracking-[0.08em] uppercase">
+        className="min-h-8 border border-line bg-panel-2 px-2 text-xs">
         <option value="">Role not set</option>
         {ROLES.map((x) => <option key={x} value={x}>{ROLE_LABEL[x]}</option>)}
       </select>

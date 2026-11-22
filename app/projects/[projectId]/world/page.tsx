@@ -116,7 +116,7 @@ export default async function WorldPage({ params, searchParams }: {
 
         <section id="world-knowledge" className="flex scroll-mt-6 flex-col gap-3" aria-labelledby="wk-h">
           <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line pb-2">
-            <h2 id="wk-h" className="display text-2xl">World knowledge base</h2>
+            <h2 id="wk-h" className="display text-3xl">World knowledge base</h2>
             <Link className="text-sm text-accent" href={`/projects/${projectId}/knowledge?world=1`}>Also in the Knowledge Base →</Link>
           </div>
           <KnowledgeBase projectId={projectId} canEdit={!!caps.can_edit} sources={kb.sources} items={kb.items}
@@ -133,7 +133,7 @@ export default async function WorldPage({ params, searchParams }: {
 
         <section id="simulation" className="flex scroll-mt-6 flex-col gap-3" aria-labelledby="sim-h">
           <div className="flex flex-col gap-1 border-b border-line pb-2">
-            <h2 id="sim-h" className="display text-2xl">The world, day by day</h2>
+            <h2 id="sim-h" className="display text-3xl">The world, day by day</h2>
             <p className="max-w-3xl text-sm text-muted">
               Each day, what&apos;s happening in your World and in your story can suggest a few small events: how your characters might feel, and what they might do next.
               Nothing becomes part of the story until you approve it, and dialogue is only written from approved events.
@@ -188,7 +188,7 @@ export default async function WorldPage({ params, searchParams }: {
       <aside id="builder" className="flex flex-col gap-4 xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:self-start xl:overflow-y-auto" aria-label="World Builder">
         <header className="flex flex-col gap-1 border-b border-line pb-3">
           <p className="eyebrow">Your partner</p>
-          <h2 className="display text-2xl">{PARTNERS.world.name}</h2>
+          <h2 className="display text-3xl">{PARTNERS.world.name}</h2>
           <p className="text-sm text-muted">Let&apos;s give your story a home.</p>
           <div className="flex flex-wrap gap-3 text-xs">
             {current && caps.can_edit && <Link className="text-accent" href={`${base}?new=1#builder`}>New conversation</Link>}

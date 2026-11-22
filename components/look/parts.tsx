@@ -20,8 +20,8 @@ export function RefVisual({ r, large = false, className = "" }: { r: LookRef; la
   if (a === "treatment") return <ThumbView source={{ kind: "crop", crop: r.crop! }} alt={r.title} className={`${large ? "aspect-[4/3] w-full" : "size-full"} ${className}`} />;
   return (
     <div className={`flex size-full flex-col items-center justify-center gap-1 bg-panel-2 p-2 text-center text-xs text-muted ${large ? "aspect-[4/3]" : ""} ${className}`}>
-      {a === "link" ? (<><span className="text-[10px] font-semibold tracking-[0.12em] uppercase">Link only</span><span className="line-clamp-2 break-all">{hostOf(r.sourceUrl)}</span><span>No image added yet</span></>)
-        : (<><span className="text-[10px] font-semibold tracking-[0.12em] uppercase">Image missing</span><span>{broken ? "It didn't load." : "It was removed."} Your notes are kept.</span></>)}
+      {a === "link" ? (<><span className="text-[10px] font-semibold">Link only</span><span className="line-clamp-2 break-all">{hostOf(r.sourceUrl)}</span><span>No image added yet</span></>)
+        : (<><span className="text-[10px] font-semibold">Image missing</span><span>{broken ? "It didn't load." : "It was removed."} Your notes are kept.</span></>)}
     </div>
   );
 }
@@ -31,14 +31,14 @@ export function TagChips({ tags }: { tags: string[] }) {
   if (!tags.length) return null;
   return (
     <ul className="flex flex-wrap gap-1" aria-label="What it's for">
-      {tags.map((t) => <li key={t} className="border border-line px-1.5 py-0.5 text-[10px] tracking-[0.06em] uppercase">{tagLabel(t).replace(/^The /, "")}</li>)}
+      {tags.map((t) => <li key={t} className="border border-line px-1.5 py-0.5 text-[10px]">{tagLabel(t).replace(/^The /, "")}</li>)}
     </ul>
   );
 }
 
 export function StatusBadge({ status }: { status: string }) {
   const approved = status === "approved";
-  return <span className={`border px-1.5 py-0.5 text-[10px] font-semibold tracking-[0.1em] uppercase ${approved ? "border-brand bg-brand text-white" : "border-line text-muted"}`}>
+  return <span className={`border px-1.5 py-0.5 text-[10px] font-semibold ${approved ? "border-brand bg-brand text-ink" : "border-line text-muted"}`}>
     {approved ? "Approved" : status === "archived" ? "Archived" : status === "draft" ? "Draft" : "Proposed"}</span>;
 }
 
@@ -106,7 +106,7 @@ export function PaletteEditor({ colors, onChange, disabled, extra }: { colors: P
             <li key={`${c.hex}-${i}`} className="flex flex-col items-stretch border border-line text-[10px]">
               <label className="relative block h-12 w-16 cursor-pointer" style={{ background: c.hex, color: inkOn(c.hex) }} title="Change this color">
                 <span className="absolute bottom-0.5 left-1 font-mono">{c.hex}</span>
-                {c.source !== "manual" && <span className="absolute top-0.5 left-1 uppercase">{c.source === "suggested" ? "suggested" : "sampled"}</span>}
+                {c.source !== "manual" && <span className="absolute top-0.5 left-1">{c.source === "suggested" ? "suggested" : "sampled"}</span>}
                 <input type="color" className="sr-only" value={c.hex} disabled={disabled} aria-label={`Change color ${i + 1}`}
                   onChange={(e) => onChange(colors.map((x, j) => (j === i ? { hex: e.target.value, source: "manual" } : x)))} />
               </label>

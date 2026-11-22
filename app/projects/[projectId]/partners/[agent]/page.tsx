@@ -90,7 +90,7 @@ export default async function PartnerPage({
                 <Link href={`${base}?thread=${t.id}`} aria-current={t.id === current?.id ? "page" : undefined}
                   className={`block border-b border-line px-2 py-2.5 text-sm ${t.id === current?.id ? "bg-panel-2 font-medium" : "text-muted hover:text-text"}`}>
                   <span className="line-clamp-2">{t.title ?? "New conversation"}</span>
-                  <span className="text-[11px] tracking-[0.08em] uppercase">{new Date(t.last_message_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                  <span className="text-[11px]">{new Date(t.last_message_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
                 </Link>
               </li>
             ))}

@@ -1,66 +1,97 @@
 @import "tailwindcss";
 
-/* STUDIO design system — grey canvas, hairline grid, monospace type, orange signal color.
-   Semantic tokens: "ink" = page canvas, "panel" = cell/card, "brand" = orange fills,
-   "accent" = orange for text and icons (darker, for contrast on grey). */
+/* STUDIO design system, after Painwaves: a calm night-time workspace.
+   Night ground, hairline rules, Instrument Serif for titles and figures, DM Sans for
+   reading, sage glow for selection and primary actions, ember for what needs attention.
+   Semantic tokens (components use these names, never raw colours):
+     ink      page ground            panel / panel-2  surfaces (cells, cards, inputs)
+     line     hairline rules         text / soft / muted  three levels of type
+     brand    sage fills (primary)   accent           sage for links, icons, eyebrows
+     ember    pain/attention         ok / warn / danger   status
+     paper    the script page (a printed page on the desk) */
 @theme {
-  --color-ink: #e4e4e4;
-  --color-panel: #ececec;
-  --color-panel-2: #f6f6f6;
-  --color-line: #c7c7c7;
-  --color-text: #141414;
-  --color-muted: #5a5a5a;
-  --color-brand: #ff6b1a;
-  --color-accent: #b9450d;
-  --color-accent-soft: #f7dccb;
-  --color-ok: #2c6e3f;
-  --color-ok-soft: #d6e8da;
-  --color-warn: #8a5300;
-  --color-warn-soft: #f3e3c3;
-  --color-danger: #a8201a;
-  --font-sans: "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
-  --font-display: "Tektur Variable", "JetBrains Mono Variable", ui-monospace, monospace;
-  /* Story text uses the mono face too: it reads like a screenplay page. */
-  --font-serif: "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
+  --color-ink: #0b0d0b;
+  --color-panel: #121412;
+  --color-panel-2: #161915;
+  --color-panel-3: #1c201b;
+  --color-line: #2a2e29;
+  --color-line-strong: #3a4038;
+  --color-text: #e9ebe6;
+  --color-soft: #b9bcb3;
+  --color-muted: #979b91;
+  --color-brand: #b8c7b0;
+  --color-accent: #b8c7b0;
+  --color-accent-soft: #1d241c;
+  --color-ember: #e07a4f;
+  --color-ember-soft: #2a1a12;
+  --color-ok: #8fc29a;
+  --color-ok-soft: #142019;
+  --color-warn: #d8b36a;
+  --color-warn-soft: #262012;
+  --color-danger: #ef8a6a;
+  --color-paper: #ecebe4;
+  --color-paper-ink: #141414;
+  /* Charts: categorical series (Painwaves palette), validated on the night ground. */
+  --color-c0: #3987e5;
+  --color-c1: #d95926;
+  --color-c2: #199e70;
+  --color-c3: #c98500;
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
+  /* Her own writing (synopsis, answers) reads in the text face. */
+  --font-serif: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  /* Screenplay pages keep a typewriter face. */
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 @layer base {
-  html { color-scheme: light; -webkit-text-size-adjust: 100%; }
-  body { background: var(--color-ink); color: var(--color-text); font-family: var(--font-sans); font-size: 15px; }
-  /* Square geometry everywhere: no rounded corners. */
-  *, ::before, ::after { border-radius: 0 !important; }
-  ::selection { background: var(--color-brand); color: var(--color-text); }
+  html { color-scheme: dark; -webkit-text-size-adjust: 100%; background: var(--color-ink); }
+  body { background: var(--color-ink); color: var(--color-text); font-family: var(--font-sans); font-size: 15px; line-height: 1.6; }
+  ::selection { background: var(--color-brand); color: var(--color-ink); }
+  :focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+  input, textarea, select { color-scheme: dark; }
+  h1, h2, h3 { text-wrap: balance; }
+  .tabular, td, dd { font-variant-numeric: tabular-nums; }
+  @media (prefers-reduced-motion: reduce) { *, ::before, ::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
 }
 
 /* Custom utilities (Tailwind v4 requires @utility for classes reused via @apply). */
 @utility panel { @apply border border-line bg-panel; }
-@utility display { font-family: var(--font-display); @apply font-bold tracking-tight uppercase; }
-@utility label { @apply mb-1.5 block text-xs font-medium tracking-[0.12em] text-muted uppercase; }
-@utility eyebrow { @apply text-xs font-medium tracking-[0.18em] text-muted uppercase; }
+/* Titles and figures: the serif, set tight, never shouted. */
+@utility display { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.02em; }
+@utility label { @apply mb-1.5 block text-[13px] text-muted; }
+@utility eyebrow { @apply text-[13px] text-accent; }
 @utility field {
-  @apply w-full border border-line bg-panel-2 px-3.5 py-2.5 text-[15px] text-text
-         placeholder:text-muted/60 focus:border-text focus:outline-none;
+  @apply w-full rounded-md border border-line bg-panel-2 px-3.5 py-2.5 text-[15px] text-text
+         placeholder:text-muted/70 focus:border-brand focus:outline-none disabled:opacity-60;
 }
-/* A corner-notched shape, like a cut ticket. */
-@utility notch { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%); }
-/* 44px minimum touch target */
+/* Kept for older markup: no longer cuts the corner. */
+@utility notch { clip-path: none; }
+/* 44px minimum touch target; pills, as in Painwaves. */
 @utility btn {
-  @apply inline-flex min-h-11 items-center justify-center gap-2 border border-line bg-panel-2 px-4
-         text-sm font-medium tracking-[0.08em] text-text uppercase transition-colors hover:border-text
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-line-strong bg-transparent px-5
+         text-sm font-medium text-text transition-colors hover:border-brand hover:text-text
          disabled:cursor-not-allowed disabled:opacity-40;
 }
-@utility btn-primary { @apply btn notch border-brand bg-brand text-text hover:border-brand hover:bg-brand/85; }
-@utility link-accent { @apply inline-flex min-h-11 items-center gap-1.5 font-medium tracking-[0.06em] text-accent uppercase hover:text-text; }
-@utility badge { @apply inline-flex items-center px-2 py-0.5 text-[11px] font-medium tracking-[0.1em] uppercase; }
+@utility btn-primary { @apply btn border-brand bg-brand text-ink hover:bg-brand/85 hover:text-ink; }
+@utility btn-quiet { @apply btn border-transparent text-soft hover:border-line hover:text-text; }
+@utility link-accent { @apply inline-flex min-h-11 items-center gap-1.5 font-medium text-accent hover:text-text; }
+@utility badge { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-[12px] font-medium; }
+@utility chip {
+  @apply inline-flex min-h-10 items-center rounded-full border border-line px-4 text-sm text-soft transition-colors hover:border-brand hover:text-text
+         aria-pressed:border-text aria-pressed:bg-text aria-pressed:text-ink;
+}
 @utility help { @apply text-sm leading-relaxed text-muted; }
-/* Small orange squares in the top corners, as section markers. */
+/* A rule-separated grid of cells (2px gaps showing the rule colour). */
+@utility cells { @apply grid gap-[2px] bg-line; }
+/* Section markers: small sage ticks in the top corners. */
 @utility corner-marks {
   background-image: linear-gradient(var(--color-brand), var(--color-brand)), linear-gradient(var(--color-brand), var(--color-brand));
-  background-size: 10px 10px, 10px 10px;
+  background-size: 8px 1px, 8px 1px;
   background-position: top 14px left 14px, top 14px right 14px;
   background-repeat: no-repeat;
 }
-/* Faint vertical grid lines dividing a band into four columns. */
+/* Faint vertical rules dividing a band into four columns. */
 @utility grid-lines {
   background-image: linear-gradient(to right, var(--color-line) 1px, transparent 1px);
   background-size: 25% 100%;

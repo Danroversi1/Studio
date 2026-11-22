@@ -45,7 +45,7 @@ export default async function ChangesPage() {
       {CHANGELOG.map((r) => (
         <section key={r.at} className="panel flex flex-col gap-3 p-5" aria-label={r.title}>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="display text-lg">{r.title}</h2>
+            <h2 className="display text-[22px]">{r.title}</h2>
             <p className="text-xs text-muted">{fmt(r.at)}</p>
           </div>
           <ul className="flex flex-col gap-1.5 text-sm">

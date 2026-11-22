@@ -215,7 +215,7 @@ export function DriveImport({ targets, defaultTargetId, treatment, startWithTrea
       {items.length > 0 && (
         <section className="panel flex flex-col gap-4 p-5" aria-labelledby="pick-h">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 id="pick-h" className="display text-xl">Choose what to keep</h2>
+            <h2 id="pick-h" className="display text-[26px]">Choose what to keep</h2>
             <div className="flex gap-2">
               <button type="button" className="btn" onClick={() => setItems((p) => p.map((i) => ({ ...i, selected: true })))}>All</button>
               <button type="button" className="btn" onClick={() => setItems((p) => p.map((i) => ({ ...i, selected: false })))}>None</button>
@@ -232,7 +232,7 @@ export function DriveImport({ targets, defaultTargetId, treatment, startWithTrea
                       onChange={(e) => setItems((p) => p.map((i) => (i.key === c.key ? { ...i, selected: e.target.checked } : i)))} />
                   </span>
                   <span className="truncate px-2 py-1.5 text-xs">{c.name}</span>
-                  <span className="px-2 pb-2 text-[10px] tracking-[0.1em] text-muted uppercase">{c.from}</span>
+                  <span className="px-2 pb-2 text-[10px] text-muted">{c.from}</span>
                 </label>
               </li>
             ))}

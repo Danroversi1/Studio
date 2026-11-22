@@ -18,11 +18,10 @@ import { Empty, Flash } from "@/components/flash";
 import { SubmitButton } from "@/components/ui";
 import { LengthPicker } from "@/components/length-picker";
 import { OutlineBox } from "@/components/outline-box";
-import { RUNTIMES, runtimeInfo } from "@/lib/runtime";
 import { UploadArtwork } from "@/components/upload-artwork";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
-import { parseGoogleLink, slidesEmbedUrl } from "@/lib/google/links";
-import { INTAKE_QUESTIONS, TREATMENT_ATTRIBUTION, parseIntake, isTreatmentRef } from "@/lib/intake";
+import { parseGoogleLink } from "@/lib/google/links";
+import { INTAKE_QUESTIONS, parseIntake, isTreatmentRef } from "@/lib/intake";
 import { currentUser, getAiBudget, getBoard, getCast, getNotebook, getScreenplay, getStoryReferences, getEntityWorkspace, getProjectShell, type VersionRow } from "@/lib/data";
 import { CastBox } from "@/components/cast-box";
 import { autoEdges } from "@/lib/board";
@@ -101,7 +100,6 @@ export default async function ItemWorkspace({
   const isStory = kind === "story";
   const latest = versions[0] ?? null;
   const answers = parseIntake(selected?.content.body ?? "");
-  const treatments = isStory ? references.filter((r) => isTreatmentRef(r)) : [];
   const otherRefs = isStory ? references.filter((r) => !isTreatmentRef(r)) : references;
 
   /* ---------------------------------------------------------------- pieces */
@@ -364,7 +362,7 @@ export default async function ItemWorkspace({
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <p className="text-xs font-semibold tracking-wide text-muted uppercase">{isStory ? "Story" : kind}</p>
+          <p className="text-xs font-semibold tracking-wide text-muted">{isStory ? "Story" : kind}</p>
           {isStory ? (
             <h2 className="display text-4xl leading-none">{shell.project.name}</h2>
           ) : caps.can_edit ? (
@@ -382,7 +380,7 @@ export default async function ItemWorkspace({
           {versionTag}
           {kind === "character" && (caps.can_edit
             ? <div className="mt-2 max-w-2xl"><RoleButtons projectId={projectId} entityId={entityId} name={entity.name} role={roleOf(entity.metadata as Record<string, unknown> | null)} /></div>
-            : roleOf(entity.metadata as Record<string, unknown> | null) && <p className="text-xs text-muted uppercase">{ROLE_LABEL[roleOf(entity.metadata as Record<string, unknown> | null)!]}</p>)}
+            : roleOf(entity.metadata as Record<string, unknown> | null) && <p className="text-xs text-muted">{ROLE_LABEL[roleOf(entity.metadata as Record<string, unknown> | null)!]}</p>)}
         </div>
         {revisionsLayer}
       </header>

@@ -84,7 +84,7 @@ export function ScriptDesk({ projectId, entityId, initial, parentVersionId, base
           <input type="hidden" name="parentVersionId" value={parentVersionId} />
           <input type="hidden" name="baseVersionId" value={baseVersionId} />
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="display text-lg">Write</h2>
+            <h2 className="display text-[22px]">Write</h2>
             <span className="flex flex-wrap items-center gap-2">
               {dirty && <span className="text-xs text-accent">Unsaved changes</span>}
               {canEdit && caret && (
@@ -120,7 +120,7 @@ export function ScriptDesk({ projectId, entityId, initial, parentVersionId, base
         </form>
 
         <section className="flex flex-col gap-3" aria-label="Formatted pages">
-          <h2 className="display text-lg">Pages</h2>
+          <h2 className="display text-[22px]">Pages</h2>
           {paged.length > 0 && <p className="help -mt-2">Click a scene heading to develop that scene.</p>}
           {paged.length === 0 ? (
             <p className="help">Your formatted pages appear here as you write.</p>
@@ -129,8 +129,8 @@ export function ScriptDesk({ projectId, entityId, initial, parentVersionId, base
               {(() => {
                 const seen = new Map<string, number>();
                 return paged.map((page, i) => (
-                  <article key={i} className="relative bg-white px-[9%] py-8 font-mono text-[11.5px] leading-[1.45] text-black shadow-sm">
-                    <span className="absolute top-3 right-4 text-[10px] text-black/50">{i + 1}.</span>
+                  <article key={i} className="relative bg-paper px-[9%] py-8 font-mono text-[11.5px] leading-[1.45] text-paper-ink shadow-sm">
+                    <span className="absolute top-3 right-4 text-[10px] text-paper-ink/50">{i + 1}.</span>
                     {page.map((el, j) => {
                       if (el.type !== "scene") return <p key={j} className={`whitespace-pre-wrap ${STYLE[el.type]} ${j === 0 ? "!mt-0" : ""}`}>{el.text}</p>;
                       const h = norm(el.text); const nth = seen.get(h) ?? 0; seen.set(h, nth + 1);

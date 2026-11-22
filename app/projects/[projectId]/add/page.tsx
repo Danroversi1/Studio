@@ -3,15 +3,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Empty, Flash } from "@/components/flash";
-import { IconArrowLeft, IconCharacter, IconLink, IconLocation, IconStory } from "@/components/icons";
-import { TreatmentBreakdown } from "@/components/treatment-breakdown";
+import { IconArrowLeft, IconCharacter, IconLocation } from "@/components/icons";
 import { SubmitButton } from "@/components/ui";
-import { aiConfigured } from "@/lib/agents/run-story-breakdown";
-import { getAiBudget, getEntityWorkspace, getProjectShell } from "@/lib/data";
-import { parseGoogleLink } from "@/lib/google/links";
-import { RUNTIMES, runtimeInfo } from "@/lib/runtime";
-import { INTAKE_QUESTIONS, TREATMENT_ATTRIBUTION, parseIntake, isTreatmentRef } from "@/lib/intake";
-import { addTreatmentLink, createEntity, requestBreakdown, saveSynopsis, setRuntime } from "../actions";
+import { getProjectShell } from "@/lib/data";
+import { createEntity } from "../actions";
 
 export const maxDuration = 300;
 
@@ -21,8 +16,8 @@ function Section({ id, icon, title, help, children }: {
   return (
     <section id={id} className="panel flex scroll-mt-6 flex-col">
       <div className="flex items-center gap-3 border-b border-line px-5 py-4">
-        <span className="flex size-10 shrink-0 items-center justify-center bg-text text-brand">{icon}</span>
-        <h2 className="display text-xl">{title}</h2>
+        <span className="flex size-10 shrink-0 items-center justify-center bg-accent-soft text-accent">{icon}</span>
+        <h2 className="display text-[26px]">{title}</h2>
       </div>
       <div className="flex flex-col gap-4 p-5">
         <p className="help">{help}</p>
@@ -44,24 +39,16 @@ export default async function AddToProject({
   const shell = await getProjectShell(projectId);
   if (!shell || !shell.caps.member) notFound();
   const { caps, entities } = shell;
-  const runtime = (shell.project as { runtime?: string | null }).runtime ?? null;
   if (!caps.can_edit) {
     return <Empty title="Adding is for the creative team">You can read the approved versions of this film.</Empty>;
   }
   const story = entities.find((e) => e.kind === "story");
-  const ws = story ? await getEntityWorkspace(projectId, story.id) : null;
-  const budget = await getAiBudget(projectId);
-  if (!story || !ws) notFound();
-
-  const latest = ws.versions[0];
-  const answers = parseIntake(latest?.content.body ?? "");
-  const treatments = ws.references.filter((r) => isTreatmentRef(r));
-  const canAsk = aiConfigured() && budget.available && (latest?.content.body?.trim().length ?? 0) >= 50;
+  if (!story) notFound();
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-8">
       <header className="flex flex-col gap-3">
-        <Link href={`/projects/${projectId}`} className="inline-flex min-h-11 w-fit items-center gap-1.5 text-xs tracking-[0.12em] text-muted uppercase hover:text-text">
+        <Link href={`/projects/${projectId}`} className="inline-flex min-h-11 w-fit items-center gap-1.5 text-xs text-muted hover:text-text">
           <IconArrowLeft /> Overview
         </Link>
         <p className="eyebrow">Add to your project</p>

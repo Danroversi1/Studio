@@ -45,7 +45,7 @@ function Suggestion({ ctx, section, label, source, why }: { ctx: Ctx; section: S
   const s = useSaver(ctx);
   return (
     <div className="flex flex-col gap-1.5 border border-dashed border-brand p-2.5">
-      <p className="text-[11px] tracking-[0.12em] text-muted uppercase">{PROPOSAL_LABEL[source]} · not decided</p>
+      <p className="text-[11px] text-muted">{PROPOSAL_LABEL[source]} · not decided</p>
       <p className="text-sm font-medium">{label}</p>
       {why && <p className="text-xs text-muted">{why}</p>}
       {ctx.canEdit && (
@@ -82,7 +82,7 @@ function Card({ title, big, small, source, children, editing, onEdit, canEdit, f
             <div className="flex flex-col gap-1">
               <p className={`display leading-tight break-words hyphens-auto ${big.length > 28 ? "text-xl" : big.length > 12 ? "text-2xl" : "text-3xl"} ${big === "Not decided" ? "text-muted" : ""}`}>{big}</p>
               {small && <p className="text-sm text-muted">{small}</p>}
-              {source && <p className="text-[11px] tracking-[0.1em] text-muted uppercase">{source}</p>}
+              {source && <p className="text-[11px] text-muted">{source}</p>}
               {flag && <p className="mt-1 border-l-2 border-brand pl-2 text-xs">{flag}</p>}
             </div>
           )}
@@ -322,7 +322,7 @@ function SentenceCard({ ctx, world, versions }: { ctx: Ctx; world: World; versio
               {others.map((o) => (
                 <li key={o.label + o.text} className="flex flex-wrap items-start justify-between gap-2 py-2">
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[11px] tracking-[0.12em] text-muted uppercase">{o.label}</span>
+                    <span className="block text-[11px] text-muted">{o.label}</span>
                     <span className="font-serif">{o.text}</span>
                   </span>
                   {ctx.canEdit && <button type="button" className="btn min-h-8 text-xs" disabled={s.pending} onClick={() => save(o.text)}>Use this</button>}
@@ -334,7 +334,7 @@ function SentenceCard({ ctx, world, versions }: { ctx: Ctx; world: World; versio
       ) : suggested ? (
         <div className="flex flex-col gap-2">
           <p className="font-serif text-xl leading-snug text-muted">{suggested}</p>
-          <p className="text-[11px] tracking-[0.12em] text-muted uppercase">Suggested from what you&apos;ve decided · not decided</p>
+          <p className="text-[11px] text-muted">Suggested from what you&apos;ve decided · not decided</p>
           {ctx.canEdit && <button type="button" className="btn min-h-9 self-start text-xs" disabled={s.pending} onClick={() => save(suggested)}>Use this</button>}
         </div>
       ) : (

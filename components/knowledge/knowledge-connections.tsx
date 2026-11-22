@@ -70,7 +70,7 @@ export function KnowledgeConnections({ projectId, canEdit, characters, collectio
   return (
     <section className="panel flex flex-col gap-4 p-5" aria-labelledby="kc-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="kc-h" className="display text-lg">Knowledge → characters</h2>
+        <h2 id="kc-h" className="display text-[22px]">Knowledge → characters</h2>
         <Link href={`/projects/${projectId}/knowledge`} className="text-xs text-accent">Open the Knowledge Base →</Link>
       </div>
       <p className="max-w-3xl text-sm text-muted">
@@ -82,7 +82,7 @@ export function KnowledgeConnections({ projectId, canEdit, characters, collectio
         <ul className="flex flex-col gap-3">
           {byChar.map(({ c, ls }) => (
             <li key={c.id} className="flex flex-col gap-1.5">
-              <p className="text-sm font-semibold uppercase">{c.name}</p>
+              <p className="text-sm font-semibold">{c.name}</p>
               <ul className="flex flex-col divide-y divide-line border-y border-line">
                 {ls.map((l) => (
                   <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
@@ -196,7 +196,7 @@ export function KnowledgeConnections({ projectId, canEdit, characters, collectio
                 {preview.items.map((i) => (
                   <li key={i.id} className="flex flex-col gap-0.5 py-2 text-sm">
                     <span className="flex flex-wrap items-center gap-2">
-                      <span className={`border px-1.5 py-0.5 text-[10px] font-semibold tracking-[0.06em] uppercase ${USE_TONE[i.use]}`}>{USE_LABEL[i.use]}</span>
+                      <span className={`border px-1.5 py-0.5 text-[10px] font-semibold ${USE_TONE[i.use]}`}>{USE_LABEL[i.use]}</span>
                       <span className={i.use === "excluded" ? "text-muted" : ""}>{i.title}</span>
                     </span>
                     <span className="text-xs text-muted">{i.source}{i.published_at ? ` · ${i.published_at.slice(0, 10)}` : " · date unknown"} · {i.reason}</span>

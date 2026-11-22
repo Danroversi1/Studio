@@ -2,31 +2,15 @@
 // World knowledge base: the world outside the story, followed with FREE public sources (no
 // model, no tokens; checked once a day) or added by hand, and the characters' impressions
 // of it (qualia; the only model use, and only when she asks).
+import { ActionStatus as Status, useAction as useRun } from "@/components/use-action";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { decideImpression, kbRefreshNow, kbWorldFollowPrompt, kbWorldWatchRemove, worldSetUp } from "@/app/projects/[projectId]/knowledge-actions";
 import { formImpression } from "@/app/projects/[projectId]/world-kb-actions";
 import { ago, feedState } from "@/lib/knowledge/labels";
 import { WATCH_LIMIT } from "@/lib/knowledge/watch";
 import type { Impression, KCharacter, KCollection, KSource } from "@/lib/knowledge/types";
 
-type Res = { ok: true; id?: string; note?: string } | { ok: false; error: string };
-function useRun() {
-  const router = useRouter();
-  const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
-  const [pending, start] = useTransition();
-  const run = (fn: () => Promise<Res>, okText?: string, after?: (r: Res & { ok: true }) => void) => {
-    setMsg(null);
-    start(async () => {
-      const r: Res = await fn().catch((): Res => ({ ok: false, error: "That didn't go through. Check your connection and try again." }));
-      if (r.ok) { setMsg({ kind: "ok", text: r.note ?? okText ?? "Done." }); after?.(r); router.refresh(); } else setMsg({ kind: "error", text: r.error });
-    });
-  };
-  return { run, msg, pending };
-}
-const Status = ({ msg }: { msg: { kind: "ok" | "error"; text: string } | null }) =>
-  msg ? <p role={msg.kind === "error" ? "alert" : "status"} className={`text-xs ${msg.kind === "error" ? "text-danger" : "text-muted"}`}>{msg.text}</p> : null;
 
 /** The World card at the top of the Knowledge Base. */
 /** World view: what it is, who it reaches, and what she follows (free, once a day). */
@@ -42,7 +26,7 @@ export function WorldPanel({ projectId, canEdit, characters, world, sources, cou
   return (
     <section className="panel flex flex-col gap-4 p-4" aria-labelledby="world-h">
       <div className="flex flex-col gap-1">
-        <h2 id="world-h" className="display text-2xl leading-none">The World</h2>
+        <h2 id="world-h" className="display text-3xl leading-none">The World</h2>
         <p className="max-w-3xl text-sm text-muted">
           What is happening outside your story: news, events and how people react. Your characters live in this world. Their agents draw on it,
           only what exists by each scene&apos;s story date, to form their own impressions of it: what they notice, feel and make of it.
@@ -118,10 +102,10 @@ export function ItemImpressions({ projectId, canEdit, aiReady, itemId, itemVersi
   const name = (id: string) => characters.find((c) => c.id === id)?.name ?? "Character";
   return (
     <div className="flex flex-col gap-2 border-t border-line pt-2">
-      <p className="text-[11px] font-semibold tracking-[0.1em] uppercase">How characters experience this</p>
+      <p className="text-[11px] font-semibold">How characters experience this</p>
       {mine.map((i) => (
         <div key={i.id} className={`flex flex-col gap-1 p-2 text-sm ${i.status === "accepted" ? "border border-ok/50" : "border border-warn/50 bg-warn-soft/30"}`}>
-          <span className="text-xs text-muted"><b className="text-text uppercase">{name(i.character_id)}</b> · {i.status === "accepted" ? "Accepted: colors their dialogue" : "Proposed: not used until you accept"}
+          <span className="text-xs text-muted"><b className="text-text">{name(i.character_id)}</b> · {i.status === "accepted" ? "Accepted: colors their dialogue" : "Proposed: not used until you accept"}
             {i.item_version !== itemVersion ? " · the item changed since" : ""}</span>
           {canEdit && i.status === "proposed"
             ? <textarea className="field min-h-20 text-sm italic" value={edits[i.id] ?? i.text} maxLength={2000} onChange={(e) => setEdits({ ...edits, [i.id]: e.target.value })} aria-label="Impression" />

@@ -30,7 +30,7 @@ export default async function ProjectSettings({
       <section className="panel" aria-labelledby="delete-h">
         <div className="flex items-center gap-3 border-b border-line px-5 py-4">
           <span className="size-3 bg-danger" aria-hidden />
-          <h2 id="delete-h" className="display text-xl">Delete this film</h2>
+          <h2 id="delete-h" className="display text-[26px]">Delete this film</h2>
         </div>
         <form action={deleteProject} className="flex flex-col gap-4 p-5">
           <input type="hidden" name="projectId" value={projectId} />

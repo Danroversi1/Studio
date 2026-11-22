@@ -55,7 +55,7 @@ export default async function ReferencesPage({
             <SubmitButton pendingText="…">Move</SubmitButton>
           </form>
         ) : (
-          <p className="mt-auto pt-2 text-[11px] tracking-[0.08em] text-muted uppercase">{departmentLabel(r.department)}</p>
+          <p className="mt-auto pt-2 text-[11px] text-muted">{departmentLabel(r.department)}</p>
         )}
       </div>
     </li>
@@ -87,7 +87,7 @@ export default async function ReferencesPage({
             return (
               <Link key={x.value} href={`${base}?d=${x.value}`} className="panel flex flex-col gap-2 p-4 hover:border-text">
                 <span className="flex items-baseline justify-between gap-2">
-                  <span className="display text-lg">{x.label}</span>
+                  <span className="display text-[22px]">{x.label}</span>
                   <span className="text-xs text-muted">{list.length}</span>
                 </span>
                 <span className="text-sm text-muted">{x.blurb}</span>
@@ -114,7 +114,7 @@ export default async function ReferencesPage({
 
       {caps.can_edit && story && (
         <section className="panel flex flex-col gap-4 p-5" aria-labelledby="add-ref-h">
-          <h2 id="add-ref-h" className="display text-lg">Add a reference{deptInfo ? ` to ${deptInfo.label}` : ""}</h2>
+          <h2 id="add-ref-h" className="display text-[22px]">Add a reference{deptInfo ? ` to ${deptInfo.label}` : ""}</h2>
           <div className="flex flex-wrap gap-2">
             <Link href={`/projects/${projectId}/import${deptInfo ? `?dept=${deptInfo.value}` : ""}`} className="btn btn-primary">Add images from Google Drive</Link>
           </div>

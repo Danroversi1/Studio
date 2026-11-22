@@ -1,9 +1,10 @@
 "use client";
 // The Knowledge Base: her film's research library and updating sources. Plain data work
 // (no model calls). Research here is research, not story fact.
+import { ActionStatus as Status, useAction as useRun } from "@/components/use-action";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { itemDay } from "@/lib/knowledge/timeline";
 import {
@@ -24,32 +25,10 @@ import { kbItemPin } from "@/app/projects/[projectId]/knowledge-actions";
 import { docTypeOf, extractText, uploadDocument } from "@/lib/knowledge/documents";
 import { CONTENT_STATUS, KIND_LABEL, REFRESH_CHOICES, STATUS, VERIFICATION, ago, feedState } from "@/lib/knowledge/labels";
 
-type Msg = { kind: "ok" | "error"; text: string } | null;
-type Res = { ok: true; id?: string; note?: string } | { ok: false; error: string };
 
-function useRun() {
-  const router = useRouter();
-  const [msg, setMsg] = useState<Msg>(null);
-  const [pending, start] = useTransition();
-  function run(fn: () => Promise<Res>, okText?: string, after?: (r: Res & { ok: true }) => void) {
-    setMsg(null);
-    start(async () => {
-      let r: Res;
-      try { r = await fn(); } catch { r = { ok: false, error: "That didn't save. Check your connection and try again." }; }
-      if (r.ok) { setMsg({ kind: "ok", text: r.note ?? okText ?? "Saved." }); after?.(r); router.refresh(); }
-      else setMsg({ kind: "error", text: r.error });
-    });
-  }
-  return { run, msg, setMsg, pending };
-}
-
-function Status({ msg }: { msg: Msg }) {
-  if (!msg) return null;
-  return <p role={msg.kind === "error" ? "alert" : "status"} className={`text-xs ${msg.kind === "error" ? "text-danger" : "text-muted"}`}>{msg.text}</p>;
-}
 const TONE = { ok: "border-ok bg-ok-soft text-ok", warn: "border-warn bg-warn-soft text-warn", muted: "border-line text-muted", danger: "border-danger text-danger" };
 function Badge({ tone, children }: { tone: keyof typeof TONE; children: React.ReactNode }) {
-  return <span className={`border px-1.5 py-0.5 text-[10px] font-semibold tracking-[0.08em] uppercase ${TONE[tone]}`}>{children}</span>;
+  return <span className={`border px-1.5 py-0.5 text-[10px] font-semibold ${TONE[tone]}`}>{children}</span>;
 }
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }) : null);
 const host = (u: string | null) => { try { return u ? new URL(u).hostname.replace(/^www\./, "") : ""; } catch { return ""; } };
@@ -117,7 +96,7 @@ function AddResearch({ projectId, collections, references, preset, share }: { pr
   return (
     <section className="panel flex flex-col gap-3 p-4" aria-labelledby="add-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="add-h" className="display text-lg">Add research</h2>
+        <h2 id="add-h" className="display text-[22px]">Add research</h2>
         <div role="tablist" aria-label="Kind of research" className="flex flex-wrap gap-1">
           {tabs.map((t) => (
             <button key={t.id} role="tab" type="button" aria-selected={tab === t.id} onClick={() => { setTab(t.id); s.setMsg(null); }}
@@ -250,7 +229,7 @@ function Collections({ projectId, collections, counts, used, active, onActive }:
   return (
     <section className="panel flex flex-col gap-3 p-4" aria-labelledby="col-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="col-h" className="display text-lg">Collections</h2>
+        <h2 id="col-h" className="display text-[22px]">Collections</h2>
         <p className="text-xs text-muted">Group research by topic. One source can be in several collections without copying it.</p>
       </div>
       <div className="flex flex-wrap gap-1.5">
@@ -303,7 +282,7 @@ function Feeds({ projectId, feeds, collections, members, itemCounts }: { project
   return (
     <section className="panel flex flex-col gap-3 p-4" aria-labelledby="feeds-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="feeds-h" className="display text-lg">Updating sources</h2>
+        <h2 id="feeds-h" className="display text-[22px]">Updating sources</h2>
         <p className="text-xs text-muted">Checked on Studio&apos;s server once a day and when you open this page, if due. New items never write dialogue on their own.</p>
       </div>
       <ul className="flex flex-col divide-y divide-line">
@@ -412,7 +391,7 @@ function CharacterStrip({ projectId, canEdit, characters, collections, counts, s
   return (
     <section className="panel flex flex-col gap-3 p-4" aria-labelledby="chars-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="chars-h" className="display text-lg">Knowledge for</h2>
+        <h2 id="chars-h" className="display text-[22px]">Knowledge for</h2>
         <p className="text-xs text-muted">The World everyone lives in, then each character. Open one to see and add what they can draw on.</p>
       </div>
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -423,7 +402,7 @@ function CharacterStrip({ projectId, canEdit, characters, collections, counts, s
                 <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18" /></svg>
               </span>
               <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold uppercase">{busy === "world" ? "Opening…" : "World"}</span>
+                <span className="block truncate text-sm font-semibold">{busy === "world" ? "Opening…" : "World"}</span>
                 <span className={`${sub(worldOpen)} font-medium`}>For everyone</span>
                 <span className={sub(worldOpen)}>{world ? `${worldItems} item${worldItems === 1 ? "" : "s"} · ${worldReach} of ${characters.length}` : "News and reactions"}</span>
               </span>
@@ -443,7 +422,7 @@ function CharacterStrip({ projectId, canEdit, characters, collections, counts, s
                     : <svg viewBox="0 0 24 24" className="size-full p-2 text-muted" aria-hidden><circle cx="12" cy="8" r="4" fill="currentColor" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="currentColor" /></svg>}
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold uppercase">{busy === c.id ? "Opening…" : c.name}</span>
+                  <span className="block truncate text-sm font-semibold">{busy === c.id ? "Opening…" : c.name}</span>
                   <span className={`${sub(on)} font-medium`}>{c.role ? ROLE_LABEL[c.role] : "Role not set"}</span>
                   <span className={sub(on)}>
                     {n ? `${items} item${items === 1 ? "" : "s"} · ${n} collection${n === 1 ? "" : "s"}` : own ? "Not connected" : "No research yet"}
@@ -495,7 +474,7 @@ function WorldStories({ projectId, canEdit, items, byId, imp }: {
   return (
     <section className="panel flex flex-col gap-3 p-4" aria-labelledby="stories-h">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="stories-h" className="display text-lg">What&apos;s happening</h2>
+        <h2 id="stories-h" className="display text-[22px]">What&apos;s happening</h2>
         <input className="field min-h-9 w-56 text-sm" placeholder="Search the stories" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search the stories" />
       </div>
 
@@ -543,7 +522,7 @@ function WorldStories({ projectId, canEdit, items, byId, imp }: {
                   <span className="border border-line px-1.5 py-0.5 text-[10px]">{topicOf(i)}</span>
                   {about && <a className="text-accent underline" href={about} target="_blank" rel="noopener noreferrer nofollow">the article being discussed ↗</a>}
                   {canEdit && src.watch_query && (
-                    <button type="button" className={`border px-1.5 py-0.5 text-[10px] font-semibold uppercase ${i.pinned ? "border-ok text-ok" : "border-line"}`} disabled={s.pending}
+                    <button type="button" className={`border px-1.5 py-0.5 text-[10px] font-semibold ${i.pinned ? "border-ok text-ok" : "border-line"}`} disabled={s.pending}
                       title={i.pinned ? "Kept: never cleared away" : "Keep it: daily clearing never removes it"}
                       onClick={() => s.run(() => kbItemPin({ projectId, itemId: i.id, pinned: !i.pinned }))}>{i.pinned ? "Kept" : "Keep"}</button>
                   )}
@@ -591,7 +570,7 @@ function CharacterPanel({ projectId, canEdit, character, collections, counts }: 
     <section className="panel flex flex-col gap-3 border-text p-4" aria-labelledby="char-h">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h2 id="char-h" className="display text-2xl leading-none">{character.name}&apos;s knowledge</h2>
+          <h2 id="char-h" className="display text-3xl leading-none">{character.name}&apos;s knowledge</h2>
           <p className="max-w-2xl text-sm text-muted">
             Research you add here goes into {character.name}&apos;s own collection. It&apos;s what {character.name} could draw on in scenes,
             within the time rules. What {character.name} knows for certain lives on their character page.
@@ -654,7 +633,7 @@ function ItemRow({ projectId, item, source, collections, members, canEdit, imp }
         {st && <Badge tone={st.tone}>{st.label}</Badge>}
         {item.verification !== "unverified" && <Badge tone={item.verification === "checked" ? "ok" : "warn"}>{VERIFICATION[item.verification]}</Badge>}
         {source.watch_query && (canEdit
-          ? <button type="button" className={`border px-1.5 py-0.5 text-[10px] font-semibold uppercase ${item.pinned ? "border-ok text-ok" : "border-line"}`} disabled={s.pending}
+          ? <button type="button" className={`border px-1.5 py-0.5 text-[10px] font-semibold ${item.pinned ? "border-ok text-ok" : "border-line"}`} disabled={s.pending}
               title={item.pinned ? "Kept: never trimmed" : "Keep it so daily trimming never removes it"}
               onClick={() => s.run(() => kbItemPin({ projectId, itemId: item.id, pinned: !item.pinned }))}>{item.pinned ? "Kept" : "Keep"}</button>
           : item.pinned ? <Badge tone="ok">Kept</Badge> : null)}
@@ -665,7 +644,7 @@ function ItemRow({ projectId, item, source, collections, members, canEdit, imp }
       )}
       {open && (
         <div className="mt-1 flex flex-col gap-2 border-l-2 border-line pl-3">
-          <p className="text-[11px] tracking-[0.08em] text-muted uppercase">What the source says · {CONTENT_STATUS[item.content_status]}</p>
+          <p className="text-[11px] text-muted">What the source says · {CONTENT_STATUS[item.content_status]}</p>
           {item.content ? <p className="max-h-64 overflow-y-auto whitespace-pre-wrap">{item.content}</p> : <p className="text-muted">Only the title and details were saved.</p>}
           {(item.url || source.url) && <a className="truncate text-xs text-accent underline" href={item.url ?? source.url ?? "#"} target="_blank" rel="noopener noreferrer nofollow">{item.url ?? source.url}</a>}
           {source.asset_id && <a className="text-xs text-accent underline" href={`/api/assets/${source.asset_id}`} target="_blank" rel="noopener noreferrer">Open the original file</a>}
@@ -796,7 +775,7 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
       {!char && !inWorld && <Feeds projectId={projectId} feeds={sources.filter((s) => s.kind === "feed" && !s.watch_query)} collections={collections} members={members} itemCounts={itemCounts} />}
       {!inWorld && <section className="panel flex flex-col gap-3 p-4" aria-labelledby="lib-h">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="lib-h" className="display text-lg">{inWorld ? "In the World" : char ? `Fixed knowledge: research ${char.name} can draw on` : `Library ${active ? `· ${collections.find((c) => c.id === active)?.name}` : ""}`}</h2>
+          <h2 id="lib-h" className="display text-[22px]">{inWorld ? "In the World" : char ? `Fixed knowledge: research ${char.name} can draw on` : `Library ${active ? `· ${collections.find((c) => c.id === active)?.name}` : ""}`}</h2>
           <div className="flex flex-wrap gap-2">
             <input className="field min-h-9 w-56 text-sm" placeholder="Search your research" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search" />
             <select className="field min-h-9 w-auto text-sm" value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Kind">
@@ -815,7 +794,7 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
       {char && world && (
         <section className="panel flex flex-col gap-3 p-4" aria-labelledby="char-world-h">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 id="char-world-h" className="display text-lg">World knowledge: the world {char.name} lives in</h2>
+            <h2 id="char-world-h" className="display text-[22px]">World knowledge: the world {char.name} lives in</h2>
             <Link href="?world=1" scroll={false} className="text-xs text-accent">Open the World →</Link>
           </div>
           <p className="text-xs text-muted">

@@ -2,10 +2,10 @@
 // Characters' daily coverage, on each main character's page: their bubble and the shared daily
 // refresh (one job for all main characters). Coverage shown here was AVAILABLE to them; it is
 // not what they read, and nothing becomes story until an event is approved in the review.
+import { useAction } from "@/components/use-action";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { bubbleRefreshNow, bubbleSaveProfile, bubbleSaveSettings, bubbleSetActive, type BR } from "@/app/projects/[projectId]/bubble-actions";
+import { useState } from "react";
+import { bubbleRefreshNow, bubbleSaveSettings, bubbleSetActive, type BR } from "@/app/projects/[projectId]/bubble-actions";
 import type { BubbleDesk, CharacterBubble } from "@/lib/bubbles/data";
 import { InterestsEditor } from "./interests";
 
@@ -13,16 +13,8 @@ const ZONES = ["America/New_York", "America/Chicago", "America/Denver", "America
 const STATUS: Record<string, string> = { succeeded: "Succeeded", partial: "Partly succeeded", failed: "Failed", skipped: "Skipped (paused)", running: "Running…" };
 
 function useAct() {
-  const router = useRouter();
-  const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
-  const [pending, start] = useTransition();
-  const run = (f: () => Promise<BR>) => start(async () => {
-    const r = await f();
-    setMsg(r.ok ? { kind: "ok", text: r.note ?? "Done." } : { kind: "error", text: r.error });
-    router.refresh();
-  });
-  const line = msg ? <p role="status" className={`text-sm ${msg.kind === "error" ? "text-danger" : "text-muted"}`}>{msg.text}</p> : null;
-  return { run, pending, line };
+  const a = useAction();
+  return { run: (f: () => Promise<BR>) => a.run(f, "Done."), pending: a.pending, line: a.line };
 }
 
 /** The shared daily refresh (one job for all main characters), shown inside each character's panel. */

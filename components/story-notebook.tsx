@@ -33,7 +33,7 @@ function Act({ projectId, back, itemId, status, kind, label }: {
       <input type="hidden" name="itemId" value={itemId} />
       {status && <input type="hidden" name="status" value={status} />}
       {kind && <input type="hidden" name="kind" value={kind} />}
-      <button type="submit" className="text-[11px] tracking-[0.08em] text-muted uppercase underline-offset-2 hover:text-accent hover:underline">{label}</button>
+      <button type="submit" className="text-[11px] text-muted underline-offset-2 hover:text-accent hover:underline">{label}</button>
     </form>
   );
 }
@@ -58,7 +58,7 @@ function Item({ n, projectId, back, canEdit }: { n: NotebookItem; projectId: str
           {n.kind === "for_later" && <Act projectId={projectId} back={back} itemId={n.id} kind="idea" status="proposed" label="Bring back" />}
           {n.kind !== "for_later" && n.kind !== "next_action" && <Act projectId={projectId} back={back} itemId={n.id} kind="for_later" status="confirmed" label="For later" />}
           <details className="group">
-            <summary className="cursor-pointer list-none text-[11px] tracking-[0.08em] text-muted uppercase hover:text-accent">Edit</summary>
+            <summary className="cursor-pointer list-none text-[11px] text-muted hover:text-accent">Edit</summary>
             <form action={updateNote} className="mt-1.5 flex flex-col gap-1.5">
               <input type="hidden" name="projectId" value={projectId} />
               <input type="hidden" name="back" value={back} />
@@ -82,7 +82,7 @@ export function StoryNotebook({ projectId, runtime, items, canEdit, back, storyH
   return (
     <section className="panel flex flex-col" aria-labelledby="nb-h">
       <div className="flex items-baseline justify-between gap-2 border-b border-line px-4 py-3">
-        <h2 id="nb-h" className="display text-lg">Story notebook</h2>
+        <h2 id="nb-h" className="display text-[22px]">Story notebook</h2>
         <a href={storyHref} className="link-accent text-xs">Your draft ↗</a>
       </div>
 

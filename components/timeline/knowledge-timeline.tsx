@@ -2,8 +2,8 @@
 // The Director's Knowledge Timeline: the current world day, how far each character can see,
 // the gaps the protagonist closes by investigation, and the predictions, interventions and
 // changed outcomes that follow. No model; every rule is checked by the database.
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useAction } from "@/components/use-action";
+import { useState } from "react";
 import { tlAddDiscovery, tlAddIntervention, tlAddPrediction, tlBrief, tlOutcome, tlReassess, tlResolvePrediction, tlSetAccess, tlSetAnchor } from "@/app/projects/[projectId]/timeline-actions";
 import { METHODS, METHOD_LABEL, PROTAGONIST_LABEL, dayLabel } from "@/lib/knowledge/timeline";
 import type { Timeline, TlItem } from "@/lib/knowledge/timeline-data";
@@ -12,16 +12,8 @@ import { ROLE_LABEL } from "@/lib/characters/roles";
 type Res = { ok: true } | { ok: false; error: string };
 
 function useAct() {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const run = (f: () => Promise<Res>, done: string, after?: () => void) => start(async () => {
-    const r = await f().catch(() => ({ ok: false as const, error: "That didn't go through. Try again." }));
-    setMsg(r.ok ? { ok: true, text: done } : { ok: false, text: r.error });
-    if (r.ok) { after?.(); router.refresh(); }
-  });
-  const line = msg && <p role="status" className={`text-xs ${msg.ok ? "text-muted" : "text-danger"}`}>{msg.text}</p>;
-  return { run, pending, line };
+  const a = useAction();
+  return { run: (f: () => Promise<Res>, done: string, after?: () => void) => a.run(f, done, after ? () => after() : undefined), pending: a.pending, line: a.line };
 }
 
 const toggle = (xs: string[], x: string) => (xs.includes(x) ? xs.filter((y) => y !== x) : [...xs, x]);
@@ -42,7 +34,7 @@ function Tile({ label, value, sub }: { label: string; value: string; sub?: strin
   return (
     <div className="flex flex-col gap-1 border border-line p-3">
       <span className="eyebrow">{label}</span>
-      <span className="display text-xl leading-tight">{value}</span>
+      <span className="display text-[26px] leading-tight">{value}</span>
       {sub && <span className="text-xs text-muted">{sub}</span>}
     </div>
   );
@@ -59,7 +51,7 @@ export function KnowledgeTimeline({ projectId, canEdit, tl, buffers }: { project
   return (
     <section id="timeline" className="panel flex scroll-mt-6 flex-col gap-4 p-5" aria-labelledby="tl-h">
       <div className="flex flex-col gap-1">
-        <h2 id="tl-h" className="display text-2xl leading-none">Knowledge Timeline</h2>
+        <h2 id="tl-h" className="display text-3xl leading-none">Knowledge Timeline</h2>
         <p className="max-w-3xl text-sm text-muted">
           The world&apos;s collected material runs ahead of the story. Only an antagonist you allow can see ahead. The protagonist&apos;s routine news stays one story day behind;
           he catches up by observing, asking, researching and seeing patterns. Supporting and featured characters live in the present.

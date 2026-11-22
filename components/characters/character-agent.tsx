@@ -73,7 +73,7 @@ export function CharacterAgent({ projectId, entityId, name, canEdit, aiReady, pr
 
       {profile.proposed.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className="text-[11px] font-semibold tracking-[0.1em] text-warn uppercase">Proposed interpretations · not part of {name} until you accept</p>
+          <p className="text-[11px] font-semibold text-warn">Proposed interpretations · not part of {name} until you accept</p>
           <ul className="flex flex-col gap-2">
             {profile.proposed.map((p) => (
               <li key={p.id} className="flex flex-col gap-1.5 border border-warn/50 bg-warn-soft/40 p-2 text-sm">
@@ -96,11 +96,11 @@ export function CharacterAgent({ projectId, entityId, name, canEdit, aiReady, pr
 
       <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); run(() => saveCharacterProfile({ projectId, entityId, baseVersion: version, confirmed: vals }), "Saved."); }}>
         <details open={Object.keys(profile.confirmed).length > 0}>
-          <summary className="cursor-pointer list-none text-[11px] font-semibold tracking-[0.1em] uppercase">Confirmed facts · who {name} is</summary>
+          <summary className="cursor-pointer list-none text-[11px] font-semibold">Confirmed facts · who {name} is</summary>
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">{FIELDS.filter((f) => f.group === "who").map((f) => field(f.key, f.hint, f.label))}</div>
         </details>
         <details open={!!(vals.knows || vals.misbeliefs || vals.conceals)}>
-          <summary className="cursor-pointer list-none text-[11px] font-semibold tracking-[0.1em] uppercase">What {name} actually knows</summary>
+          <summary className="cursor-pointer list-none text-[11px] font-semibold">What {name} actually knows</summary>
           <p className="mt-2 text-xs text-muted">This is knowledge {name} has in the story. Research connected below is only what they could draw on.</p>
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">{FIELDS.filter((f) => f.group === "knows").map((f) => field(f.key, f.hint, f.label))}</div>
         </details>
@@ -114,7 +114,7 @@ export function CharacterAgent({ projectId, entityId, name, canEdit, aiReady, pr
       </form>
 
       <div className="flex flex-col gap-1.5">
-        <p className="text-[11px] font-semibold tracking-[0.1em] uppercase">Research {name} could draw on</p>
+        <p className="text-[11px] font-semibold">Research {name} could draw on</p>
         {links.length ? (
           <ul className="flex flex-col gap-1 text-sm">
             {links.map((l) => (

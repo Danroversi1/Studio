@@ -1,7 +1,6 @@
 // SERVER ONLY. Lays out scenes for new outline beats. The model classifies each beat
 // (interior or exterior, where, when, who is in it, what the art department needs);
 // her beat text is used as written. Service role only to run and record the agent run.
-import type Anthropic from "@anthropic-ai/sdk";
 import { anthropicClient } from "../ai/client";
 import { costUsd, type Usage } from "../ai/pricing";
 import { supabaseService } from "../supabase/server";

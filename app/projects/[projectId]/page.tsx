@@ -8,14 +8,10 @@ import { parseIntake, isTreatmentRef } from "@/lib/intake";
 import { notFound } from "next/navigation";
 import { Flash } from "@/components/flash";
 import { IconArrowUpRight, IconCharacter, IconLink, IconLocation, IconPlus, IconSparkle, IconStory } from "@/components/icons";
-import { SubmitButton } from "@/components/ui";
-import { aiConfigured } from "@/lib/agents/run-story-breakdown";
-import { getAiBudget, getAppearances, getLatestVersions, getProjectShell, getStoryReferences, getWorld, type VersionStatus } from "@/lib/data";
+import { getAppearances, getLatestVersions, getProjectShell, getStoryReferences, getWorld, type VersionStatus } from "@/lib/data";
 import { WorldLine } from "@/components/world-line";
 import { ThumbView } from "@/components/thumb-view";
 import { thumbOf } from "@/lib/thumb";
-import { TREATMENT_ATTRIBUTION } from "@/lib/intake";
-import { requestBreakdown } from "./actions";
 
 export const maxDuration = 300;
 
@@ -38,8 +34,8 @@ function Card({ icon, title, badge, preview, heading, sub, agent, href, openLabe
   return (
     <article className="panel flex flex-col">
       <div className="flex items-center gap-3 border-b border-line px-5 py-4">
-        <span className="flex size-10 shrink-0 items-center justify-center bg-text text-brand">{icon}</span>
-        <h3 className="flex-1 truncate text-base font-semibold tracking-[0.04em] uppercase">{title}</h3>
+        <span className="flex size-10 shrink-0 items-center justify-center bg-accent-soft text-accent">{icon}</span>
+        <h3 className="flex-1 truncate text-base font-semibold">{title}</h3>
         {badge}
       </div>
       <div className={`relative h-44 overflow-hidden border-b border-line bg-panel-2 font-serif text-[14px] leading-7 text-text/85 ${bleed ? "" : "px-5 py-4"}`}>{preview}</div>
@@ -48,7 +44,7 @@ function Card({ icon, title, badge, preview, heading, sub, agent, href, openLabe
         <p className="help">{sub}</p>
       </div>
       <div className="flex items-center justify-between border-t border-line px-5">
-        {extra ?? <span className="inline-flex items-center gap-2 text-xs tracking-[0.12em] text-muted uppercase">
+        {extra ?? <span className="inline-flex items-center gap-2 text-xs text-muted">
           {agent && <><span className="size-2 bg-brand" aria-hidden /> {agent}</>}
         </span>}
         <Link href={href} className="link-accent">{openLabel} <IconArrowUpRight /></Link>
@@ -73,8 +69,8 @@ function SectionHead({ id, title, note, action }: { id?: string; title: string; 
   return (
     <div id={id} className="flex scroll-mt-6 flex-wrap items-end justify-between gap-3 border-b border-line pb-3">
       <h2 className="flex flex-wrap items-baseline gap-x-4">
-        <span className="display text-2xl">{title}</span>
-        {note && <span className="text-xs tracking-[0.12em] text-muted uppercase">{note}</span>}
+        <span className="display text-3xl">{title}</span>
+        {note && <span className="text-xs text-muted">{note}</span>}
       </h2>
       {action}
     </div>
@@ -96,9 +92,8 @@ export default async function ProjectOverview({
   const story = entities.find((e) => e.kind === "story");
   const characters = entities.filter((e) => e.kind === "character");
   const locations = entities.filter((e) => e.kind === "location");
-  const [latest, budget, refs, world, appearances] = await Promise.all([
+  const [latest, refs, world, appearances] = await Promise.all([
     getLatestVersions(projectId),
-    getAiBudget(projectId),
     story ? getStoryReferences(projectId, story.id) : Promise.resolve([]),
     getWorld(projectId),
     getAppearances(projectId, characters.map((c) => c.name)),
@@ -108,7 +103,6 @@ export default async function ProjectOverview({
   const synopsis = storyLatest?.content.body?.trim() ?? "";
   const intake = parseIntake(synopsis);
   const preview = (intake.idea || project.description || "").trim();
-  const canAsk = !!story && caps.can_edit && aiConfigured() && budget.available && synopsis.length >= 50;
   const pieces = (story ? 2 : 0) + characters.length + locations.length;
   const addHref = `/projects/${projectId}/add`;
   const firstTreatment = treatments.map((t) => parseGoogleLink(t.source_url)).find((g) => g?.kind === "slides" || g?.kind === "doc");
@@ -135,11 +129,11 @@ export default async function ProjectOverview({
       <WorldLine projectId={projectId} world={world} />
 
       {caps.can_edit && story && (
-        <section className="flex flex-wrap items-center gap-5 border border-text bg-text px-6 py-6 text-panel-2">
-          <span className="text-brand"><IconSparkle className="size-9" /></span>
+        <section className="flex flex-wrap items-center gap-5 border border-line bg-panel px-6 py-6">
+          <span className="text-accent"><IconSparkle className="size-9" /></span>
           <div className="min-w-60 flex-1">
-            <p className="display text-xl">One story. Many ways forward.</p>
-            <p className="mt-1 text-sm leading-relaxed text-panel-2/75">
+            <p className="display text-[26px]">One story. Many ways forward.</p>
+            <p className="mt-1 text-sm leading-relaxed text-soft">
               Your Storybuilder helps you find what you want to say, one question at a time. You decide what joins the film.
             </p>
           </div>
@@ -153,7 +147,7 @@ export default async function ProjectOverview({
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <Card
               icon={<IconStory />} title="Synopsis" badge={statusBadge(!!story.current_version_id, storyLatest)}
-              preview={<><p className="mb-2 font-semibold tracking-[0.06em] text-text uppercase">{project.name}</p><p className="line-clamp-4">{preview || "Your first page is waiting. Open to start writing."}</p></>}
+              preview={<><p className="mb-2 font-semibold text-text">{project.name}</p><p className="line-clamp-4">{preview || "Your first page is waiting. Open to start writing."}</p></>}
               heading="The seed of your story" sub="Your idea. Your starting point." agent="Story Lead"
               href={storyHref}
             />
@@ -167,7 +161,7 @@ export default async function ProjectOverview({
                   sandbox="allow-scripts allow-same-origin" referrerPolicy="strict-origin-when-cross-origin"
                   className="pointer-events-none absolute top-0 left-0 origin-top-left border-0"
                   style={{ width: "400%", height: "400%", transform: "scale(0.25)" }} />
-              ) : <><p className="mb-2 font-semibold tracking-[0.06em] text-text uppercase">{project.name}</p>{treatments.length ? (
+              ) : <><p className="mb-2 font-semibold text-text">{project.name}</p>{treatments.length ? (
                 <ul className="flex flex-col gap-1">{treatments.slice(0, 4).map((t) => <li key={t.id} className="truncate">↗ {t.title || t.source_domain}</li>)}</ul>
               ) : <>
                 <p>Your bigger picture lives here. Link your director&apos;s treatment to keep it with your story.</p>
@@ -200,7 +194,7 @@ export default async function ProjectOverview({
             groupsOf(sec.id, sec.items, appearances).map((g) => (
             <div key={g.key} className="flex flex-col gap-3">
               {g.label && (
-                <h3 className="flex items-baseline gap-3 text-sm font-semibold tracking-[0.12em] uppercase">
+                <h3 className="flex items-baseline gap-3 text-sm font-semibold">
                   {g.label}<span className="text-xs font-normal tracking-normal text-muted normal-case">{g.hint}</span>
                 </h3>
               )}
@@ -216,7 +210,7 @@ export default async function ProjectOverview({
                       <div className="flex h-full flex-col gap-2">
                         <p className="line-clamp-3">{v?.content.summary || "Nothing written yet. Open to describe them."}</p>
                         {caps.can_edit && (
-                          <Link href={`/projects/${projectId}/items/${e.id}#thumbnail`} className="mt-auto inline-flex w-fit items-center gap-1.5 border border-dashed border-line px-3 py-1.5 font-sans text-xs tracking-[0.08em] text-muted uppercase hover:border-text hover:text-text">
+                          <Link href={`/projects/${projectId}/items/${e.id}#thumbnail`} className="mt-auto inline-flex w-fit items-center gap-1.5 border border-dashed border-line px-3 py-1.5 font-sans text-xs text-muted hover:border-text hover:text-text">
                             <IconPlus /> Choose a thumbnail
                           </Link>
                         )}
@@ -227,7 +221,7 @@ export default async function ProjectOverview({
                     href={`/projects/${projectId}/items/${e.id}`}
                     extra={sec.id === "characters" ? (caps.can_edit
                       ? <RoleSelect projectId={projectId} entityId={e.id} name={e.name} role={roleOf(e.metadata)} />
-                      : <span className="text-xs tracking-[0.12em] text-muted uppercase">{roleOf(e.metadata) ? ROLE_LABEL[roleOf(e.metadata)!] : ""}</span>) : undefined} />
+                      : <span className="text-xs text-muted">{roleOf(e.metadata) ? ROLE_LABEL[roleOf(e.metadata)!] : ""}</span>) : undefined} />
                 );
               })}
             </div>

@@ -1,7 +1,6 @@
 // SERVER ONLY. Runs one queued Story Lead breakdown. Uses the service role solely to read
 // the run's inputs and to record results through the trusted database functions.
 import { currentSynopsis } from "./current-story";
-import type Anthropic from "@anthropic-ai/sdk";
 import { anthropicClient } from "../ai/client";
 import { costUsd, type Usage } from "../ai/pricing";
 import { supabaseService } from "../supabase/server";

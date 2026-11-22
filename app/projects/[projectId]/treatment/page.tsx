@@ -15,7 +15,7 @@ import { getFilmEntities, getFilmPictures, getLook } from "@/lib/look/data";
 import type { SlideInfo } from "@/lib/slide-match";
 import { scriptScenes } from "@/lib/storyboard/review";
 import { parseGoogleLink, slidesEmbedUrl } from "@/lib/google/links";
-import { TREATMENT_ATTRIBUTION, isTreatmentRef } from "@/lib/intake";
+import { isTreatmentRef } from "@/lib/intake";
 
 export default async function TreatmentPage({
   params,
@@ -47,7 +47,7 @@ export default async function TreatmentPage({
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <header className="flex flex-col gap-3">
-        <Link href={base} className="inline-flex min-h-11 w-fit items-center gap-1.5 text-xs tracking-[0.12em] text-muted uppercase hover:text-text">
+        <Link href={base} className="inline-flex min-h-11 w-fit items-center gap-1.5 text-xs text-muted hover:text-text">
           <IconArrowLeft /> Overview
         </Link>
         <p className="eyebrow">Director treatment</p>
@@ -119,7 +119,7 @@ export default async function TreatmentPage({
 
       {story && shell.caps.can_edit && (
         <section className="panel flex flex-col gap-3 p-5" aria-labelledby="link-h">
-          <h2 id="link-h" className="display text-lg">{current ? "Link another treatment" : "Link your treatment"}</h2>
+          <h2 id="link-h" className="display text-[22px]">{current ? "Link another treatment" : "Link your treatment"}</h2>
           <p className="help">A Google Doc or Google Slides link. You can read it here, pull its pictures in, and let the Story Lead break it down.</p>
           <form action={addTreatmentLink} className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_16rem_auto]">
             <input type="hidden" name="projectId" value={projectId} />
@@ -136,7 +136,7 @@ export default async function TreatmentPage({
       {story && (extra.length > 0 || shell.caps.can_edit) && (
         <section className="flex flex-col gap-3" aria-labelledby="more-refs-h">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 id="more-refs-h" className="display text-lg">{current ? "Additional references" : "References"}</h2>
+            <h2 id="more-refs-h" className="display text-[22px]">{current ? "Additional references" : "References"}</h2>
             <Link href={`${base}/references`} className="link-accent text-sm">All references by department ↗</Link>
           </div>
           {extra.length === 0 ? <p className="help">None yet.</p> : (

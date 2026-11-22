@@ -20,8 +20,8 @@ export function ActTimeline({ script, target, lengthLabel }: { script: ParsedScr
   return (
     <section className="panel corner-marks flex flex-col gap-3 p-4" aria-labelledby="tl-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="tl-h" className="display text-lg">Beginning, middle, ending</h2>
-        <p className="text-xs tracking-[0.08em] text-muted uppercase">
+        <h2 id="tl-h" className="display text-[22px]">Beginning, middle, ending</h2>
+        <p className="text-xs text-muted">
           {pagesNow} of {target} {target === 1 ? "page" : "pages"} · about {pagesNow < 2 ? `${Math.round(script.totalPages * 60)} sec` : `${Math.round(script.totalPages)} min`} · {script.scenes.length} {script.scenes.length === 1 ? "scene" : "scenes"}
         </p>
       </div>
@@ -32,7 +32,7 @@ export function ActTimeline({ script, target, lengthLabel }: { script: ParsedScr
           {bands.map((b, i) => (
             <div key={`${b.label}-${i}`} className={`absolute inset-y-0 border-r border-line ${own ? ACT_TONES[i % ACT_TONES.length] : i === 1 ? "bg-text/5" : "bg-brand/10"}`}
               style={{ left: pct(b.from), width: `calc(${pct(b.to)} - ${pct(b.from)})` }}>
-              <span className="absolute top-1 left-1.5 text-[10px] font-semibold tracking-[0.12em] whitespace-nowrap uppercase">{b.label}</span>
+              <span className="absolute top-1 left-1.5 text-[10px] font-semibold whitespace-nowrap">{b.label}</span>
             </div>
           ))}
           {/* written so far */}

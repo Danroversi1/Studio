@@ -28,7 +28,7 @@ export interface LookProps {
 type Msg = { kind: "error" | "notice"; text: string } | null;
 
 export function LookAndFeel(props: LookProps) {
-  const { projectId, canEdit, refs, directions, entities } = props;
+  const { projectId, canEdit, refs, directions } = props;
   const router = useRouter();
   const [, startRefresh] = useTransition();
   const refresh = () => startRefresh(() => router.refresh());
@@ -60,7 +60,7 @@ export function LookAndFeel(props: LookProps) {
     <section className="panel flex flex-col gap-4 p-5" aria-labelledby="look-h">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 id="look-h" className="display text-2xl leading-none">LOOK &amp; FEEL</h2>
+          <h2 id="look-h" className="display text-3xl leading-none">LOOK &amp; FEEL</h2>
           <p className="help mt-1">Collect the images that shape your film.</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -361,8 +361,8 @@ function RefDialog({ r, projectId, canEdit, entities, scenes, directions, onClos
         <div className="flex items-start justify-between gap-3">
           <div className="flex flex-col gap-1">
             <p className="eyebrow">Look &amp; Feel reference</p>
-            {ro ? <h3 id="ref-dialog-h" className="display text-xl">{r.title}</h3>
-              : <input id="ref-dialog-h" className="field display text-lg" value={v.title} maxLength={120} onChange={(e) => set({ title: e.target.value })} aria-label="Title" />}
+            {ro ? <h3 id="ref-dialog-h" className="display text-[26px]">{r.title}</h3>
+              : <input id="ref-dialog-h" className="field display text-[22px]" value={v.title} maxLength={120} onChange={(e) => set({ title: e.target.value })} aria-label="Title" />}
           </div>
           <button type="button" className="btn min-h-9 px-3 text-xs" onClick={onClose} aria-label="Close">Close</button>
         </div>

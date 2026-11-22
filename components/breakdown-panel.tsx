@@ -11,12 +11,12 @@ export function BreakdownPanel({ body }: { body: string }) {
     if (s.intExt !== "—") places.get(s.location)!.add(s.intExt);
   }
   const chip = (label: string, xs: string[]) => xs.length ? (
-    <p className="text-xs"><span className="text-muted uppercase tracking-[0.08em]">{label}: </span>{xs.join(", ")}</p>
+    <p className="text-xs"><span className="text-muted">{label}: </span>{xs.join(", ")}</p>
   ) : null;
   return (
     <section className="panel flex flex-col gap-4 p-4" aria-labelledby="bd-h">
       <div>
-        <h2 id="bd-h" className="display text-lg">Breakdown</h2>
+        <h2 id="bd-h" className="display text-[22px]">Breakdown</h2>
         <p className="text-sm text-muted">
           {scenes.length} {scenes.length === 1 ? "scene" : "scenes"} · {places.size} {places.size === 1 ? "place" : "places"}.
           Art notes are lines like [[Props: brass key]] in the script: they never print, and you can edit them.

@@ -8,7 +8,7 @@ import { IconArrowLeft } from "@/components/icons";
 import { getProjectShell, getStoryReferences } from "@/lib/data";
 import { isDepartment } from "@/lib/departments";
 import { parseGoogleLink } from "@/lib/google/links";
-import { TREATMENT_ATTRIBUTION, isTreatmentRef } from "@/lib/intake";
+import { isTreatmentRef } from "@/lib/intake";
 
 export default async function ImportPage({
   params,
@@ -43,7 +43,7 @@ export default async function ImportPage({
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <header className="flex flex-col gap-3">
-        <Link href={`/projects/${projectId}/references`} className="inline-flex min-h-11 w-fit items-center gap-1.5 text-xs tracking-[0.12em] text-muted uppercase hover:text-text">
+        <Link href={`/projects/${projectId}/references`} className="inline-flex min-h-11 w-fit items-center gap-1.5 text-xs text-muted hover:text-text">
           <IconArrowLeft /> References
         </Link>
         <p className="eyebrow">Additional references</p>

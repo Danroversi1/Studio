@@ -27,7 +27,7 @@ export function LengthPicker({ projectId, back, runtime, canEdit, helpHref }: {
       <input type="hidden" name="projectId" value={projectId} />
       <input type="hidden" name="back" value={back} />
       <input type="hidden" name="runtime" value={choice ?? ""} />
-      <h2 id="length-h" className="display text-xl">Length</h2>
+      <h2 id="length-h" className="display text-[26px]">Length</h2>
       <p className="text-sm">How long are you imagining your film?</p>
       <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Film length">
         {RUNTIMES.map((r) => (

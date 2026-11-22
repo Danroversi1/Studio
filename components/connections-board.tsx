@@ -209,7 +209,7 @@ export function ConnectionsBoard({ projectId, input, links: initialLinks, canEdi
                     </div>
                   )}
                   <div className="flex min-w-0 flex-1 flex-col">
-                    <p className="text-[10px] tracking-[0.12em] text-muted uppercase">{KIND_LABEL[n.kind]}</p>
+                    <p className="text-[10px] text-muted">{KIND_LABEL[n.kind]}</p>
                     <p className="truncate text-sm font-semibold">{n.title}</p>
                     <p className="line-clamp-3 text-[11px] leading-tight text-muted">{n.body}</p>
                     {n.href && <Link href={n.href} className="mt-auto text-[10px] text-accent" onPointerDown={(e) => e.stopPropagation()}>Open</Link>}

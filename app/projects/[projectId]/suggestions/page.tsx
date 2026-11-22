@@ -82,7 +82,7 @@ export default async function SuggestionsPage({
             const sameKind = entities.filter((e) => e.kind === p.entity_kind);
             return (
               <article key={p.id} className="panel flex flex-col gap-3 p-4">
-                <p className="text-xs font-semibold tracking-wide text-muted uppercase">New {p.entity_kind} · from your agents</p>
+                <p className="text-xs font-semibold tracking-wide text-muted">New {p.entity_kind} · from your agents</p>
                 {(p.evidence as string[]).length > 0 && (
                   <ul className="flex flex-col gap-1 border-l-2 border-accent/60 pl-3">
                     {(p.evidence as string[]).map((q, i) => (

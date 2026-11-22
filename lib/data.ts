@@ -125,13 +125,19 @@ export async function getAiBudget(projectId: string) {
   return (data ?? { can_manage: false, available: false }) as AiBudget;
 }
 
-export async function countPendingSuggestions(projectId: string) {
+/** What's waiting for her decision, across desks (counts only; one round trip each, in parallel). */
+export async function getAttention(projectId: string) {
   const sb = await supabaseServer();
-  const { count } = await sb
-    .from("agent_proposals").select("id", { count: "exact", head: true })
-    .eq("project_id", projectId).eq("status", "pending");
-  return count ?? 0;
+  const head = { count: "exact" as const, head: true };
+  const [s, e, d, f] = await Promise.all([
+    sb.from("agent_proposals").select("id", head).eq("project_id", projectId).eq("status", "pending"),
+    sb.from("sim_events").select("id", head).eq("project_id", projectId).eq("status", "proposed"),
+    sb.from("dialogue_proposals").select("id", head).eq("project_id", projectId).eq("status", "ready"),
+    sb.from("knowledge_trajectory_flags").select("id", head).eq("project_id", projectId).eq("status", "needs_reassessment"),
+  ]);
+  return { suggestions: s.count ?? 0, events: e.count ?? 0, dialogue: d.count ?? 0, reassess: f.count ?? 0 };
 }
+export type Attention = Awaited<ReturnType<typeof getAttention>>;
 
 export async function getSuggestions(projectId: string) {
   const sb = await supabaseServer();

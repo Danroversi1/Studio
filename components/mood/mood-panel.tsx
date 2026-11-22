@@ -69,7 +69,7 @@ export function MoodPanel({ projectId, characterId, name, canEdit, m }: { projec
             const it = items.get(j.item_key);
             return (
               <li key={i} className="border-b border-line py-1">
-                <span className={`mr-2 border px-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${j.relation > 0 ? "border-ok text-ok" : "border-danger text-danger"}`}>{j.relation > 0 ? "In tune" : "At odds"}</span>
+                <span className={`mr-2 border px-1 text-[10px] font-semibold ${j.relation > 0 ? "border-ok text-ok" : "border-danger text-danger"}`}>{j.relation > 0 ? "In tune" : "At odds"}</span>
                 {it?.title ?? "A news item"} <span className="text-xs text-muted">· {it?.source}</span>
                 <span className="block text-xs text-muted">{rules.get(j.rule_id) ?? "A rule"} — {j.reason}</span>
               </li>

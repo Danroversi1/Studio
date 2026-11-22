@@ -81,8 +81,8 @@ export function AssetsPanel({ projectId, entityId, library, film, editable, canE
                 <div className="flex flex-col gap-0.5 p-1.5 text-xs">
                   <b className="truncate">{it.name}</b>
                   <span className="text-muted">{KIND_LABELS[it.kind].replace(/s$/, "")}{it.views ? ` · ${it.views}` : ""}</span>
-                  {it.usage === "reference_only" && <span className="text-[10px] uppercase tracking-[0.08em] text-muted">Reference only</span>}
-                  {it.origin === "generated" && <span className="text-[10px] uppercase tracking-[0.08em] text-muted">Made with AI</span>}
+                  {it.usage === "reference_only" && <span className="text-[10px] text-muted">Reference only</span>}
+                  {it.origin === "generated" && <span className="text-[10px] text-muted">Made with AI</span>}
                   <span className="mt-1 flex flex-wrap gap-1">
                     {it.usage === "composition" && it.assetId && <button type="button" className="btn min-h-8 px-2 text-[11px]" disabled={!editable} onClick={() => onPlaceItem(it)}>Place</button>}
                     {canEdit && <button type="button" className="btn min-h-8 px-2 text-[11px]" onClick={() => setEditing(editing === it.id ? null : it.id)}>Edit</button>}
@@ -506,7 +506,6 @@ export function CameraPanel({ comp, frame, editable, canEdit, edit, onSaveConten
 // ---- Lens shelf ----------------------------------------------------------------------------
 // Lenses she picked while browsing Lens Addiction (or elsewhere): her link and her notes.
 // Nothing is copied from the source site; "Open" always goes back to it.
-const focalText = (l: LensPick) => (l.focalLengths.length ? (l.zoom && l.focalLengths.length >= 2 ? `${l.focalLengths[0]}–${l.focalLengths[l.focalLengths.length - 1]} mm` : `${l.focalLengths.join(", ")} mm`) : "");
 
 function LensShelf({ projectId, lenses, frames, current, currentFocal, canEdit, frameLocked, onUse, onChanged, onMessage }: {
   projectId: string; lenses: LensPick[]; frames: FrameRow[]; current: string | null; currentFocal?: number; canEdit: boolean; frameLocked: boolean;
@@ -764,7 +763,7 @@ export function ReferenceTray({ open, onToggle, library, editable, onPlace, look
                 {r.attribution && <p className="truncate text-muted">© {r.attribution}</p>}
                 {r.usage === "composition" && r.assetId
                   ? <button type="button" className="btn mt-1 min-h-8 px-2 text-[11px]" disabled={!editable} onClick={() => onPlace(r)}>Use in frame</button>
-                  : <p className="text-[10px] uppercase tracking-[0.08em] text-muted">Reference only</p>}
+                  : <p className="text-[10px] text-muted">Reference only</p>}
               </li>
             ))}
           </ul>

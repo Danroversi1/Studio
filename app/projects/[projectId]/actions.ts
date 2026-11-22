@@ -243,7 +243,6 @@ export async function setAiBudget(fd: FormData) {
 
 // ---------------------------------------------------------------- Project intake (Start page)
 
-const startPath = (p: string) => `/projects/${p}`;
 const addPath = (p: string) => `/projects/${p}/add`;
 
 export async function saveSynopsis(fd: FormData) {

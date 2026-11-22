@@ -138,7 +138,7 @@ export function DevComments() {
         return (
           <div key={c.id} className="absolute z-[9997]" style={{ left, top }}>
             <button type="button" onClick={() => setOpenPin(openPin === c.id ? null : c.id)}
-              className={`-translate-x-1/2 -translate-y-1/2 flex size-7 items-center justify-center rounded-full border-2 border-white text-xs font-bold shadow ${c.status === "open" ? "bg-brand text-text" : "bg-muted text-white"}`}
+              className={`-translate-x-1/2 -translate-y-1/2 flex size-7 items-center justify-center rounded-full border-2 border-white text-xs font-bold shadow ${c.status === "open" ? "bg-brand text-ink" : "bg-muted text-white"}`}
               aria-label={`Developer comment ${n}`}>{n}</button>
             {openPin === c.id && (
               <div className="absolute top-5 left-0 w-72 border border-line bg-panel-2 p-3 text-sm shadow-lg">

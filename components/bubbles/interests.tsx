@@ -66,7 +66,7 @@ export function InterestsEditor({ projectId, characterId, name, canEdit, topics,
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <span className="text-xs font-semibold uppercase tracking-[0.08em]">What {name} is into</span>
+        <span className="text-xs font-semibold">What {name} is into</span>
         <div className="flex flex-wrap gap-1">
           {topics.map((t) => <Chip key={t} label={t} sub={isSearched(t) ? "searched daily" : undefined} disabled={pending || !canEdit}
             onRemove={canEdit ? () => act(() => interestRemove({ projectId, characterId, label: t })) : undefined} />)}

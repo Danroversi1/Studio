@@ -29,7 +29,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
           <form action={createProject} className="panel flex flex-col">
             <div className="flex items-center gap-3 border-b border-line px-5 py-4">
               <span className="size-3 bg-brand" aria-hidden />
-              <h2 className="display text-lg">Start a new film</h2>
+              <h2 className="display text-[22px]">Start a new film</h2>
             </div>
             <div className="flex flex-col gap-4 p-5">
               <div>
@@ -47,15 +47,15 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
           {projects.map((p) => (
             <Link key={p.id} href={`/projects/${p.id}`} className="panel group flex flex-col hover:border-text">
               <div className="flex items-center gap-3 border-b border-line px-5 py-4">
-                <span className="flex size-10 shrink-0 items-center justify-center bg-text text-brand"><IconFilm /></span>
+                <span className="flex size-10 shrink-0 items-center justify-center bg-accent-soft text-accent"><IconFilm /></span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-xs tracking-[0.12em] text-muted uppercase">In development</span>
+                  <span className="block text-xs text-muted">In development</span>
                   <span className="display block truncate text-lg">{p.name}</span>
                 </span>
               </div>
               <p className="min-h-20 flex-1 px-5 py-4 text-sm leading-relaxed text-muted">{p.description || "A film in development."}</p>
               <span className="flex items-center justify-between border-t border-line px-5">
-                <span className="text-xs tracking-[0.12em] text-muted uppercase">
+                <span className="text-xs text-muted">
                   Updated {new Date(p.updated_at).toLocaleDateString("en-US", { dateStyle: "medium" })}
                 </span>
                 <span className="link-accent">Open <IconArrowUpRight /></span>

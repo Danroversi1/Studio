@@ -13,7 +13,7 @@ export function CharacterCertain({ projectId, characterId, name, confirmed }: { 
   return (
     <section className="panel flex flex-col gap-3 p-4" aria-labelledby="certain-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="certain-h" className="display text-lg">Fixed knowledge: what {name} knows for certain</h2>
+        <h2 id="certain-h" className="display text-[22px]">Fixed knowledge: what {name} knows for certain</h2>
         <Link href={`/projects/${projectId}/items/${characterId}`} className="text-xs text-accent">Edit on {name}&apos;s character page →</Link>
       </div>
       {filled.length ? (

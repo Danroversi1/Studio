@@ -67,12 +67,12 @@ function OutlineGraph({ beats, runtime }: { beats: NotebookItem[]; runtime: stri
         {BANDS.map((b, i) => (
           <div key={b.kind} className={`absolute inset-y-0 border-r border-line ${i === 1 ? "bg-text/5" : "bg-brand/10"}`}
             style={{ left: `${b.from * 100}%`, width: `${(b.to - b.from) * 100}%` }}>
-            <span className="absolute top-1 left-1.5 text-[10px] font-semibold tracking-[0.12em] uppercase">{b.label}</span>
+            <span className="absolute top-1 left-1.5 text-[10px] font-semibold">{b.label}</span>
           </div>
         ))}
         {placed.map((p, i) => (
           <span key={p.beat.id} title={p.beat.body}
-            className={`absolute bottom-1 flex size-5 -translate-x-1/2 items-center justify-center rounded-full text-[10px] font-bold ${p.beat.status === "proposed" ? "border-2 border-brand bg-panel-2 text-text" : "bg-brand text-text"}`}
+            className={`absolute bottom-1 flex size-5 -translate-x-1/2 items-center justify-center rounded-full text-[10px] font-bold ${p.beat.status === "proposed" ? "border-2 border-brand bg-panel-2 text-text" : "bg-brand text-ink"}`}
             style={{ left: `${p.at * 100}%` }}>{i + 1}</span>
         ))}
       </div>
@@ -113,8 +113,8 @@ export function OutlineBox({ projectId, items, runtime, canEdit, back }: {
   return (
     <section className="panel flex flex-col gap-4 p-5" aria-labelledby="outline-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="outline-h" className="display text-xl">Outline</h2>
-        <span className="text-xs tracking-[0.08em] text-muted uppercase">{filled} of 3 parts</span>
+        <h2 id="outline-h" className="display text-[26px]">Outline</h2>
+        <span className="text-xs text-muted">{filled} of 3 parts</span>
       </div>
       <p className="text-sm text-muted">{hint(runtime)}</p>
       <OutlineGraph beats={beats} runtime={runtime} />
@@ -126,13 +126,13 @@ export function OutlineBox({ projectId, items, runtime, canEdit, back }: {
           return (
             <li key={p.kind} className={`flex flex-col gap-2 border-l-2 pl-4 ${isFocus ? "border-brand" : "border-line"}`}>
               <p className="flex items-baseline gap-2">
-                <span className="display text-lg text-accent">{i + 1}</span>
+                <span className="display text-[22px] text-accent">{i + 1}</span>
                 <span className="font-semibold">{p.title}</span>
               </p>
               {(isFocus || list.length === 0) && <p className="text-sm">{short ? p.short : p.ask}</p>}
               {isFocus && (
                 <div className="text-xs text-muted">
-                  <p className="tracking-[0.08em] uppercase">For example</p>
+                  <p className="">For example</p>
                   <ul className="mt-1 list-disc pl-5">{p.examples.map((x) => <li key={x}>{x}</li>)}</ul>
                 </div>
               )}
@@ -147,7 +147,7 @@ export function OutlineBox({ projectId, items, runtime, canEdit, back }: {
                           {b.body}
                         </span>
                         {canEdit && (
-                          <span className="flex shrink-0 items-center gap-2 text-[11px] tracking-[0.08em] text-muted uppercase">
+                          <span className="flex shrink-0 items-center gap-2 text-[11px] text-muted">
                             {b.status === "proposed" && <NoteButton projectId={projectId} back={back} id={b.id} field="status" value="confirmed">Keep</NoteButton>}
                             <MoveButton projectId={projectId} back={back} id={b.id} dir="up" disabled={i === 0 && j === 0} label={`Move "${b.body.slice(0, 30)}" up`}>↑</MoveButton>
                             <MoveButton projectId={projectId} back={back} id={b.id} dir="down" disabled={i === PARTS.length - 1 && j === list.length - 1} label={`Move "${b.body.slice(0, 30)}" down`}>↓</MoveButton>
@@ -157,7 +157,7 @@ export function OutlineBox({ projectId, items, runtime, canEdit, back }: {
                       </div>
                       {canEdit && (
                         <details className="-mt-1 mb-1">
-                          <summary className="cursor-pointer list-none text-[11px] tracking-[0.08em] text-muted uppercase hover:text-accent">Edit</summary>
+                          <summary className="cursor-pointer list-none text-[11px] text-muted hover:text-accent">Edit</summary>
                           <form action={updateNote} className="mt-1.5 flex flex-col gap-1.5">
                             <input type="hidden" name="projectId" value={projectId} />
                             <input type="hidden" name="back" value={back} />
@@ -204,7 +204,7 @@ function NoteButton({ projectId, back, id, field, value, children }: { projectId
       <input type="hidden" name="back" value={back} />
       <input type="hidden" name="itemId" value={id} />
       <input type="hidden" name={field} value={value} />
-      <button type="submit" className="min-h-8 uppercase hover:text-accent">{children}</button>
+      <button type="submit" className="min-h-8 hover:text-accent">{children}</button>
     </form>
   );
 }

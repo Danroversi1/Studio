@@ -62,7 +62,7 @@ export default async function ScriptPage({
             <Link href={`/projects/${projectId}/partners/dialogue`} className="text-sm text-accent">Find your characters&apos; voices with the Dialogue partner →</Link>
           )}
         </div>
-        <p className="text-xs tracking-[0.08em] text-muted uppercase">
+        <p className="text-xs text-muted">
           {canonical ? `Approved: revision ${canonical.version_number}` : "No approved version yet"}
         </p>
       </header>
@@ -76,7 +76,7 @@ export default async function ScriptPage({
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {cast.map((c) => (
             <div key={c.id} className="border border-line p-3 text-sm">
-              <p className="font-semibold uppercase">{c.name}</p>
+              <p className="font-semibold">{c.name}</p>
               <p className="mt-1 whitespace-pre-wrap">{c.summary || "No description yet."}</p>
               {originals[c.name.toLowerCase()] && originals[c.name.toLowerCase()] !== c.summary.trim() && (
                 <p className="mt-1 text-xs text-muted">Your original: {originals[c.name.toLowerCase()]}</p>
@@ -111,7 +111,7 @@ export default async function ScriptPage({
       {versions.length > 0 && (
         <section className="panel flex flex-col gap-3 p-4" aria-labelledby="hist-h">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 id="hist-h" className="display text-lg">Revision history</h2>
+            <h2 id="hist-h" className="display text-[22px]">Revision history</h2>
             {canApprove && selected && (
               <form action={approveScreenplay}>
                 <input type="hidden" name="projectId" value={projectId} />

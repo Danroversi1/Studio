@@ -69,12 +69,7 @@ export const IconScript = ({ className }: P) => (
 
 export function Wordmark({ size = "md" }: { size?: "md" | "lg" }) {
   const big = size === "lg";
-  return (
-    <span className="inline-flex items-center gap-3">
-      <span className={`${big ? "size-10" : "size-8"} bg-brand`} aria-hidden />
-      <span className={`display ${big ? "text-4xl" : "text-2xl"} leading-none`}>Studio</span>
-    </span>
-  );
+  return <span className={`display ${big ? "text-5xl" : "text-[34px]"} leading-none`}>Studio<span className="text-accent">.</span></span>;
 }
 export const IconGlobe = ({ className }: P) => (
   <svg {...base(className)}><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.5 2.3 3.5 5.3 3.5 8.5s-1 6.2-3.5 8.5c-2.5-2.3-3.5-5.3-3.5-8.5s1-6.2 3.5-8.5z" /></svg>
