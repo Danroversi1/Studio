@@ -106,7 +106,7 @@ export function AssetsPanel({ projectId, entityId, library, film, editable, canE
           </div>
           {adding === "upload" && <UploadForm projectId={projectId} entityId={entityId} busy={busy} setBusy={setBusy} onDone={() => { setAdding(null); onChanged(); }} onMessage={onMessage} />}
           {adding === "link" && <LinkForm projectId={projectId} onDone={() => { setAdding(null); onChanged(); }} onMessage={onMessage} />}
-          {adding === "film" && <FilmForm projectId={projectId} film={film} onDone={() => { setAdding(null); onChanged(); }} onMessage={onMessage} />}
+          {adding === "film" && <FilmForm projectId={projectId} film={film} library={library} onDone={() => { setAdding(null); onChanged(); }} onMessage={onMessage} />}
         </section>
       )}
     </div>
@@ -188,23 +188,56 @@ function LinkForm({ projectId, onDone, onMessage }: { projectId: string; onDone:
   );
 }
 
-function FilmForm({ projectId, film, onDone, onMessage }: { projectId: string; film: FilmItem[]; onDone: () => void; onMessage: Msg }) {
+function FilmForm({ projectId, film, library, onDone, onMessage }: { projectId: string; film: FilmItem[]; library: LibItem[]; onDone: () => void; onMessage: Msg }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  /** Its artwork, or — when it only has a treatment thumbnail — that window cropped from the slide. */
+  async function pictureFor(f: FilmItem): Promise<string | null> {
+    if (f.assetId) return f.assetId;
+    if (!f.thumb) return null;
+    const { treatmentCropPicture } = await import("@/lib/thumb-picture");
+    const blob = await treatmentCropPicture(f.thumb);
+    return uploadImage(f.id, blob, `${f.name} (from the treatment).png`);
+  }
   async function add(f: FilmItem) {
-    const r = await saveLibraryItem({ projectId, itemId: null, data: {
-      kind: f.kind === "character" ? "character" : "background", name: f.name, entity_id: f.id, asset_id: f.assetId ?? "", usage: f.assetId ? "composition" : "reference_only",
-      purpose: f.kind === "character" ? "character" : "location", views: f.assetId ? "As in the artwork" : "", permission: "From this film",
-    } });
-    if (!r.ok) onMessage({ kind: "error", text: r.error }); else { onMessage({ kind: "notice", text: `${f.name} is in your library${f.assetId ? "" : " (no artwork yet, so it's a reference)"}.` }); onDone(); }
+    setBusy(f.id);
+    try {
+      const assetId = await pictureFor(f);
+      const existing = library.find((i) => i.entityId === f.id && !i.assetId);
+      if (existing && assetId) {
+        // Already in the library as a reference: give it the picture so it can be placed.
+        const used = await libraryUsage({ itemId: existing.id });
+        if (!used.ok) throw new Error(used.error);
+        const r = await replaceLibrarySource({ itemId: existing.id, assetId, expectedFrames: used.frames.length });
+        if (!r.ok) throw new Error(r.error);
+        onMessage({ kind: "notice", text: `${f.name} now has a picture and can be placed in frames.` });
+      } else {
+        const r = await saveLibraryItem({ projectId, itemId: null, data: {
+          kind: f.kind === "character" ? "character" : "background", name: f.name, entity_id: f.id, asset_id: assetId ?? "", usage: assetId ? "composition" : "reference_only",
+          purpose: f.kind === "character" ? "character" : "location", views: f.assetId ? "As in the artwork" : assetId ? "From the treatment" : "", permission: "From this film",
+        } });
+        if (!r.ok) throw new Error(r.error);
+        onMessage({ kind: "notice", text: assetId ? `${f.name} is in your library. Place it from the tray or Assets.` : `${f.name} is in your library as a reference: it has no picture yet. Choose a thumbnail on ${f.name}'s page, then add again.` });
+      }
+      onDone();
+    } catch (e) {
+      onMessage({ kind: "error", text: e instanceof Error ? e.message : `${f.name} couldn't be added.` });
+    } finally { setBusy(null); }
   }
   return (
     <ul className="flex flex-col gap-1 border border-line p-2 text-sm">
-      {film.map((f) => (
-        <li key={f.id} className="flex items-center justify-between gap-2">
-          <span>{f.name} <span className="text-xs text-muted">({f.kind}{f.assetId ? ", has artwork" : ""})</span></span>
-          <button type="button" className="btn min-h-8 px-2 text-xs" onClick={() => add(f)}>Add</button>
-        </li>
-      ))}
+      {film.map((f) => {
+        const inLib = library.find((i) => i.entityId === f.id);
+        const needsPicture = !!inLib && !inLib.assetId;
+        const can = !inLib || (needsPicture && (!!f.assetId || !!f.thumb));
+        return (
+          <li key={f.id} className="flex items-center justify-between gap-2">
+            <span>{f.name} <span className="text-xs text-muted">({f.kind}{f.assetId ? ", has artwork" : f.thumb ? ", picture from the treatment" : ", no picture yet"}{inLib ? (needsPicture ? ", in library as a reference" : ", in library") : ""})</span></span>
+            {can && <button type="button" className="btn min-h-8 px-2 text-xs" disabled={!!busy} onClick={() => void add(f)}>{busy === f.id ? "Adding…" : needsPicture ? "Add its picture" : "Add"}</button>}
+          </li>
+        );
+      })}
       {!film.length && <li className="help">No characters or locations yet.</li>}
+      {film.some((f) => !f.assetId && f.thumb) && <li className="text-xs text-muted">Pictures from the treatment are cropped from your Google Slides the way you framed them on the character&apos;s page. Google may ask you to pick the treatment once.</li>}
     </ul>
   );
 }

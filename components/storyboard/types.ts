@@ -15,7 +15,11 @@ export interface LibItem {
   usage: "composition" | "reference_only"; sourceUrl: string | null; attribution: string; permission: string; origin: string; version: number;
 }
 export interface JobRow { id: string; shotId: string | null; kind: string; status: string; outputAssetId: string | null; applied: boolean; error: string | null; createdAt: string; model: string; usage: Record<string, unknown> | null }
-export interface FilmItem { id: string; kind: "character" | "location"; name: string; assetId: string | null }
+export interface FilmItem {
+  id: string; kind: "character" | "location"; name: string; assetId: string | null;
+  /** Its thumbnail chosen from the treatment (a live window onto a slide), if any. */
+  thumb?: import("@/lib/thumb").ThumbCrop | null;
+}
 export interface LensPick {
   id: string; name: string; focalLengths: number[]; zoom: boolean; optical: "spherical" | "anamorphic"; squeeze: number | null;
   maxAperture: string; camera: string; seenIn: string; note: string; sourceUrl: string | null; sourceName: string;

@@ -51,3 +51,9 @@ test("working size and vector options", () => {
   assert.equal(vectorOptions([]).palette, undefined);
   assert.ok(vectorOptions([], 1).filterSpeckle < vectorOptions([], 0).filterSpeckle, "more detail keeps smaller shapes");
 });
+
+test("a treatment thumbnail window maps onto the rendered slide", async () => {
+  const { cropRect } = await import("../../lib/thumb-picture");
+  assert.deepEqual(cropRect({ x: 0.25, y: 0.1, w: 0.5, h: 0.5 }, 1600, 900), { x: 400, y: 90, w: 800, h: 450 });
+  assert.deepEqual(cropRect({ x: 0.9, y: 0.9, w: 0.5, h: 0.5 }, 1000, 1000), { x: 900, y: 900, w: 100, h: 100 }, "kept inside the slide");
+});

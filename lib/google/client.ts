@@ -259,3 +259,20 @@ export async function listSlides(accessToken: string, id: string): Promise<{ id:
 export async function treatmentSlides(cfg: GoogleConfig, fileId: string): Promise<{ id: string; text: string }[]> {
   return withFilePermission(cfg, fileId, SLIDES_MIME, "Select your treatment so STUDIO can open it", (t) => listSlides(t, fileId));
 }
+
+/** A freshly rendered picture of one slide (Slides API; the URL is short-lived). */
+export async function slidePictureUrl(accessToken: string, fileId: string, pageId: string): Promise<string> {
+  const res = await fetch(`https://slides.googleapis.com/v1/presentations/${encodeURIComponent(fileId)}/pages/${encodeURIComponent(pageId)}/thumbnail?thumbnailProperties.thumbnailSize=LARGE&thumbnailProperties.mimeType=PNG`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (res.ok) {
+    const data = (await res.json()) as { contentUrl?: string };
+    if (!data.contentUrl) throw new Error("Google didn't return a picture of that slide.");
+    return data.contentUrl;
+  }
+  const text = await res.text().catch(() => "");
+  if (res.status === 401) token = null;
+  if (/SERVICE_DISABLED|has not been used|is disabled|accessNotConfigured/i.test(text)) throw new SlidesApiOffError("The Google Slides API needs to be switched on for STUDIO.");
+  if (res.status === 404 || res.status === 403 || res.status === 401) throw new GoogleAccessError(res.status, "STUDIO doesn't have permission to open that file yet.");
+  throw new GoogleAccessError(res.status, `Google Slides answered with an error (${res.status}).`);
+}

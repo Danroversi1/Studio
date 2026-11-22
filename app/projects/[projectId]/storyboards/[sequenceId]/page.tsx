@@ -1,6 +1,7 @@
 // One storyboard in Compose. Opening it never calls a model: it reads frames, the asset
 // library and the film's characters/places, and marks frames whose script scene, character
 // or location changed (deterministic text comparison; images and layers are kept).
+import { thumbOf } from "@/lib/thumb";
 import { notFound } from "next/navigation";
 import { Empty, Flash } from "@/components/flash";
 import { StoryboardStudio } from "@/components/storyboard/studio";
@@ -37,7 +38,7 @@ export default async function StoryboardPage({ params, searchParams }: {
     sb.from("storyboard_shots").select("*").eq("sequence_id", sequenceId).is("archived_at", null).order("position"),
     sb.from("storyboard_library").select("*").eq("project_id", projectId).is("archived_at", null).order("created_at"),
     sb.from("storyboard_jobs").select("id, shot_id, kind, status, output_asset_id, applied, error, created_at, model, usage").eq("sequence_id", sequenceId).order("created_at", { ascending: false }).limit(200),
-    sb.from("entities").select("id, kind, name").eq("project_id", projectId).in("kind", ["character", "location"]).neq("status", "archived").order("created_at"),
+    sb.from("entities").select("id, kind, name, metadata").eq("project_id", projectId).in("kind", ["character", "location"]).neq("status", "archived").order("created_at"),
     sb.from("storyboard_stock_profiles").select("*").order("id"),
     sb.from("storyboard_lens_shelf").select("*").eq("project_id", projectId).is("archived_at", null).order("created_at"),
     getScreenplay(projectId),
@@ -48,7 +49,12 @@ export default async function StoryboardPage({ params, searchParams }: {
   const { data: art } = entIds.length
     ? await sb.from("assets").select("id, entity_id, created_at").in("entity_id", entIds).eq("upload_status", "ready").eq("kind", "image").order("created_at", { ascending: false })
     : { data: [] as { id: string; entity_id: string }[] };
-  const film: FilmItem[] = (ents ?? []).map((e) => ({ id: e.id, kind: e.kind as FilmItem["kind"], name: e.name, assetId: (art ?? []).find((a) => a.entity_id === e.id)?.id ?? null }));
+  const film: FilmItem[] = (ents ?? []).map((e) => {
+    const t = thumbOf(e.metadata as Record<string, unknown> | null);
+    // Artwork: the newest picture attached to it, else a stored thumbnail picture.
+    const assetId = (art ?? []).find((a) => a.entity_id === e.id)?.id ?? (t?.kind === "asset" ? t.assetId : null);
+    return { id: e.id, kind: e.kind as FilmItem["kind"], name: e.name, assetId, thumb: t?.kind === "crop" ? t.crop : null };
+  });
 
   const body = String((sp as { versions?: { content: { body?: string } }[] } | null)?.versions?.[0]?.content?.body ?? "");
   const scenes = scriptScenes(body);
