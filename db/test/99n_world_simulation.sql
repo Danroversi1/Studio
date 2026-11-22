@@ -128,6 +128,12 @@ select tests.ok((select stress = 0 and happiness = 0 and character_id is null an
 select tests.ok(public.sim_rule_save(tests.v('SA'), null, '{"family":"periphery","when_text":"News about AI reaches Washington within a day"}') is not null, 'a world rule can be a plain bullet');
 select tests.throws(format($q$select public.sim_rule_save(%L, null, '{"family":"nonsense","when_text":"news breaks"}')$q$, tests.v('SA')), '22023', 'unknown kinds refused');
 
+-- Small model calls are charged to the film's AI budget
+:as_service
+select public.sim_charge(tests.v('SA'), null, 'character_interests', '{"input_tokens":100,"output_tokens":50}', 0.0004, 'claude-haiku-5-5', true);
+:as_owner
+select tests.ok((select count(*) from public.agent_runs where project_id = tests.v('SA') and task_type = 'character_interests' and status = 'succeeded') = 1, 'small model calls are recorded and charged');
+
 :as_owner
 select n, label from tests.results where not passed order by n;
 select count(*) filter (where passed) as passed, count(*) filter (where not passed) as failed from tests.results;
