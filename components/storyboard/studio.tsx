@@ -23,11 +23,12 @@ import type { FilmEntity, FilmPicture } from "@/lib/look/data";
 import type { DeviceRow } from "@/lib/local/types";
 import type { LocalJob } from "@/app/projects/[projectId]/local-actions";
 import { LocalGenerate } from "./local-generate";
+import { TracePanel } from "./trace-panel";
 import type { LookDirection, LookRef } from "@/lib/look/types";
 import type { FilmItem, FrameRow, JobRow, LensPick, LibItem, StockRef } from "./types";
 import type { ChatMessage } from "@/components/partner-chat";
 
-type Tab = "assets" | "layers" | "frame" | "camera" | "look" | "refs";
+type Tab = "assets" | "layers" | "trace" | "frame" | "camera" | "look" | "refs";
 type SaveState = "saved" | "pending" | "saving" | "conflict" | "error";
 
 /** Layers that use a library item draw its current image. */
@@ -377,8 +378,8 @@ export function StoryboardStudio(props: {
 
         {/* Panels */}
         <aside aria-label="Assets, layers, frame, camera and look" className="panel flex min-w-0 flex-col lg:col-span-2 xl:col-span-1">
-          <div role="tablist" aria-label="Panels" className="grid grid-cols-6 border-b border-line">
-            {(["assets", "layers", "frame", "camera", "look", "refs"] as const).map((t) => (
+          <div role="tablist" aria-label="Panels" className="grid grid-cols-7 border-b border-line">
+            {(["assets", "layers", "trace", "frame", "camera", "look", "refs"] as const).map((t) => (
               <button key={t} role="tab" type="button" aria-selected={tab === t} onClick={() => setTab(t)}
                 className={`min-h-11 px-1 text-[11px] font-medium ${tab === t ? "bg-text text-panel-2" : "text-muted hover:text-text"}`}>{t}</button>
             ))}
@@ -392,6 +393,10 @@ export function StoryboardStudio(props: {
                 onDrawingToLibrary={selLayers.length === 1 && selLayers[0].type === "drawing" ? () => drawingToLibrary(selLayers[0]) : undefined} />
             ) : tab === "layers" ? (
               <LayersPanel comp={comp} selected={layerSel} editable={editable} library={library} onSelect={setLayerSel} edit={edit} />
+            ) : tab === "trace" ? (
+              <TracePanel comp={comp} selected={layerSel} images={images} directions={props.directions} editable={editable}
+                frameDirectionId={frameLook?.kind === "direction" ? frameLook.direction.id : props.sequenceDirection}
+                onTraceOver={traceOver} onPlace={placeTrace} />
             ) : tab === "frame" ? (
               <FramePanel key={`${frame.id}:${frame.revision}`} frame={frame} number={index + 1} canEdit={canEdit}
                 onSave={(content) => run(saveFrameDetails({ sequenceId, shotId: frame.id, content, expectedRevision: frame.revision }), "Frame details saved.")}
@@ -423,6 +428,38 @@ export function StoryboardStudio(props: {
       </div>
     </div>
   );
+
+  /** Trace over a picture: fade and lock it, add a drawing layer above it, pen ready. */
+  function traceOver(sourceId: string) {
+    let drawId = "";
+    edit((c) => {
+      const H = frameH(c);
+      const faded = { ...c, layers: c.layers.map((l) => (l.id === sourceId ? { ...l, opacity: Math.min(l.opacity ?? 1, 0.35), locked: true } : l)) };
+      const r = addLayer(faded, { type: "drawing", name: "Your lines", x: FRAME_W / 2, y: H / 2, w: FRAME_W, h: H, rot: 0, strokes: [] });
+      drawId = r.id;
+      return r.comp;
+    });
+    if (drawId) { setLayerSel([drawId]); setTool("draw"); }
+    setMsg({ kind: "notice", text: "Tracing: the picture is faded and locked; draw your lines on the new layer. Unlock or hide the picture in Layers when you're done." });
+  }
+
+  /** Add a tracing result as a new layer right above its source, in the same place. */
+  async function placeTrace(sourceId: string, blob: Blob, name: string) {
+    const { uploadImage } = await import("@/lib/storyboard/upload");
+    const assetId = await uploadImage(props.entityId, blob, "trace.png");
+    const loaded = await loadAll([assetId]);
+    setImages((prev) => new Map([...prev, ...loaded]));
+    edit((c) => {
+      const src = c.layers.find((l) => l.id === sourceId);
+      if (!src) return c;
+      const r = addLayer(c, { type: "image", name: name.slice(0, 120), assetId, x: src.x, y: src.y, w: src.w, h: src.h, rot: src.rot, flipX: src.flipX, flipY: src.flipY });
+      const layers = [...r.comp.layers];
+      const added = layers.pop()!;
+      layers.splice(layers.findIndex((l) => l.id === sourceId) + 1, 0, added);
+      setLayerSel([r.id]);
+      return { ...r.comp, layers };
+    });
+  }
 
   /** Only on her explicit action: put a Look & Feel image into the frame as a layer. */
   function placeLookRef(r: LookRef) {

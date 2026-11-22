@@ -18,6 +18,7 @@ const ROUTINE = [
   "components/storyboard/studio.tsx",                         // the Compose screen (canvas, panels, autosave, export)
   "components/storyboard/compose-canvas.tsx", "components/storyboard/panels.tsx",
   "components/storyboard/print-sheet.tsx", "components/storyboard/card-thumb.tsx",
+  "components/storyboard/trace-panel.tsx", "lib/storyboard/trace-run.ts", "lib/storyboard/trace.ts", // tracing: classic filters + VTracer
   "app/projects/[projectId]/storyboards/page.tsx",
   "app/projects/[projectId]/storyboards/[sequenceId]/page.tsx",   // opening a storyboard
   "app/print/storyboards/[sequenceId]/page.tsx",
