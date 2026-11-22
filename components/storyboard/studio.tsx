@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { addFrame, clearReview, duplicateFrame, libraryUsage, moveFrame, removeFrame, replaceLibrarySource, saveComposition, saveFrameDetails, saveFrameNotes, saveLibraryItem, saveTrace, saveTreatmentPreset, saveVersion, setFrameState } from "@/app/projects/[projectId]/storyboard-actions";
 import {
-  FRAME_W, History, addLayer, cleanComposition, copyForNewFrame, duplicateLayers, emptyComposition, frameH, removeLayers, reorder, setAspect, tipFor, update,
+  FRAME_W, History, addLayer, cleanComposition, newId, copyForNewFrame, duplicateLayers, emptyComposition, frameH, removeLayers, reorder, setAspect, tipFor, update,
   type Composition, type Layer,
 } from "@/lib/storyboard/compose";
 import { ASPECTS } from "@/lib/storyboard/camera";
@@ -21,7 +21,9 @@ import { AssetsPanel, CameraPanel, FramePanel, LayersPanel, LookPanel } from "./
 import { DeskReferences } from "./desk-references";
 import { TreatmentPanel, cleanFilmTreatment, type FilmTreatment, type Kept } from "./treatment-panel";
 import { dropTrace, putTraces, type TraceData } from "@/lib/storyboard/trace-store";
-import type { TraceResult, TraceSettings } from "@/lib/storyboard/trace-run";
+import { DEFAULT_TRACE, FINAL_SIDE, traceLayers, type TraceResult, type TraceSettings } from "@/lib/storyboard/trace-run";
+import { DrawFromImage, type PickedImage } from "./draw-from-image";
+import type { SlideInfo } from "@/lib/slide-match";
 import { buildSvg } from "@/lib/storyboard/svg-export";
 import { shapeById } from "@/lib/storyboard/shapes";
 import { RefsPanel, lookFor, resolvedRefs } from "./look-refs";
@@ -50,6 +52,7 @@ export function StoryboardStudio(props: {
   lookRefs: LookRef[]; directions: LookDirection[]; lookEntities: FilmEntity[]; sequenceDirection: string | null;
   pictures: FilmPicture[]; devices: DeviceRow[]; localJobs: LocalJob[];
   canEdit: boolean; initialFrame?: string; initialTab?: Tab | "assets" | "layers";
+  deck: { fileId: string; slides: SlideInfo[] | null } | null;
   traces: TraceData[]; treatmentPreset: { settings: Record<string, unknown>; version: number } | null;
   ai: { imageMissing: string | null; textAvailable: string | null; builder: { threadId: string | null; messages: ChatMessage[]; opening: string } };
   scenes: { number: number; heading: string; text: string }[];
@@ -69,6 +72,8 @@ export function StoryboardStudio(props: {
   const [before, setBefore] = useState(false);
   const [fade, setFade] = useState(false);
   const [refBusy, setRefBusy] = useState<string | null>(null);
+  const [drawOpen, setDrawOpen] = useState(false);
+  const [drawAs, setDrawAs] = useState<"outline" | "ink" | "three_tone">("outline");
   const [filmT, setFilmT] = useState<FilmTreatment>(() => cleanFilmTreatment(props.treatmentPreset?.settings));
   const [filmVersion, setFilmVersion] = useState<number | null>(props.treatmentPreset?.version ?? null);
   // Saved traces are drawn from one shared store (canvas, thumbnails, exports).
@@ -401,6 +406,7 @@ export function StoryboardStudio(props: {
 
   return (
     <div className="flex flex-col gap-3" onKeyDown={keys}>
+      {drawOpen && <DrawFromImage projectId={projectId} deck={props.deck} treatment={drawAs} onTreatment={setDrawAs} onPicked={drawFromImage} onClose={() => setDrawOpen(false)} />}
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
           <Link href={`/projects/${projectId}/storyboards`} className="eyebrow hover:text-text">← Storyboards</Link>
@@ -424,6 +430,7 @@ export function StoryboardStudio(props: {
 
       {/* Main actions, in workflow order */}
       <div className="panel flex flex-wrap items-center gap-1.5 p-1.5" role="toolbar" aria-label="Main actions">
+        {canEdit && <button type="button" className="btn-primary min-h-10 px-3 text-sm" onClick={() => setDrawOpen(true)}>Draw a Frame From Image</button>}
         <button type="button" className="btn min-h-10 px-3 text-sm" disabled={!frame} onClick={() => { setLeftTab("refs"); setDrawer("left"); }}>Add Reference</button>
         <button type="button" className={`btn min-h-10 px-3 text-sm ${tab === "treatment" ? "btn-primary" : ""}`} disabled={!frame} onClick={() => { setTab("treatment"); setDrawer("right"); }}>Trace</button>
         <button type="button" className={`btn min-h-10 px-3 text-sm ${tool === "draw" ? "btn-primary" : ""}`} disabled={!editable} onClick={() => setTool(tool === "draw" ? "select" : "draw")}>Draw</button>
@@ -519,13 +526,85 @@ export function StoryboardStudio(props: {
                 </details>
               )}
             </>
-          ) : <div className="panel help p-6">No shots yet. Press <b>+ New shot</b> below to start.</div>}
+          ) : (
+            <div className="panel flex flex-col items-start gap-2 p-6">
+              <p className="help">No shots yet.</p>
+              {canEdit && <button type="button" className="btn-primary" onClick={() => setDrawOpen(true)}>Draw a Frame From Image</button>}
+              <p className="text-xs text-muted">Or press <b>+ New shot</b> below to start from a blank frame.</p>
+            </div>
+          )}
         </section>
         {right}
       </div>
       {strip}
     </div>
   );
+
+  /** Draw a Frame From Image: keep the picture (linked to where it came from), place it to fill
+   *  the frame, trace it with the film's treatment, and add the lines above it. Uses the open
+   *  shot if it's empty, otherwise makes a new shot right after it. All local; no AI. */
+  async function drawFromImage(img: PickedImage) {
+    const { uploadImage } = await import("@/lib/storyboard/upload");
+    let blob = img.blob;
+    const bmp = await createImageBitmap(blob);
+    const ratio = bmp.width / bmp.height;
+    if (blob.type !== "image/png" && blob.type !== "image/jpeg") {
+      const cv = document.createElement("canvas"); cv.width = bmp.width; cv.height = bmp.height;
+      cv.getContext("2d")!.drawImage(bmp, 0, 0);
+      blob = await new Promise<Blob>((ok, fail) => cv.toBlob((b) => (b ? ok(b) : fail(new Error("Couldn't read that picture."))), "image/png"));
+    }
+    bmp.close();
+    const name = img.name.slice(0, 100);
+    const assetId = await uploadImage(props.entityId, blob, `${name}.${blob.type === "image/jpeg" ? "jpg" : "png"}`);
+    const lib = await saveLibraryItem({ projectId, itemId: null, data: {
+      kind: "reference", name, asset_id: assetId, usage: "composition", purpose: "composition", origin: img.from === "treatment" ? "film" : "upload",
+      permission: img.from === "treatment" ? "From this film's treatment" : "Uploaded by the team",
+      note: img.crop ? `Treatment slide ${img.crop.slide}${img.crop.slide_id ? ` (${img.crop.slide_id})` : ""}` : "",
+    } });
+    if (!lib.ok || !lib.id) throw new Error(lib.ok ? "The picture couldn't be kept." : lib.error);
+
+    const useCurrent = !!frame && editable && !frame.composition.layers.some((l) => !l.hidden);
+    const aspect = useCurrent ? comp.aspect : comp.aspect || props.settings.aspect || 16 / 9;
+    const H = FRAME_W / aspect, w = Math.max(FRAME_W, H * ratio);
+    const ref: Layer = { id: newId(), type: "image", name, libraryId: lib.id, assetId, x: FRAME_W / 2, y: H / 2, w, h: w / ratio, rot: 0 };
+    const loaded = await loadAll([assetId]);
+    setImages((prev) => new Map([...prev, ...loaded]));
+
+    // Trace with the film's treatment; simplify automatically if it comes out too busy.
+    let settings: TraceSettings = { ...DEFAULT_TRACE, treatment: drawAs, ink: filmT.ink, mid: filmT.mid, contrast: filmT.contrast, weight: filmT.weight, detail: filmT.detail, shadow: filmT.shadow };
+    let r = await traceLayers([ref], settings, FINAL_SIDE);
+    for (let i = 0; i < 3 && (r.tooComplex || !r.paths.length); i++) {
+      settings = r.tooComplex ? { ...settings, simplify: Math.min(1, settings.simplify + 0.25), detail: Math.max(0, settings.detail - 0.2) }
+        : { ...settings, detail: Math.min(1, settings.detail + 0.25), contrast: Math.min(1, settings.contrast + 0.2) };
+      r = await traceLayers([ref], settings, FINAL_SIDE);
+    }
+    if (r.tooComplex || !r.paths.length) throw new Error(r.tooComplex ? "That picture is too busy to trace cleanly. Choose a smaller part of it." : "Nothing came out of that picture. Try a part with clearer shapes.");
+    const source = [{ layerId: ref.id, name, assetId, libraryId: lib.id, entityId: null, crop: null, masks: null, x: ref.x, y: ref.y, w: ref.w, h: ref.h, rot: 0, flipX: false, flipY: false,
+      treatmentCrop: img.crop ?? null }];
+    const saved = await saveTrace({ projectId, shotId: useCurrent ? frame!.id : null, treatment: settings.treatment,
+      settings: { ...settings, side: FINAL_SIDE, tool: "opencv.js 4.12 + imagetracerjs 1.2.6" }, source, width: r.width, height: r.height, paths: r.paths });
+    if (!saved.ok || !saved.id) throw new Error(saved.ok ? "The drawing couldn't be saved." : saved.error);
+    putTraces([{ id: saved.id, treatment: settings.treatment, width: r.width, height: r.height, paths: r.paths, settings: { ...settings }, source }]);
+    const b = r.box;
+    const lines: Layer = { id: newId(), type: "vector", name: `${{ outline: "Outline", ink: "Ink", three_tone: "Three-tone" }[settings.treatment]}: ${name}`.slice(0, 80),
+      traceId: saved.id, treatment: settings.treatment, sourceIds: [ref.id], x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2, w: b.x1 - b.x0, h: b.y1 - b.y0, rot: 0 };
+    const refLocked = { ...ref, locked: true };
+
+    if (useCurrent) {
+      edit((c) => ({ ...c, bg: filmVersion ? filmT.bg : c.bg, layers: [...c.layers, refLocked, lines] }));
+      setLayerSel([lines.id]);
+    } else {
+      const i = index >= 0 ? index : frames.length - 1;
+      const pos = frames.length ? between(frames[i]?.position ?? null, frames[i + 1]?.position ?? null) : null;
+      const base = emptyComposition(aspect);
+      const nf = await addFrame({ projectId, sequenceId, position: pos, composition: { ...base, bg: filmVersion ? filmT.bg : base.bg, layers: [refLocked, lines] } });
+      if (!nf.ok || !nf.id) throw new Error(nf.ok ? "The new shot couldn't be made." : nf.error);
+      setSelId(nf.id);
+      refresh();
+    }
+    setFade(true); setTool("select"); setTab("treatment");
+    setMsg({ kind: "notice", text: `Drew ${useCurrent ? "this shot" : "a new shot"} from “${name}”: ${r.paths.length.toLocaleString()} editable paths. The picture is underneath (faded and locked). Refine with the Pen, Paths or Lasso, or select the lines and adjust them in Treatment.` });
+  }
 
   /** Keep traces: save each one's paths (with its settings and the references it came from),
    *  then add a traced layer above its references — or, when re-tracing, swap only that layer's

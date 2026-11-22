@@ -3,6 +3,9 @@
 // or location changed (deterministic text comparison; images and layers are kept).
 import { thumbOf } from "@/lib/thumb";
 import { loadTraces, loadTreatmentPreset } from "@/lib/storyboard/traces-data";
+import { parseGoogleLink } from "@/lib/google/links";
+import { isTreatmentRef } from "@/lib/intake";
+import type { SlideInfo } from "@/lib/slide-match";
 import { notFound } from "next/navigation";
 import { Empty, Flash } from "@/components/flash";
 import { StoryboardStudio } from "@/components/storyboard/studio";
@@ -12,7 +15,7 @@ import { cleanFrameLook } from "@/lib/look/types";
 import { lensFromRow, type FilmItem, type FrameRow, type JobRow, type LibItem, type StockRef } from "@/components/storyboard/types";
 import { openingFor } from "@/lib/agents/partners";
 import { aiConfigured } from "@/lib/ai/configured";
-import { getAiBudget, getPartnerThreads, getProjectShell, getScreenplay, getThreadMessages } from "@/lib/data";
+import { getAiBudget, getPartnerThreads, getProjectShell, getScreenplay, getStoryReferences, getThreadMessages } from "@/lib/data";
 import { cleanComposition } from "@/lib/storyboard/compose";
 import { cloudImageConfigured } from "@/lib/storyboard/provider-status";
 import { reviewFor, scriptScenes } from "@/lib/storyboard/review";
@@ -74,6 +77,11 @@ export default async function StoryboardPage({ params, searchParams }: {
     });
   }
   const [traces, treatmentPreset] = await Promise.all([loadTraces(sb, frames.map((f) => f.composition)), loadTreatmentPreset(sb, projectId)]);
+  // The treatment deck (Google Slides), to draw frames from its pictures.
+  const story = shell.entities.find((e) => e.kind === "story");
+  const deckRef = (story ? await getStoryReferences(projectId, story.id) : []).filter((r) => isTreatmentRef(r))
+    .map((r) => ({ link: parseGoogleLink(r.source_url), meta: r.metadata as Record<string, unknown> | null })).find((x) => x.link?.kind === "slides");
+  const deck = deckRef?.link ? { fileId: deckRef.link.id, slides: Array.isArray(deckRef.meta?.slides) ? (deckRef.meta!.slides as SlideInfo[]) : null } : null;
   const library: LibItem[] = (libRows ?? []).map((i) => ({
     id: i.id, kind: i.kind, name: i.name, assetId: i.asset_id, entityId: i.entity_id, parentId: i.parent_id, views: i.views, purpose: i.purpose, note: i.note,
     usage: i.usage, sourceUrl: i.source_url, attribution: i.attribution, permission: i.permission, origin: i.origin, version: i.version,
@@ -90,7 +98,7 @@ export default async function StoryboardPage({ params, searchParams }: {
       <StoryboardStudio projectId={projectId} sequenceId={sequenceId} entityId={seq.entity_id} title={seq.title} settings={{ aspect }}
         frames={frames} library={library} jobs={jobs} film={film} stocks={(stocks ?? []) as StockRef[]} lenses={(lensRows ?? []).map(lensFromRow)}
         lookRefs={look.refs} directions={look.directions} lookEntities={lookEntities} pictures={pictures} devices={devices} localJobs={lJobs} sequenceDirection={(seq.look_direction_id as string | null) ?? null} canEdit={canEdit}
-        traces={traces} treatmentPreset={treatmentPreset}
+        traces={traces} treatmentPreset={treatmentPreset} deck={deck}
         initialFrame={frameParam} initialTab={tab} scenes={scenes}
         ai={{ imageMissing: !cloudImageConfigured() ? "Needs an OpenAI API key (OPENAI_API_KEY) in Vercel." : null, textAvailable: textMissing,
           builder: { threadId: current?.id ?? null, messages: messages.map((m) => ({ id: m.id, role: m.role, content: m.content })), opening: openingFor("shots", { hasStory: true, runtime: null, filmTitle: shell.project.name }) } }} />
