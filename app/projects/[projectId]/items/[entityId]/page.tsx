@@ -3,7 +3,8 @@ import { RoleButtons } from "@/components/characters/role-picker";
 import { MoodPanel } from "@/components/mood/mood-panel";
 import { getCharacterMood } from "@/lib/mood/data";
 import { getCharacterRules } from "@/lib/sim/data";
-import { RuleList } from "@/components/sim/rule-list";
+import { RulesBox } from "@/components/sim/rules-box";
+import { ruleSentence } from "@/lib/sim/rules";
 import { CharacterBubblePanel } from "@/components/bubbles/bubble-panels";
 import { getBubbleDesk, getCharacterBubble } from "@/lib/bubbles/data";
 import { ROLE_LABEL, roleOf } from "@/lib/characters/roles";
@@ -426,7 +427,8 @@ export default async function ItemWorkspace({
                 <label className="label" htmlFor="notes">Development notes</label>
                 <textarea id="notes" name="notes" defaultValue={selected?.content.notes ?? ""} rows={6} className="field" />
               </div>
-              {assets.length > 0 && (
+              {kind === "character" && selectedArtwork.map((id) => <input key={id} type="hidden" name="assetIds" value={id} />)}
+              {kind !== "character" && assets.length > 0 && (
                 <fieldset>
                   <legend className="label">Artwork in this version</legend>
                   <div className="flex flex-wrap gap-3">
@@ -467,10 +469,8 @@ export default async function ItemWorkspace({
           )}
 
           {kind === "character" && charRules && (
-            <div id="rules"><RuleList projectId={projectId} canEdit={!!caps.can_edit} rules={charRules} families={["character"]} characters={[{ id: entityId, name: entity.name }]}
-              fixedCharacter={{ id: entityId, name: entity.name }} title={`How ${entity.name} reacts`}
-              intro={`Your rules for how ${entity.name}'s feelings react to what reaches them: the news in their daily coverage, what other characters tell them, and what happens to them. Each morning the news is checked against these rules to work out how ${entity.name} is doing (0–10), and the day-by-day simulation follows them when it suggests events. Changes apply from the next day.`}
-              empty={`None yet. Without rules, the simulation goes by ${entity.name}'s profile.`} addLabel={`Add a rule for ${entity.name}`} /></div>
+            <RulesBox key={charRules.map((r) => `${r.id}:${r.version}`).join(",")} projectId={projectId} characterId={entityId} name={entity.name} canEdit={!!caps.can_edit}
+              initial={charRules.map((r) => ruleSentence(r, entity.name))} />
           )}
           {kind === "character" && bubble?.eligible && (
             <CharacterBubblePanel projectId={projectId} characterId={entityId} name={entity.name} canEdit={!!caps.can_edit} b={bubble} day={day} desk={bubbleDesk!} />
@@ -484,7 +484,7 @@ export default async function ItemWorkspace({
               profile={agent.profile} links={agent.links} turns={agent.turns} />
           )}
 
-          {!isStory && (
+          {!isStory && kind !== "character" && (
             <section className="panel flex flex-col gap-4 p-5" aria-labelledby="artwork-h">
               <h3 id="artwork-h" className="text-lg font-medium">
                 Artwork {selected && <span className="help">· v.{selected.version_number}</span>}

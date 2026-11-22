@@ -11,7 +11,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { advanceDay, reassessEvent } from "@/lib/sim/run";
 import { buildRequest, WORKFLOW_VERSION, type ApprovedEvent } from "@/lib/dialogue/request";
 import { processQueue } from "@/lib/dialogue/run";
-import { isTracked, type EventData } from "@/lib/sim/rules";
+import { isTracked, parseBullets, type EventData } from "@/lib/sim/rules";
 import { roleOf } from "@/lib/characters/roles";
 
 export type SR = { ok: true; note?: string } | { ok: false; error: string };
@@ -170,4 +170,32 @@ export async function simDevelopDialogue(input: { projectId: string; sceneKey: s
   await processQueue(input.projectId, { max: 1, budgetMs: 240_000 });
   touch(input.projectId);
   return { ok: true, note: "Draft ready on the Script desk, in that scene. Your script changes only if you accept it." };
+}
+
+/** A character's rules as one box of bullet points: one rule per bullet, saved as versions. */
+export async function simSaveCharacterBullets(input: { projectId: string; characterId: string; text: string }): Promise<{ ok: true; note: string } | { ok: false; error: string }> {
+  const sb = await supabaseServer();
+  const bullets = parseBullets(input.text);
+  const { data: cur, error: e1 } = await sb.from("sim_rules").select("id, when_text, stress, happiness, tend_text, relief_text, enabled")
+    .eq("project_id", input.projectId).eq("character_id", input.characterId).eq("family", "character").is("archived_at", null).order("created_at");
+  if (e1) return { ok: false, error: friendlyError(e1).message };
+  const rows = (cur ?? []) as { id: string; when_text: string; stress: number; happiness: number; tend_text: string | null; relief_text: string | null; enabled: boolean }[];
+  let changed = 0;
+  for (let i = 0; i < Math.max(rows.length, bullets.length); i++) {
+    const r = rows[i], b = bullets[i];
+    if (r && !b) {
+      const { error } = await sb.rpc("sim_rule_remove", { p_project: input.projectId, p_rule: r.id });
+      if (error) return { ok: false, error: friendlyError(error).message };
+      changed++;
+      continue;
+    }
+    const plain = r && r.when_text === b && !r.stress && !r.happiness && !r.tend_text && !r.relief_text && r.enabled;
+    if (plain) continue;
+    const { error } = await sb.rpc("sim_rule_save", { p_project: input.projectId, p_rule: r?.id ?? null,
+      p_data: { family: "character", character_id: input.characterId, when_text: b, stress: 0, happiness: 0, tend_text: "", relief_text: "", enabled: true } });
+    if (error) return { ok: false, error: friendlyError(error).message };
+    changed++;
+  }
+  touch(input.projectId);
+  return { ok: true, note: changed ? `Saved ${bullets.length} rule${bullets.length === 1 ? "" : "s"}. They apply from the next day.` : "No changes." };
 }

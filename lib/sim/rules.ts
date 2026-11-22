@@ -65,6 +65,11 @@ export function ruleSentence(r: Pick<SimRule, "family" | "when_text" | "stress" 
     const then = (r.tend_text ?? "").trim().replace(/^then,?\s+/i, "").replace(/[.]+$/, "");
     return then ? `When ${w}, ${then}.` : `When ${w}.`;
   }
+  // A character rule written as a plain bullet point reads exactly as she wrote it.
+  if (r.family === "character" && !r.stress && !r.happiness && !r.tend_text?.trim() && !r.relief_text?.trim()) {
+    const t = r.when_text.trim();
+    return /[.!?]$/.test(t) ? capital(t) : `${capital(t)}.`;
+  }
   const subject = who ?? (r.family === "world" ? "characters" : "they");
   const when = r.when_text.trim().replace(/[.]+$/, "");
   const feel = feelWords(r.stress, r.happiness);
@@ -218,4 +223,9 @@ export function checkRun(raw: RawEvent[], ctx: CheckContext, remaining: number):
     out.push({ ref, depends_on_refs: (e.depends_on_refs ?? []).filter((d) => out.some((o) => o.ref === d)), data });
   }
   return out;
+}
+
+/** Bullet points → one rule each (blank lines and bullet marks dropped; at most 20, 300 chars). */
+export function parseBullets(text: string): string[] {
+  return text.split(/\r?\n/).map((l) => l.replace(/^\s*(?:[-*•–·]|\d+[.)])\s*/, "").trim()).filter((l) => l.length >= 2).map((l) => l.slice(0, 300)).slice(0, 20);
 }
