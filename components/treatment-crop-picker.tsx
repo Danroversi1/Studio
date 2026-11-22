@@ -21,7 +21,9 @@ function lookSlides(slides: SlideInfo[]): number[] {
   return out;
 }
 
-export function TreatmentCropPicker({ projectId, entityId, entityName, entityKind, fileId, initial, slides, onDone, onPick }: {
+export function TreatmentCropPicker({ projectId, entityId, entityName, entityKind, fileId, initial, slides, onDone, onPick, pickLabel, note }: {
+  /** Button text and footnote when the picker is used for something else (e.g. drawing a frame). */
+  pickLabel?: string; note?: string;
   projectId: string; entityId: string; entityName: string; entityKind: "character" | "location" | "look"; fileId: string;
   initial: ThumbCrop | null;
   /** The treatment's slide list as last read (IDs and text), if any. */
@@ -214,12 +216,13 @@ export function TreatmentCropPicker({ projectId, entityId, entityName, entityKin
           <ThumbView source={{ kind: "crop", crop: { file_id: fileId, slide, slide_id: slideId, ...win } }} alt={`${entityName} preview`} className="aspect-[4/3] w-full border border-line" />
         </div>
         <div className="flex flex-col gap-2">
-          <button type="button" className="btn-primary" onClick={save} disabled={pending}>{pending ? "Saving…" : entityKind === "look" ? "Add this part" : `Use for ${entityName}`}</button>
+          <button type="button" className="btn-primary" onClick={save} disabled={pending}>{pending ? "Working…" : pickLabel ?? (entityKind === "look" ? "Add this part" : `Use for ${entityName}`)}</button>
           {onDone && <button type="button" className="btn text-xs" onClick={onDone} disabled={pending}>Cancel</button>}
         </div>
       </div>
-      {msg && <p role="alert" className={`text-sm ${msg.startsWith("Saved") ? "text-muted" : "text-danger"}`}>{msg}</p>}
-      <p className="text-xs text-muted">Shown live from your treatment on Google: no copy is saved. It stays on this slide (same spot and size) even when you add or move slides. Anyone who can&apos;t open the treatment in Google won&apos;t see it.</p>
+      {msg && <p role="alert" className={`text-sm ${msg.startsWith("Saved") ? "text-muted" : "text-danger"}`}>{msg}
+        {/Slides API/.test(msg) && <> <a className="underline" href="https://console.cloud.google.com/apis/library/slides.googleapis.com" target="_blank" rel="noreferrer">Switch it on in Google Cloud</a> (the same project STUDIO&apos;s Google sign-in uses), wait a minute, then try again.</>}</p>}
+      {note ? <p className="text-xs text-muted">{note}</p> : <p className="text-xs text-muted">Shown live from your treatment on Google: no copy is saved. It stays on this slide (same spot and size) even when you add or move slides. Anyone who can&apos;t open the treatment in Google won&apos;t see it.</p>}
     </div>
   );
 }

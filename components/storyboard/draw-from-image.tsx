@@ -58,6 +58,7 @@ export function DrawFromImage({ projectId, deck, treatment, onTreatment, onPicke
           <div className={`flex flex-col gap-1 ${busy ? "pointer-events-none opacity-50" : ""}`}>
             <p className="text-xs text-muted">Pick a slide, then move and resize the window over the part you want. Google may ask you to select the treatment once.</p>
             <TreatmentCropPicker projectId={projectId} entityId="" entityName="Storyboard" entityKind="look" fileId={deck.fileId} initial={null} slides={deck.slides}
+              pickLabel="Draw this frame" note="STUDIO makes a copy of this part of the slide for the frame (kept in your library, noting which slide it came from), then traces it here in your browser."
               onDone={onClose}
               onPick={async (crop) => {
                 const err = await go(async () => {
