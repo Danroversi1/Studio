@@ -38,7 +38,7 @@ export async function suggestInterests(input: { projectId: string; uid: string; 
   let usage: Usage = {};
   try {
     const res = await anthropicClient().messages.create({
-      model: INTEREST_MODEL, max_tokens: 900, system: SYSTEM,
+      model: INTEREST_MODEL, max_tokens: 3000, system: SYSTEM,
       messages: [{ role: "user", content: `<data>${JSON.stringify({ character: input.character, source: input.from, material: text })}</data>` }],
       output_config: { format: { type: "json_schema", schema: SCHEMA as unknown as Record<string, unknown> } },
     });
