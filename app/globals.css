@@ -56,8 +56,8 @@
 }
 
 
-/* Light view: the same system on a paper ground. Chosen with the Light/Dark switch (a cookie),
-   or following the device when she hasn't chosen. Only the colour tokens change. */
+/* Light view (the default): the same system on a paper ground. The Light/Dark switch saves her
+   choice in a cookie; the page always arrives with data-theme set. Only the colour tokens change. */
 @layer base {
   :root[data-theme="light"] { color-scheme: light;
     --color-ink: #f4f3ee; --color-panel: #fbfaf6; --color-panel-2: #ffffff; --color-panel-3: #ecebe4;

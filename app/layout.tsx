@@ -6,7 +6,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 
 export const metadata: Metadata = { title: "STUDIO", description: "A creative workspace for developing animated films." };
-export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: [{ media: "(prefers-color-scheme: light)", color: "#f4f3ee" }, { media: "(prefers-color-scheme: dark)", color: "#0b0d0b" }] };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#f4f3ee" };
 
 // The developer comments layer renders only for accounts in studio_developers.
 async function isDeveloper() {
@@ -21,9 +21,9 @@ async function isDeveloper() {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const dev = await isDeveloper();
-  // Light or dark: her saved choice; without one, the device decides (see globals.css).
+  // Light or dark: her saved choice; light until she picks.
   const saved = (await cookies()).get("studio-theme")?.value;
-  const theme = saved === "light" || saved === "dark" ? saved : undefined;
+  const theme = saved === "dark" ? "dark" : "light";
   return (
     <html lang="en" data-theme={theme}>
       <head>
