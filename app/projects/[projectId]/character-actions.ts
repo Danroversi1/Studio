@@ -1,5 +1,6 @@
 "use server";
 // Character agents: her confirmed facts (no model), and one optional partner turn (model).
+import { currentSynopsis } from "@/lib/agents/current-story";
 import { revalidatePath } from "next/cache";
 import { aiConfigured } from "@/lib/ai/configured";
 import { friendlyError } from "@/lib/errors";
@@ -47,7 +48,13 @@ export async function talkAboutCharacter(input: { projectId: string; entityId: s
       .eq("status", "succeeded").eq("input_payload->>entity_id", input.entityId).order("created_at", { ascending: false }).limit(4),
   ]);
   const summary = String((await latest(input.entityId))?.content?.summary ?? "");
-  const storyBody = story ? String((await latest(story.id))?.content?.body ?? "") : "";
+  // Her latest synopsis, with the cast lines as each character is described now.
+  const { data: castEnts } = await sb.from("entities").select("id, name").eq("project_id", input.projectId).eq("kind", "character")
+    .is("archived_at", null).neq("status", "archived");
+  const cards = await Promise.all(((castEnts ?? []) as { id: string; name: string }[]).map(async (c) => ({
+    name: c.name, summary: c.id === input.entityId ? summary : String((await latest(c.id))?.content?.summary ?? ""),
+  })));
+  const storyBody = story ? currentSynopsis(String((await latest(story.id))?.content?.body ?? ""), cards) : "";
   const r = await runCharacterTalk(String(runId), {
     name: String(ent?.name ?? "Character"), summary, confirmed: (prof?.confirmed ?? {}) as Record<string, string>,
     pending: ((prof?.proposed ?? []) as { field: string; text: string }[]).map((p) => ({ field: p.field, text: p.text })),

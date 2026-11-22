@@ -17,6 +17,7 @@ import {
 import { renderStoryboard } from "../storyboard/agent-context";
 import { STORY_BREAKDOWN_MODEL } from "./story-breakdown";
 import { loadLivingWorld, renderLivingWorld } from "./living-world";
+import { currentSynopsis, savedLabel } from "./current-story";
 
 const MODEL = STORY_BREAKDOWN_MODEL;
 const MAX_TOOL_ROUNDS = 3;
@@ -29,7 +30,7 @@ async function loadSnapshot(db: Db, projectId: string, partner?: string): Promis
     db.from("projects").select("name, runtime:settings->>runtime").eq("id", projectId).single(),
     db.from("entities").select("id, kind, name, current_version_id, created_at")
       .eq("project_id", projectId).in("kind", ["story", "character", "location", "screenplay"]).neq("status", "archived").order("created_at"),
-    db.from("agent_runs").select("title:input_payload->>title, text:input_payload->>text")
+    db.from("agent_runs").select("title:input_payload->>title, text:input_payload->>text, created_at")
       .eq("project_id", projectId).eq("task_type", "story_breakdown").eq("input_payload->>source", "treatment")
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
     db.from("agent_proposals").select("name").eq("project_id", projectId).eq("status", "pending").limit(50),
@@ -43,15 +44,13 @@ async function loadSnapshot(db: Db, projectId: string, partner?: string): Promis
   ]);
   const ents = entities ?? [];
   const ids = ents.map((e) => e.id);
-  const [{ data: versions }, { data: boards }] = await Promise.all([
-    ids.length
-      ? db.from("versions").select("entity_id, version_number, content").in("entity_id", ids).order("version_number", { ascending: false })
-      : Promise.resolve({ data: [] as { entity_id: string; version_number: number; content: Record<string, string> }[] }),
+  const [latestRows, { data: boards }] = await Promise.all([
+    latestVersions(db, ids),
     ids.length ? db.from("research_boards").select("id, entity_id").in("entity_id", ids)
       : Promise.resolve({ data: [] as { id: string; entity_id: string }[] }),
   ]);
-  const latest = new Map<string, Record<string, string>>();
-  for (const v of versions ?? []) if (!latest.has(v.entity_id)) latest.set(v.entity_id, (v.content ?? {}) as Record<string, string>);
+  const latest = new Map([...latestRows].map(([k, v]) => [k, v.content]));
+  const savedAt = new Map([...latestRows].map(([k, v]) => [k, v.created_at]));
   const boardEntity = new Map((boards ?? []).map((b) => [b.id, b.entity_id]));
   const { data: refs } = boardEntity.size
     ? await db.from("research_references").select("board_id, title, attribution, observations, source_domain")
@@ -69,16 +68,19 @@ async function loadSnapshot(db: Db, projectId: string, partner?: string): Promis
   const screenplay = ents.find((e) => e.kind === "screenplay");
   const story = ents.find((e) => e.kind === "story");
   const snapshot: ProjectSnapshot = {
+    takenAt: new Date().toISOString(),
     filmTitle: project?.name ?? "Untitled film",
     runtime: (project as { runtime?: string | null } | null)?.runtime ?? null,
     notebook: sortByOrder((notebook ?? []) as { id: string; kind: string; body: string; status: string; created_at: string; position: number | null }[]),
-    synopsis: story ? String(latest.get(story.id)?.body ?? "") : "",
+    // Her latest saved synopsis, with each cast line as the character is described now.
+    synopsis: story ? currentSynopsis(String(latest.get(story.id)?.body ?? ""), ents.filter((e) => e.kind === "character").map((e) => ({ name: e.name, summary: String(latest.get(e.id)?.summary ?? "") }))) : "",
     synopsisApproved: !!story?.current_version_id,
-    treatment: treatmentRun?.text ? { title: String(treatmentRun.title ?? "Treatment"), text: String(treatmentRun.text) } : null,
-    script: screenplay ? { text: String(latest.get(screenplay.id)?.body ?? ""), approved: !!screenplay.current_version_id } : null,
+    synopsisSaved: story ? savedLabel(savedAt.get(story.id)) : "",
+    treatment: await currentTreatment(db, projectId, treatmentRun as { title: string | null; text: string | null; created_at: string } | null),
+    script: screenplay ? { text: String(latest.get(screenplay.id)?.body ?? ""), approved: !!screenplay.current_version_id, saved: savedLabel(savedAt.get(screenplay.id)) } : null,
     items: ents.filter((e) => e.kind === "character" || e.kind === "location").map((e) => ({
       id: e.id, kind: e.kind as "character" | "location", name: e.name, approved: !!e.current_version_id,
-      summary: String(latest.get(e.id)?.summary ?? ""), notes: String(latest.get(e.id)?.notes ?? ""),
+      summary: String(latest.get(e.id)?.summary ?? ""), notes: String(latest.get(e.id)?.notes ?? ""), saved: savedLabel(savedAt.get(e.id)),
     })),
     references: (refs ?? []).map((r) => ({
       item: nameOf.get(boardEntity.get(r.board_id) ?? "") ?? "the film",
@@ -99,11 +101,51 @@ async function loadSnapshot(db: Db, projectId: string, partner?: string): Promis
       return `${nm(l.from_key)} — ${l.label ?? "connected"} — ${nm(l.to_key)}`;
     }),
   };
-  // The Storybuilder also sees the living world: every knowledge base and rule set, now.
-  if (partner === "story") {
+  // The Storybuilder, World Builder and Dialogue partner also see the living world: every
+  // knowledge base and rule set, as it stands now.
+  if (partner === "story" || partner === "world" || partner === "dialogue") {
     try { snapshot.living = renderLivingWorld(await loadLivingWorld(db, projectId)); } catch { snapshot.living = null; }
   }
   return { snapshot, existing: ents.filter((e) => e.kind === "character" || e.kind === "location") };
+}
+
+/** The newest saved version of each entity (paged, so a long history never hides one). */
+async function latestVersions(db: Db, ids: string[]) {
+  const out = new Map<string, { content: Record<string, string>; created_at: string }>();
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50);
+    for (let from = 0; ; from += 1000) {
+      const { data } = await db.from("versions").select("entity_id, version_number, content, created_at").in("entity_id", chunk)
+        .order("entity_id").order("version_number", { ascending: false }).range(from, from + 999);
+      for (const v of (data ?? []) as { entity_id: string; content: Record<string, string> | null; created_at: string }[]) {
+        if (!out.has(v.entity_id)) out.set(v.entity_id, { content: (v.content ?? {}) as Record<string, string>, created_at: v.created_at });
+      }
+      if (!data || data.length < 1000) break;
+    }
+  }
+  return out;
+}
+
+/** The treatment as last read: the Story Lead's full read, or — when the slides were read
+ *  more recently (or never by the Story Lead) — the slide list STUDIO keeps with the link. */
+async function currentTreatment(db: Db, projectId: string, run: { title: string | null; text: string | null; created_at: string } | null) {
+  const { data: boards } = await db.from("research_boards").select("id").eq("project_id", projectId);
+  const boardIds = (boards ?? []).map((b) => b.id);
+  const { data: refs } = boardIds.length
+    ? await db.from("research_references").select("title, slides:metadata->slides, read_at:metadata->>slides_read_at").in("board_id", boardIds).limit(1000)
+    : { data: [] as { title: string | null; slides: unknown; read_at: string | null }[] };
+  const slid = ((refs ?? []) as { title: string | null; slides: { text?: string }[] | null; read_at: string | null }[])
+    .filter((r) => Array.isArray(r.slides) && r.slides.length)
+    .sort((a, b) => String(b.read_at ?? "").localeCompare(String(a.read_at ?? "")))[0];
+  const slidesAt = slid?.read_at ?? "";
+  if (run?.text && (!slidesAt || Date.parse(slidesAt) <= Date.parse(run.created_at))) {
+    return { title: String(run.title ?? "Treatment"), text: String(run.text), read: savedLabel(run.created_at).replace("saved", "read") };
+  }
+  if (slid) {
+    const lines = slid.slides!.map((x, i) => `Slide ${i + 1}: ${String(x.text ?? "").replace(/\s+/g, " ").trim() || "(no text)"}`);
+    return { title: String(slid.title ?? "Treatment"), text: lines.join("\n"), read: savedLabel(slidesAt).replace("saved", "read"), outline: true };
+  }
+  return run?.text ? { title: String(run.title ?? "Treatment"), text: String(run.text), read: savedLabel(run.created_at).replace("saved", "read") } : null;
 }
 
 function addUsage(a: Usage, b: Usage): Usage {

@@ -1,5 +1,6 @@
 // SERVER ONLY. Runs one queued Story Lead breakdown. Uses the service role solely to read
 // the run's inputs and to record results through the trusted database functions.
+import { currentSynopsis } from "./current-story";
 import type Anthropic from "@anthropic-ai/sdk";
 import { anthropicClient } from "../ai/client";
 import { costUsd, type Usage } from "../ai/pricing";
@@ -35,7 +36,16 @@ export async function runStoryBreakdown(runId: string): Promise<void> {
     } else {
       const { data: version } = await db
         .from("versions").select("content").eq("id", run.input_payload.version_id).single();
-      story = String(version?.content?.body ?? "");
+      // Cast lines read as each character is described now (what the Story desk shows her).
+      const { data: chars } = await db.from("entities").select("id, name").eq("project_id", run.project_id).eq("kind", "character")
+        .is("archived_at", null).neq("status", "archived");
+      const ids = (chars ?? []).map((c) => c.id);
+      const { data: vers } = ids.length
+        ? await db.from("versions").select("entity_id, content").in("entity_id", ids).order("version_number", { ascending: false }).limit(1000)
+        : { data: [] as { entity_id: string; content: { summary?: string } | null }[] };
+      const summary = new Map<string, string>();
+      for (const v of (vers ?? []) as { entity_id: string; content: { summary?: string } | null }[]) if (!summary.has(v.entity_id)) summary.set(v.entity_id, String(v.content?.summary ?? ""));
+      story = currentSynopsis(String(version?.content?.body ?? ""), (chars ?? []).map((c) => ({ name: c.name, summary: summary.get(c.id) ?? "" })));
     }
     const { data: existing } = await db
       .from("entities").select("id, kind, name").eq("project_id", run.project_id).in("kind", ["character", "location"]);
