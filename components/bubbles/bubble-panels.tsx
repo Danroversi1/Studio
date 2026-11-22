@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { bubbleRefreshNow, bubbleSaveProfile, bubbleSaveSettings, bubbleSetActive, type BR } from "@/app/projects/[projectId]/bubble-actions";
 import type { BubbleDesk, CharacterBubble } from "@/lib/bubbles/data";
+import { InterestsEditor } from "./interests";
 
 const ZONES = ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "America/Caracas", "America/Sao_Paulo", "Europe/London", "Europe/Paris", "Europe/Madrid", "Asia/Tokyo", "Australia/Sydney", "UTC"];
 const STATUS: Record<string, string> = { succeeded: "Succeeded", partial: "Partly succeeded", failed: "Failed", skipped: "Skipped (paused)", running: "Running…" };
@@ -104,10 +105,6 @@ function fmt(iso: string | null) {
 
 export function CharacterBubblePanel({ projectId, characterId, name, canEdit, b, day, desk }: { projectId: string; characterId: string; name: string; canEdit: boolean; b: Extract<CharacterBubble, { eligible: true }>; day?: string; desk: BubbleDesk }) {
   const { run, pending, line } = useAct();
-  const [editing, setEditing] = useState(false);
-  const [topics, setTopics] = useState(b.topics.join(", "));
-  const [avoid, setAvoid] = useState(b.avoid.join(", "));
-  const [attention, setAttention] = useState(b.attention);
   const s = b.snapshot;
   const base = `/projects/${projectId}/items/${characterId}`;
   return (
@@ -117,7 +114,7 @@ export function CharacterBubblePanel({ projectId, characterId, name, canEdit, b,
         <span className="text-sm text-muted">{!b.active ? "Paused" : b.filmPaused ? "Daily refresh paused for the film" : "Refreshes daily"}</span>
       </div>
       <p className="text-xs text-muted">
-        The news items from World &amp; Time&apos;s feeds that were around {name} each day, picked by what they follow. Not what they read, and not story yet: it becomes part of the story only if you approve an event in{" "}
+        The news that was around {name} each day: from World &amp; Time&apos;s feeds and from their own interests and the feeds they follow. Not what they read, and not story yet: it becomes part of the story only if you approve an event in{" "}
         <Link className="text-accent" href={`/projects/${projectId}/world#simulation`}>the world, day by day</Link>.
       </p>
       {!b.active && (
@@ -126,29 +123,8 @@ export function CharacterBubblePanel({ projectId, characterId, name, canEdit, b,
           {canEdit && <button type="button" className="btn" disabled={pending} onClick={() => run(() => bubbleSetActive({ projectId, characterId, active: true }))}>Resume {name}&apos;s bubble</button>}
         </div>
       )}
-      <p className="text-sm">
-        <span className="text-muted">Follows: </span>{b.topics.length ? b.topics.join(", ") : "everything in the World watches"}
-        {b.avoid.length > 0 && <><span className="text-muted"> · Avoids: </span>{b.avoid.join(", ")}</>}
-        <span className="text-muted"> · Takes in up to </span>{b.attention} a day
-        {canEdit && <> · <button type="button" className="text-accent" onClick={() => setEditing(!editing)}>{editing ? "Close" : "Change"}</button></>}
-      </p>
-      {editing && (
-        <div className="flex flex-col gap-2">
-          <label className="flex flex-col gap-1 text-xs text-muted">Pays attention to (comma separated, up to 12)
-            <input className="input" value={topics} onChange={(e) => setTopics(e.target.value)} placeholder="e.g. Paris, football, artificial intelligence" />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-muted">Avoids
-            <input className="input" value={avoid} onChange={(e) => setAvoid(e.target.value)} placeholder="e.g. celebrity gossip" />
-          </label>
-          <label className="flex items-center gap-2 text-xs text-muted">How much they take in a day
-            <input type="range" min={1} max={15} value={attention} onChange={(e) => setAttention(Number(e.target.value))} /> <span className="text-text">{attention}</span>
-          </label>
-          <div className="flex gap-2">
-            <button type="button" className="btn btn-primary" disabled={pending} onClick={() => run(async () => { const r = await bubbleSaveProfile({ projectId, characterId, topics, avoid, attention }); if (r.ok) setEditing(false); return r; })}>Save</button>
-            {b.active && <button type="button" className="btn" disabled={pending} onClick={() => run(() => bubbleSetActive({ projectId, characterId, active: false }))}>Pause {name}&apos;s bubble</button>}
-          </div>
-        </div>
-      )}
+      <InterestsEditor projectId={projectId} characterId={characterId} name={name} canEdit={canEdit} topics={b.topics} avoid={b.avoid} attention={b.attention}
+        searched={b.searched} followed={b.followed} active={b.active} key={`${b.topics.join("|")}/${b.avoid.join("|")}/${b.attention}/${b.followed.length}`} />
       {line}
       {s ? (
         <div className="flex flex-col gap-2">

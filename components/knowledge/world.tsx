@@ -38,7 +38,7 @@ export function WorldPanel({ projectId, canEdit, characters, world, sources, cou
 
   const connected = characters.filter((c) => c.links.some((l) => l.collection_id === world.id));
   const missing = characters.filter((c) => !c.links.some((l) => l.collection_id === world.id));
-  const watches = [...new Set(sources.filter((x) => x.watch_query && x.kind === "feed").map((x) => x.watch_query as string))];
+  const watches = [...new Set(sources.filter((x) => x.watch_query && !x.watch_character && x.kind === "feed").map((x) => x.watch_query as string))];
   return (
     <section className="panel flex flex-col gap-4 p-4" aria-labelledby="world-h">
       <div className="flex flex-col gap-1">
@@ -76,7 +76,7 @@ export function WorldPanel({ projectId, canEdit, characters, world, sources, cou
         <summary className="cursor-pointer text-xs text-muted">Looking for {watches.length} topic{watches.length === 1 ? "" : "s"} ({watches.length} of {WATCH_LIMIT}): {watches.join(" · ")}. <span className="text-accent">Manage</span></summary>
         <ul className="mt-2 flex flex-col divide-y divide-line border-y border-line">
           {watches.map((w) => {
-            const feeds = sources.filter((x) => x.watch_query === w && x.kind === "feed");
+            const feeds = sources.filter((x) => x.watch_query === w && !x.watch_character && x.kind === "feed");
             return (
               <li key={w} className="flex flex-col gap-1 py-2 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">

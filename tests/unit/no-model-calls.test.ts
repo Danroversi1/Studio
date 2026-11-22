@@ -47,7 +47,9 @@ const ROUTINE = [
   "lib/sim/rules.ts", "lib/sim/data.ts",
   // Characters' daily media bubbles: the shared refresh, selection, snapshots and their screens.
   "lib/bubbles/run.ts", "lib/bubbles/select.ts", "lib/bubbles/data.ts", "lib/knowledge/shared-fetch.ts",
-  "app/projects/[projectId]/bubble-actions.ts", "components/bubbles/bubble-panels.tsx",
+  "app/projects/[projectId]/bubble-actions.ts",
+  // (The character panel can suggest interests with one small model call when she asks; the
+  // daily refresh above, its route and its actions stay model-free.)
   // Daily 0–10 moods: queueing, scoring and the routes her computer calls (judging is local).
   "lib/mood/score.ts", "lib/mood/run.ts", "app/api/renderer/judge/poll/route.ts",
   "app/api/renderer/judge/[dayId]/complete/route.ts", "app/api/renderer/judge/[dayId]/fail/route.ts",

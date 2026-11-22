@@ -14,6 +14,8 @@ export interface BubbleProfile { topics: string[]; avoid: string[]; attention: n
 export interface CandidateItem {
   id: string; version: number; title: string; url: string | null; content: string;
   published_at: string | null; retrieved_at: string; source_id: string; source: string;
+  /** Set when it comes from a source this character follows (their interest search or a feed): the label. */
+  own?: string;
 }
 export interface BubbleEntry {
   key: string; item_id: string; version: number; title: string; url: string | null; source: string; source_id: string;
@@ -53,7 +55,8 @@ export function selectFor(items: CandidateItem[], p: BubbleProfile, seen: Map<st
     if (prev !== undefined && prev >= i.version) return [];
     const text = `${i.title} ${i.content.slice(0, 600)}`;
     if (p.avoid.some((a) => mentions(text, a))) return [];
-    const matched = topics.filter((t) => mentions(text, t));
+    const hits = topics.filter((t) => mentions(text, t));
+    const matched = hits.length ? hits : i.own ? [i.own] : [];
     if (topics.length && !matched.length) return [];
     return [{ i, matched, prev }];
   }).sort((a, b) => b.matched.length - a.matched.length || when(b.i) - when(a.i) || a.i.id.localeCompare(b.i.id));

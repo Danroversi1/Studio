@@ -4,7 +4,7 @@ export interface KSource {
   url: string | null; feed_url: string | null; origin: string | null; asset_id: string | null; reference_id: string | null;
   director_note: string | null; paused: boolean; disconnected_at: string | null; refresh_hours: number | null;
   next_refresh_at: string | null; last_attempt_at: string | null; last_success_at: string | null; last_error: string | null;
-  failures: number; created_at: string; updated_at: string; watch_query?: string | null;
+  failures: number; created_at: string; updated_at: string; watch_query?: string | null; watch_character?: string | null;
 }
 export interface KItem {
   id: string; source_id: string; title: string; url: string | null; author: string | null; published_at: string | null;

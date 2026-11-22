@@ -224,7 +224,7 @@ export async function kbWorldWatchAdd(input: { projectId: string; query: string;
   const sb = await supabaseServer();
   const { error } = await sb.rpc("kb_world_watch_add", { p_project: input.projectId, p_query: input.query.trim(), p_feeds: feeds });
   if (error) return fail(error);
-  const { data: rows } = await sb.from("knowledge_sources").select("id").eq("project_id", input.projectId).eq("watch_query", input.query.trim()).is("archived_at", null);
+  const { data: rows } = await sb.from("knowledge_sources").select("id").eq("project_id", input.projectId).eq("watch_query", input.query.trim()).is("watch_character", null).is("archived_at", null);
   // The two free sources are different sites, so they're checked side by side.
   const outs = await Promise.all((rows ?? []).map((r) => refreshFeed(String(r.id), true)));
   const found = outs.reduce((n, o) => n + (o.ok ? o.added ?? 0 : 0), 0);
@@ -263,7 +263,7 @@ export async function kbWorldPlan(input: { projectId: string; prompt: string }):
   const sb = await supabaseServer();
   const [{ data: w }, { data: srcs }] = await Promise.all([
     sb.from("story_world").select("data").eq("project_id", input.projectId).maybeSingle(),
-    sb.from("knowledge_sources").select("watch_query").eq("project_id", input.projectId).is("archived_at", null).not("watch_query", "is", null),
+    sb.from("knowledge_sources").select("watch_query").eq("project_id", input.projectId).is("archived_at", null).not("watch_query", "is", null).is("watch_character", null),
   ]);
   const places = ((w?.data as { confirmed?: { where?: { value?: { places?: { name: string; kind: string }[] } } } } | null)?.confirmed?.where?.value?.places ?? []);
   const cities = places.filter((p) => p.kind !== "invented" && p.name?.trim()).map((p) => p.name.trim());
@@ -300,7 +300,7 @@ export async function kbWorldFollowPrompt(input: { projectId: string; prompt: st
     added.push(topic.label);
   }
   if (!added.length) return { ok: false, error: problems[0] ? `Nothing new to follow: ${problems[0]}.` : "You're already following all of that." };
-  const { data: rows } = await sb.from("knowledge_sources").select("id, watch_query").eq("project_id", input.projectId).in("watch_query", added).is("archived_at", null);
+  const { data: rows } = await sb.from("knowledge_sources").select("id, watch_query").eq("project_id", input.projectId).in("watch_query", added).is("watch_character", null).is("archived_at", null);
   const outs = await Promise.all(((rows ?? []) as { id: string; watch_query: string }[]).map(async (r) => ({ q: r.watch_query, o: await refreshFeed(String(r.id), true) })));
   const found = new Map<string, number>();
   for (const { q, o } of outs) found.set(q, (found.get(q) ?? 0) + (o.ok ? o.added ?? 0 : 0));

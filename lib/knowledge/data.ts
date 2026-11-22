@@ -9,7 +9,7 @@ import type { Impression, KCharacter, KCollection, KItem, KMember, KSource } fro
 export type { Impression, KCharacter, KCollection, KItem, KMember, KSource } from "./types";
 export { collectionsOf } from "./types";
 
-const SOURCE_COLS = "id, kind, adapter, status, title, url, feed_url, origin, asset_id, reference_id, director_note, paused, disconnected_at, refresh_hours, next_refresh_at, last_attempt_at, last_success_at, last_error, failures, created_at, updated_at, watch_query";
+const SOURCE_COLS = "id, kind, adapter, status, title, url, feed_url, origin, asset_id, reference_id, director_note, paused, disconnected_at, refresh_hours, next_refresh_at, last_attempt_at, last_success_at, last_error, failures, created_at, updated_at, watch_query, watch_character";
 const ITEM_COLS = "id, source_id, title, url, author, published_at, retrieved_at, content, content_status, version, director_note, verification, verification_note, updated_at, pinned";
 
 export async function getKnowledge(projectId: string) {

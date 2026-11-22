@@ -137,3 +137,17 @@ test("refreshing writes only coverage and run records", () => {
   assert.doesNotMatch(src, /\.(insert|update|upsert|delete)\(/);
   assert.doesNotMatch(src, /from\("(sim_[a-z_]+|dialogue_[a-z_]+)"\)/);
 });
+
+test("what a character follows directly counts as one of their interests", () => {
+  const followed = { ...item("f", "Grandmaster wins the candidates final"), source_id: "own", source: "News: chess", own: "chess tournaments" };
+  const out = selectFor([followed, item("x", "Unrelated city council story")], { topics: ["AI"], avoid: [], attention: 5 });
+  assert.deepEqual(out.map((e) => [e.item_id, e.matched]), [["f", ["chess tournaments"]]]);
+  const avoided = selectFor([{ ...followed, title: "Chess gossip roundup" }], { topics: ["AI"], avoid: ["gossip"], attention: 5 });
+  assert.equal(avoided.length, 0, "avoid still wins");
+});
+
+test("interest labels are short search phrases", async () => {
+  const { cleanLabel } = await import("../../lib/bubbles/interests");
+  assert.equal(cleanLabel('- "AI safety research."'), "AI safety research");
+  assert.equal(cleanLabel("x".repeat(80)).length, 60);
+});

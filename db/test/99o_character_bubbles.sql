@@ -71,6 +71,30 @@ select tests.ok((select active and inactive_reason is null from public.character
 select tests.ok((select count(*) from public.bubble_snapshots where project_id = tests.v('BA')) = 0, 'outsiders see no bubbles');
 select tests.throws(format($q$select public.bubble_refresh_start(%L)$q$, tests.v('BA')), 'PT404', 'outsiders can''t refresh');
 
+-- Interests: a character's own daily searches (kept apart from World topics)
+:as_dir
+select tests.put('IF', public.create_project('Interests film', 'x'));
+select tests.put('ij', public.create_entity(tests.v('IF'), 'character', 'Ivy', '{"summary":"x"}'));
+select tests.put('ix', public.create_entity(tests.v('IF'), 'character', 'Extra', '{"summary":"x"}'));
+select public.set_character_role(tests.v('ij'), 'protagonist');
+select public.set_character_role(tests.v('ix'), 'featured');
+select tests.ok(public.kb_character_watch_add(tests.v('IF'), tests.v('ij'), 'chess', '[{"adapter":"rss","feed_url":"https://news.google.com/rss/search?q=chess","title":"News: chess"}]') = 1, 'an interest becomes a daily search');
+select tests.ok((select 'chess' = any(topics) from public.character_bubbles where character_id = tests.v('ij')), 'and a topic of their coverage');
+select tests.ok((select count(*) from public.knowledge_collection_members m join public.knowledge_collections c on c.id = m.collection_id
+  where c.character_id = tests.v('ij') and m.source_id in (select id from public.knowledge_sources where watch_character = tests.v('ij'))) = 1, 'kept in their own collection');
+select tests.throws(format($q$select public.kb_character_watch_add(%L, %L, 'Chess', '[]')$q$, tests.v('IF'), tests.v('ij')), '23505', 'no duplicates');
+select tests.throws(format($q$select public.kb_character_watch_add(%L, %L, 'golf', '[]')$q$, tests.v('IF'), tests.v('ix')), '22023', 'featured characters have no interests');
+select tests.throws(format($q$select public.kb_character_watch_add(%L, %L, 'spam', '[{"adapter":"rss","feed_url":"https://evil.example/rss"}]')$q$, tests.v('IF'), tests.v('ij')), '22023', 'only the free searches');
+select tests.ok(public.kb_world_watch_add(tests.v('IF'), 'chess', '[{"adapter":"rss","feed_url":"https://news.google.com/rss/search?q=chess2","title":"News: chess"}]') = 1, 'the World can follow the same thing separately');
+select public.kb_world_watch_remove(tests.v('IF'), 'chess');
+select tests.ok((select count(*) from public.knowledge_sources where watch_character = tests.v('ij') and disconnected_at is null) = 1, 'removing the World topic leaves the character''s interest');
+select public.kb_character_watch_remove(tests.v('IF'), tests.v('ij'), 'CHESS');
+select tests.ok((select not ('chess' = any(topics)) from public.character_bubbles where character_id = tests.v('ij'))
+  and (select count(*) from public.knowledge_sources where watch_character = tests.v('ij') and disconnected_at is null) = 0, 'removing an interest stops its search and topic');
+select tests.ok(public.interests_ai_check(tests.v('IF'), tests.v('ij')) is not null, 'suggesting interests is allowed within budget');
+:as_outsider
+select tests.throws(format($q$select public.kb_character_watch_add(%L, %L, 'x y', '[]')$q$, tests.v('IF'), tests.v('ij')), 'PT404', 'outsiders can''t add interests');
+
 :as_owner
 select n, label from tests.results where not passed order by n;
 select count(*) filter (where passed) as passed, count(*) filter (where not passed) as failed from tests.results;

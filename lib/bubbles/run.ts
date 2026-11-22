@@ -20,15 +20,15 @@ const SEEN_DAYS = 14;      // what's already been offered isn't offered again (u
 async function bubbleSources(db: Db, projectId: string) {
   const [{ data: watches }, { data: links }] = await Promise.all([
     db.from("knowledge_sources").select("id, title, status, last_attempt_at, last_success_at, last_error, paused, next_refresh_at")
-      .eq("project_id", projectId).eq("kind", "feed").is("archived_at", null).is("disconnected_at", null).not("watch_query", "is", null),
+      .eq("project_id", projectId).eq("kind", "feed").is("archived_at", null).is("disconnected_at", null).not("watch_query", "is", null).is("watch_character", null),
     db.from("character_knowledge").select("character_id, collection_id").eq("project_id", projectId).is("archived_at", null).neq("purpose", "director_only"),
   ]);
   const colIds = [...new Set(((links ?? []) as { collection_id: string }[]).map((l) => l.collection_id))];
   const { data: mem } = colIds.length ? await db.from("knowledge_collection_members").select("collection_id, source_id").in("collection_id", colIds).not("source_id", "is", null) : { data: [] };
   const linkedIds = [...new Set(((mem ?? []) as { source_id: string }[]).map((m) => m.source_id))];
-  const { data: linked } = linkedIds.length ? await db.from("knowledge_sources").select("id, title, status, last_attempt_at, last_success_at, last_error, paused, next_refresh_at")
+  const { data: linked } = linkedIds.length ? await db.from("knowledge_sources").select("id, title, status, last_attempt_at, last_success_at, last_error, paused, next_refresh_at, watch_query")
     .in("id", linkedIds).eq("kind", "feed").is("archived_at", null).is("disconnected_at", null) : { data: [] };
-  type Src = { id: string; title: string; status: string; last_attempt_at: string | null; last_success_at: string | null; last_error: string | null; paused: boolean; next_refresh_at: string | null };
+  type Src = { id: string; title: string; status: string; last_attempt_at: string | null; last_success_at: string | null; last_error: string | null; paused: boolean; next_refresh_at: string | null; watch_query?: string | null };
   const all = new Map<string, Src>();
   for (const s of [...((watches ?? []) as Src[]), ...((linked ?? []) as Src[])]) all.set(s.id, s);
   const charSources = new Map<string, Set<string>>();
@@ -102,7 +102,9 @@ export async function refreshBubbles(input: { projectId: string; trigger: "manua
       const p = prof.get(c.id);
       const profile: BubbleProfile = { topics: p?.topics ?? [], avoid: p?.avoid ?? [], attention: p?.attention ?? DEFAULT_ATTENTION };
       const mine = charSources.get(c.id) ?? new Set<string>();
-      const pool_ = items.filter((i) => worldIds.has(i.source_id) || mine.has(i.source_id));
+      const label = new Map(sources.map((x) => [x.id, (x.watch_query ?? x.title).replace(/^(Stopped: )?(News: |Reactions: )?/, "")]));
+      const pool_ = items.filter((i) => worldIds.has(i.source_id) || mine.has(i.source_id))
+        .map((i) => (mine.has(i.source_id) ? { ...i, own: label.get(i.source_id) } : i));
       const seen = new Map<string, number>();
       let todays: BubbleEntry[] = [];
       for (const s of ((prior ?? []) as { character_id: string; run_date: string; items: { item_id: string; version: number }[] }[]).filter((s) => s.character_id === c.id)) {
