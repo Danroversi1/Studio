@@ -16,6 +16,7 @@ import {
 } from "./partners";
 import { renderStoryboard } from "../storyboard/agent-context";
 import { STORY_BREAKDOWN_MODEL } from "./story-breakdown";
+import { loadLivingWorld, renderLivingWorld } from "./living-world";
 
 const MODEL = STORY_BREAKDOWN_MODEL;
 const MAX_TOOL_ROUNDS = 3;
@@ -23,7 +24,7 @@ const MAX_SUGGESTIONS_PER_TURN = 10;
 
 type Db = ReturnType<typeof supabaseService>;
 
-async function loadSnapshot(db: Db, projectId: string): Promise<{ snapshot: ProjectSnapshot; existing: { id: string; kind: string; name: string }[] }> {
+async function loadSnapshot(db: Db, projectId: string, partner?: string): Promise<{ snapshot: ProjectSnapshot; existing: { id: string; kind: string; name: string }[] }> {
   const [{ data: project }, { data: entities }, { data: treatmentRun }, { data: pending }, { data: notebook }, { data: worldRow }] = await Promise.all([
     db.from("projects").select("name, runtime:settings->>runtime").eq("id", projectId).single(),
     db.from("entities").select("id, kind, name, current_version_id, created_at")
@@ -98,6 +99,10 @@ async function loadSnapshot(db: Db, projectId: string): Promise<{ snapshot: Proj
       return `${nm(l.from_key)} — ${l.label ?? "connected"} — ${nm(l.to_key)}`;
     }),
   };
+  // The Storybuilder also sees the living world: every knowledge base and rule set, now.
+  if (partner === "story") {
+    try { snapshot.living = renderLivingWorld(await loadLivingWorld(db, projectId)); } catch { snapshot.living = null; }
+  }
   return { snapshot, existing: ents.filter((e) => e.kind === "character" || e.kind === "location") };
 }
 
@@ -123,7 +128,7 @@ export async function runPartnerTurn(runId: string): Promise<string | null> {
     if (!isPartnerId(partner)) throw new Error("Unknown partner.");
     const { data: history } = await db.from("agent_messages").select("role, content")
       .eq("thread_id", run.input_payload.thread_id).order("created_at", { ascending: true }).limit(200);
-    const { snapshot, existing } = await loadSnapshot(db, run.project_id);
+    const { snapshot, existing } = await loadSnapshot(db, run.project_id, partner);
 
     const client = anthropicClient();
     const messages: Anthropic.MessageParam[] = toApiMessages((history ?? []) as StoredMessage[]);

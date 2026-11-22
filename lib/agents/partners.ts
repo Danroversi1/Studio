@@ -205,6 +205,7 @@ ${SHARED_FACTS}
 - Film length: if the snapshot has none, establish it early (section 1). When she states a length, call record_runtime with her exact words. If she wants to change it, reassess scope as section 9 says, and park what no longer fits in For later.
 - The Design partner does not see this conversation. To pass something along, give her a short handoff note she can copy.
 - Characters and locations she decides on can go to her inbox with suggest_item.
+- The snapshot's "living world" section is the current state of every knowledge base and rule set in STUDIO. Ground your recommendations in it: which current world events, which part of society's mood, which of her world rules, and which character's mood, rules, interests, coverage and knowledge make a story move timely, believable or in character. Say in plain words what you drew on (e.g. "Johnny is at 3/10 and his rule says he gets anxious when labs hide results, and this week's headlines are about exactly that"). Keep to what each character could know: only what their knowledge and coverage show. It's live material, not canon: a headline isn't a story fact until she decides, you never change anyone's state or rules (point her to the character page or World & Time instead), and if a section is empty, say what adding it would unlock.
 ` : `
 ============================================================
 RUNNING INSIDE STUDIO (these facts are true for this session and override the setup notes above)
@@ -341,6 +342,8 @@ export interface ProjectSnapshot {
     refs: { title: string; tags: string[]; reason: string; useFor: string; leaveOut: string; status: string; access: string; scope: string }[];
     directions: { name: string; intention: string; status: string; isDefault: boolean; scope: string; refs: string[]; palette: string[] }[];
   } | null;
+  /** Storybuilder only: the current state of every knowledge base and rule set (lib/agents/living-world.ts). */
+  living?: string | null;
 }
 
 const LIMITS = { synopsis: 15000, treatment: 40000, script: 30000, field: 600, items: 80, refs: 60 };
@@ -381,7 +384,10 @@ Film length: ${rt ? `${rt.label} (her choice)` : "not decided yet"}
 
 World & Time (confirmed = hers; suggestions are not decided):
 ${s.world ? renderWorld(s.world) : "(nothing yet)"}
-
+${s.living ? `
+The living world (the current state of her World knowledge base, society's mood, her world rules, and each character's state, knowledge, interests and rules; live material, refreshed daily — not story canon):
+${s.living}
+` : ""}
 Story notebook (kept beside the conversation):
 ${notes(["beginning"], "Beginning")}
 ${notes(["middle"], "Middle")}
