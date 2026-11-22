@@ -195,7 +195,7 @@ export function checkEvent(raw: RawEvent, ctx: CheckContext): EventData | null {
     affected.push({
       character_id: id, name: ctx.characters.find((x) => x.id === id)!.name,
       d_stress: feels ? stepToPoints(c.stress_step, ctx.intensity) : 0, d_happiness: feels ? stepToPoints(c.happiness_step, ctx.intensity) : 0,
-      feel: feels ? txt(c.feel, 200) : "", movement: txt(c.movement, 300),
+      feel: txt(c.feel, 200), movement: txt(c.movement, 300),
       channel: inv === "encounters_source" ? "Through the news they follow" : inv === "told_by_character" ? `Told by ${txt(c.told_by, 80)}` : "It happens to them",
       involvement: inv, rule_ids: ruleIds,
     });

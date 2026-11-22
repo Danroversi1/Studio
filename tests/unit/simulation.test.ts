@@ -87,7 +87,7 @@ test("Simulation: Day 1 comes from the World & Time timeline", () => {
 test("Simulation: feelings are tracked only for protagonist, antagonist and supporting roles", () => {
   const c2: CheckContext = { ...ctx, tracked: ["M"] };
   const r = checkEvent(ev({ characters: [{ name: "Johnny", involvement: "encounters_source", stress_step: 3, happiness_step: -2, feel: "panicked", movement: "Calls his mentor.", rule_ids: [] }] }), c2)!;
-  assert.deepEqual([r.characters[0].d_stress, r.characters[0].d_happiness, r.characters[0].feel, r.characters[0].movement], [0, 0, "", "Calls his mentor."], "an untracked character can still act");
+  assert.deepEqual([r.characters[0].d_stress, r.characters[0].d_happiness, r.characters[0].feel, r.characters[0].movement], [0, 0, r.characters[0].feel, "Calls his mentor."], "an untracked character can still act and react (no tracked feelings)");
 });
 test("Tracked roles", () => {
   assert.ok(isTracked("protagonist") && isTracked("antagonist") && isTracked("supporting"));

@@ -14,6 +14,9 @@ import { KnowledgeBase } from "@/components/knowledge/knowledge-base";
 import { getKnowledge } from "@/lib/knowledge/data";
 import { SimDesk } from "@/components/sim/sim-desk";
 import { RuleList } from "@/components/sim/rule-list";
+import { SocietyPanel } from "@/components/society/society-panel";
+import { getSociety } from "@/lib/society/data";
+import { supabaseServer } from "@/lib/supabase/server";
 import { getSimulation } from "@/lib/sim/data";
 import { PARTNERS, openingFor } from "@/lib/agents/partners";
 import { aiConfigured } from "@/lib/agents/run-story-breakdown";
@@ -36,9 +39,9 @@ export default async function WorldPage({ params, searchParams }: {
   const caps = shell.caps;
   const base = `/projects/${projectId}/world`;
 
-  const [world, threads, budget, notebook, refs, latest, kb, sentenceVersions, sim] = await Promise.all([
+  const [world, threads, budget, notebook, refs, latest, kb, sentenceVersions, sim, society] = await Promise.all([
     getWorld(projectId), getPartnerThreads(projectId, "world"), getAiBudget(projectId), getNotebook(projectId),
-    getAllReferences(projectId), getLatestVersions(projectId), getKnowledge(projectId), getWorldSentenceVersions(projectId), getSimulation(projectId),
+    getAllReferences(projectId), getLatestVersions(projectId), getKnowledge(projectId), getWorldSentenceVersions(projectId), getSimulation(projectId), supabaseServer().then((sb) => getSociety(sb, projectId)),
   ]);
   const current = fresh ? null : (threads.find((t) => t.id === thread) ?? threads[0] ?? null);
   const messages = current ? await getThreadMessages(projectId, current.id) : [];
@@ -114,6 +117,7 @@ export default async function WorldPage({ params, searchParams }: {
           <KnowledgeBase projectId={projectId} canEdit={!!caps.can_edit} sources={kb.sources} items={kb.items}
             collections={kb.collections} members={kb.members} references={kb.references} used={kb.usedByCharacters}
             characters={kb.characters} selectedCharacter={null} impressions={kb.impressions} aiReady={aiConfigured()} worldOpen worldOnly />
+          <SocietyPanel projectId={projectId} canEdit={!!caps.can_edit} s={society} />
           <RuleList projectId={projectId} canEdit={!!caps.can_edit} rules={sim.rules} families={["periphery"]} characters={sim.characters}
             title="How the world works"
             intro="Your rules for the world around the story: how news spreads, what reaches whom, how people and institutions respond. The day-by-day simulation follows them when it suggests events. They never set anyone's feelings (that's each character's own rules). Changes apply from the next story day."

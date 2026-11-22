@@ -57,7 +57,7 @@ function check(u: URL) {
   if (/^(localhost|.*\.local|.*\.internal|metadata\.google\.internal)$/i.test(u.hostname)) throw new FetchError("That address points to a private network.", null, "blocked");
 }
 
-export interface Fetched { url: string; status: number; contentType: string; body: string; etag: string | null; lastModified: string | null }
+export interface Fetched { url: string; status: number; contentType: string; body: string; etag: string | null; lastModified: string | null; bytes?: Uint8Array }
 
 function once(u: URL, opts: { accept: string; headers: Record<string, string>; maxBytes: number; timeoutMs: number }): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: Buffer }> {
   return new Promise((resolve, reject) => {
@@ -87,7 +87,7 @@ function once(u: URL, opts: { accept: string; headers: Record<string, string>; m
   });
 }
 
-export async function fetchPublic(raw: string, opts: { accept?: string; headers?: Record<string, string>; maxBytes?: number; timeoutMs?: number } = {}): Promise<Fetched> {
+export async function fetchPublic(raw: string, opts: { accept?: string; headers?: Record<string, string>; maxBytes?: number; timeoutMs?: number; binary?: boolean } = {}): Promise<Fetched> {
   let u: URL;
   try { u = new URL(raw); } catch { throw new FetchError("That isn't a web address.", null, "blocked"); }
   const o = { accept: opts.accept ?? "*/*", headers: opts.headers ?? {}, maxBytes: opts.maxBytes ?? 3_000_000, timeoutMs: opts.timeoutMs ?? 10_000 };
@@ -104,6 +104,7 @@ export async function fetchPublic(raw: string, opts: { accept?: string; headers?
       url: u.toString(), status: r.status, contentType: String(r.headers["content-type"] ?? ""),
       body: r.body.toString("utf8"), etag: r.headers.etag ? String(r.headers.etag) : null,
       lastModified: r.headers["last-modified"] ? String(r.headers["last-modified"]) : null,
+      ...(opts.binary ? { bytes: new Uint8Array(r.body) } : {}),
     };
   }
   throw new FetchError("Too many redirects.", null, "http");

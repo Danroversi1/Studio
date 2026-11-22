@@ -51,6 +51,9 @@ const ROUTINE = [
   // Daily 0–10 moods: queueing, scoring and the routes her computer calls (judging is local).
   "lib/mood/score.ts", "lib/mood/run.ts", "app/api/renderer/judge/poll/route.ts",
   "app/api/renderer/judge/[dayId]/complete/route.ts", "app/api/renderer/judge/[dayId]/fail/route.ts",
+  // Society's mood: shared public survey data, scoring, the panel and its setting.
+  "lib/society/sources.ts", "lib/society/score.ts", "lib/society/refresh.ts", "lib/society/data.ts",
+  "components/society/society-panel.tsx", "app/projects/[projectId]/society-actions.ts",
 ];
 
 function resolveImport(from: string, spec: string): string | null {

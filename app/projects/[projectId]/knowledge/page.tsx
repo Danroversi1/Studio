@@ -5,6 +5,9 @@ import { notFound } from "next/navigation";
 import { KnowledgeBase } from "@/components/knowledge/knowledge-base";
 import { getProjectShell } from "@/lib/data";
 import { getKnowledge } from "@/lib/knowledge/data";
+import { SocietyPanel } from "@/components/society/society-panel";
+import { getSociety } from "@/lib/society/data";
+import { supabaseServer } from "@/lib/supabase/server";
 import { aiConfigured } from "@/lib/ai/configured";
 
 export const maxDuration = 120;
@@ -16,6 +19,7 @@ export default async function KnowledgePage({ params, searchParams }: { params: 
   if (!shell || !shell.caps.member) notFound();
   if (!shell.caps.can_review) notFound();
   const kb = await getKnowledge(projectId);
+  const society = world === "1" ? await getSociety(await supabaseServer(), projectId) : null;
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <header className="flex flex-col gap-2">
@@ -31,6 +35,7 @@ export default async function KnowledgePage({ params, searchParams }: { params: 
         collections={kb.collections} members={kb.members} references={kb.references} used={kb.usedByCharacters}
         characters={kb.characters} selectedCharacter={kb.characters.some((c) => c.id === character) ? character! : null}
         impressions={kb.impressions} aiReady={aiConfigured()} worldOpen={world === "1"} />
+      {society && <SocietyPanel projectId={projectId} canEdit={!!shell.caps.can_edit} s={society} />}
     </div>
   );
 }
