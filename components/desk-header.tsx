@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Attention } from "@/lib/data";
+import { ThemeToggle } from "./theme-toggle";
 
 const DESKS: [RegExp, string][] = [
   [/\/world$/, "World & Time"], [/\/knowledge$/, "Knowledge Base"], [/\/connections$/, "Connections"], [/\/treatment$/, "Treatment"],
@@ -37,6 +38,7 @@ export function DeskHeader({ projectId, film, attention }: { projectId: string; 
             <span className="mr-1.5 size-1.5 rounded-full bg-ember" aria-hidden />{x.n} {x.label}{x.n === 1 ? "" : "s"} {x.what}
           </Link>
         )) : <span className="text-muted">Nothing waiting for you</span>}
+        <ThemeToggle className="ml-1" />
       </div>
     </header>
   );

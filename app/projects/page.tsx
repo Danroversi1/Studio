@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Flash } from "@/components/flash";
 import { IconArrowUpRight, IconFilm, Wordmark } from "@/components/icons";
 import { SubmitButton } from "@/components/ui";
@@ -13,7 +14,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
     <div className="min-h-dvh">
       <header className="flex min-h-16 items-center justify-between border-b border-line bg-panel px-5 sm:px-8">
         <Wordmark />
-        <form action={signOut}><button className="btn">Sign out</button></form>
+        <span className="flex items-center gap-3"><ThemeToggle /><form action={signOut}><button className="btn">Sign out</button></form></span>
       </header>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-10 px-5 py-10 sm:px-8">

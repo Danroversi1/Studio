@@ -3,9 +3,10 @@ import "@fontsource-variable/jetbrains-mono";
 import "./globals.css";
 import { DevComments } from "@/components/dev-comments";
 import { supabaseServer } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 
 export const metadata: Metadata = { title: "STUDIO", description: "A creative workspace for developing animated films." };
-export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0b0d0b" };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: [{ media: "(prefers-color-scheme: light)", color: "#f4f3ee" }, { media: "(prefers-color-scheme: dark)", color: "#0b0d0b" }] };
 
 // The developer comments layer renders only for accounts in studio_developers.
 async function isDeveloper() {
@@ -20,8 +21,11 @@ async function isDeveloper() {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const dev = await isDeveloper();
+  // Light or dark: her saved choice; without one, the device decides (see globals.css).
+  const saved = (await cookies()).get("studio-theme")?.value;
+  const theme = saved === "light" || saved === "dark" ? saved : undefined;
   return (
-    <html lang="en">
+    <html lang="en" data-theme={theme}>
       <head>
         {/* Painwaves type: Instrument Serif (titles, figures) and DM Sans (reading). */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />

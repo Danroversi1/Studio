@@ -49,10 +49,32 @@
   body { background: var(--color-ink); color: var(--color-text); font-family: var(--font-sans); font-size: 15px; line-height: 1.6; }
   ::selection { background: var(--color-brand); color: var(--color-ink); }
   :focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
-  input, textarea, select { color-scheme: dark; }
+  :root[data-theme="dark"] { color-scheme: dark; }
   h1, h2, h3 { text-wrap: balance; }
   .tabular, td, dd { font-variant-numeric: tabular-nums; }
   @media (prefers-reduced-motion: reduce) { *, ::before, ::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+}
+
+
+/* Light view: the same system on a paper ground. Chosen with the Light/Dark switch (a cookie),
+   or following the device when she hasn't chosen. Only the colour tokens change. */
+@layer base {
+  :root[data-theme="light"] { color-scheme: light;
+    --color-ink: #f4f3ee; --color-panel: #fbfaf6; --color-panel-2: #ffffff; --color-panel-3: #ecebe4;
+    --color-line: #dcdad2; --color-line-strong: #bfbdb3;
+    --color-text: #161915; --color-soft: #3d4139; --color-muted: #5c6057;
+    --color-brand: #3f5a39; --color-accent: #3f5a39; --color-accent-soft: #e2eadd;
+    --color-ember: #b4501f; --color-ember-soft: #f7e3d8;
+    --color-ok: #2c6a3a; --color-ok-soft: #dcebdf; --color-warn: #835a00; --color-warn-soft: #f4e8c9; --color-danger: #b0381b;
+    --color-paper: #ffffff; --color-paper-ink: #141414; }
+  @media (prefers-color-scheme: light) { :root:not([data-theme]) { color-scheme: light;
+    --color-ink: #f4f3ee; --color-panel: #fbfaf6; --color-panel-2: #ffffff; --color-panel-3: #ecebe4;
+    --color-line: #dcdad2; --color-line-strong: #bfbdb3;
+    --color-text: #161915; --color-soft: #3d4139; --color-muted: #5c6057;
+    --color-brand: #3f5a39; --color-accent: #3f5a39; --color-accent-soft: #e2eadd;
+    --color-ember: #b4501f; --color-ember-soft: #f7e3d8;
+    --color-ok: #2c6a3a; --color-ok-soft: #dcebdf; --color-warn: #835a00; --color-warn-soft: #f4e8c9; --color-danger: #b0381b;
+    --color-paper: #ffffff; --color-paper-ink: #141414; } }
 }
 
 /* Custom utilities (Tailwind v4 requires @utility for classes reused via @apply). */
