@@ -27,7 +27,8 @@ test("future access is an antagonist permission only", () => {
   assert.equal(tierOf("antagonist", { enabled: true, ahead_days: 9 }), "ahead");
   assert.equal(canSee(3, 2), false);
   assert.equal(canSee(3, 2, true), true, "a discovery opens it");
-  assert.match(reachLabel("protagonist", null, 3, 9), new RegExp(PROTAGONIST_LABEL.replace(/[.]/g, "\\.")));
+  assert.match(reachLabel("protagonist", null, 3, 9), /through Day 2: one day behind\. Discoveries can close the gap\./);
+  assert.match(PROTAGONIST_LABEL, /^Routine knowledge: one day behind\. Discoveries can close the gap\.$/);
 });
 
 const TL: Timeline = {

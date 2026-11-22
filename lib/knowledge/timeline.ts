@@ -66,6 +66,6 @@ export function reachLabel(role: CastRole | null, access: Access | null | undefi
     const real = Math.min(r, Math.max(worldDay, collectedThrough));
     return `Sees ahead through Day ${r} (${access!.ahead_days} day${access!.ahead_days === 1 ? "" : "s"}); the collected buffer reaches Day ${Math.max(worldDay, collectedThrough)}, so in practice through Day ${real}.`;
   }
-  if (t === "behind") return `Routine knowledge through ${dayLabel(r)}. ${PROTAGONIST_LABEL}`;
+  if (t === "behind") return `Routine knowledge through ${r <= 0 ? "the backstory (before Day 1)" : `Day ${r}`}: one day behind. Discoveries can close the gap.`;
   return `Through Day ${r} (the current day), from their sources and what actually reaches them.`;
 }

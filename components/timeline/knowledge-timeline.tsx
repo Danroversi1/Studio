@@ -32,7 +32,7 @@ function Picks({ items, chosen, onChange, empty }: { items: { id: string; label:
 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="flex flex-col gap-1 border border-line p-3">
+    <div className="flex flex-col gap-1 bg-panel p-3.5">
       <span className="eyebrow">{label}</span>
       <span className="display text-[26px] leading-tight">{value}</span>
       {sub && <span className="text-xs text-muted">{sub}</span>}
@@ -58,7 +58,7 @@ export function KnowledgeTimeline({ projectId, canEdit, tl, buffers }: { project
         </p>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="cells grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4">
         <Tile label="Current world day" value={`Day ${tl.worldDay}`} sub={`The world as of ${tl.worldDate}`} />
         <Tile label="Antagonist sees through" value={enabled.length ? enabled.map((c) => `${c.name}: Day ${Math.min(c.reach, Math.max(tl.worldDay, tl.collectedThrough))}`).join(" · ") : "Nobody ahead"}
           sub={enabled.length ? enabled.map((c) => `${c.access!.ahead_days} days allowed`).join(" · ") : ahead.length ? "Future access is off" : "No antagonist yet"} />
@@ -79,13 +79,19 @@ export function KnowledgeTimeline({ projectId, canEdit, tl, buffers }: { project
       <div className="flex flex-col gap-2">
         <h3 className="font-medium">Who can know what</h3>
         <ul className="flex flex-col gap-2 text-sm">
-          {[...ahead, ...leads, ...others].map((c) => (
+          {[...ahead, ...leads].map((c) => (
             <li key={c.id} className="flex flex-col gap-1 border-b border-line pb-2">
               <span><b>{c.name}</b> <span className="text-xs text-muted">{c.role ? ROLE_LABEL[c.role] : ""}</span></span>
               <span className="text-xs text-muted">{c.label}</span>
               {c.role === "antagonist" && canEdit && <AccessControl projectId={projectId} id={c.id} name={c.name} enabled={c.tier === "ahead"} ahead={c.access?.ahead_days ?? 4} />}
             </li>
           ))}
+          {others.length > 0 && (
+            <li className="flex flex-col gap-1 border-b border-line pb-2">
+              <span><b>Everyone else</b> <span className="text-xs text-muted">Supporting and featured</span></span>
+              <span className="text-xs text-muted">Through Day {tl.worldDay}, the current day, from their own sources and what actually reaches them: {others.map((c) => c.name).join(", ")}.</span>
+            </li>
+          )}
           {!ahead.length && !leads.length && <li className="text-xs text-muted">Choose a protagonist and an antagonist on the character pages.</li>}
         </ul>
       </div>

@@ -6,6 +6,7 @@ import { SidebarNav } from "@/components/sidebar-nav";
 import { RefreshOnReturn } from "@/components/refresh-on-return";
 import { currentUser, getAttention, getProjectShell, type Capabilities } from "@/lib/data";
 import { DeskHeader } from "@/components/desk-header";
+import { MobileMenu } from "@/components/mobile-menu";
 import { signOut } from "../../login/actions";
 
 function roleLabel(c: Capabilities) {
@@ -39,7 +40,23 @@ export default async function ProjectLayout({
   return (
     <div className="flex min-h-dvh flex-col lg:flex-row">
       <RefreshOnReturn />
-      <aside className="flex flex-col gap-6 border-line bg-ink px-5 py-6 lg:sticky lg:top-0 lg:h-dvh lg:w-80 lg:shrink-0 lg:overflow-y-auto lg:border-r">
+      {/* Phones: the film and a menu at the top, the desk right below it. */}
+      <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3 lg:hidden">
+        <Link href="/projects" aria-label="STUDIO — all films"><Wordmark /></Link>
+        <MobileMenu>
+          <SidebarNav
+              projectId={projectId}
+              storyId={story?.id}
+              characters={nav("character")}
+              locations={nav("location")}
+              pendingSuggestions={pending}
+              showAgents={!!caps.can_review}
+              showSettings={!!(caps.can_admin && caps.can_approve_creative)}
+              showImport={!!caps.can_edit}
+            />
+        </MobileMenu>
+      </div>
+      <aside className="hidden flex-col gap-6 border-line bg-ink px-5 py-6 lg:flex lg:sticky lg:top-0 lg:h-dvh lg:w-80 lg:shrink-0 lg:overflow-y-auto lg:border-r">
         <Link href="/projects" className="px-1" aria-label="STUDIO — all films"><Wordmark /></Link>
 
         <Link href="/projects" className="panel flex items-center gap-3 p-3 hover:border-text/30" title="Switch film">

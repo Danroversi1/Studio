@@ -20,7 +20,7 @@ export function RulesBox({ projectId, characterId = null, name, initial, canEdit
       <p className="text-xs text-muted">
         {intro ?? `Write ${name}'s rules as bullet points, one per line: how they react to the news, to what other characters tell them, and to what happens to them. Each morning the news in their coverage is checked against these to work out how ${name} is doing, and the day-by-day simulation follows them. Changes apply from the next day.`}
       </p>
-      <textarea className="field font-mono text-sm" rows={Math.max(6, text.split("\n").length + 1)} value={text} disabled={!canEdit || pending}
+      <textarea className="field text-[15px] leading-relaxed" rows={Math.max(6, text.split("\n").length + 1)} value={text} disabled={!canEdit || pending}
         onChange={(e) => setText(e.target.value)}
         placeholder={placeholder ?? `- Gets anxious when AI labs hide what they've found\n- Feels hopeful when research is shared openly\n- Calms down after talking to Marie`} aria-label={title ?? `${name}'s rules`} />
       {canEdit && (
