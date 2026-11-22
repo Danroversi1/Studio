@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import type { ReactNode } from "react";
 import {
   kbAddFeed, kbAddNote, kbAnnotateItem, kbArchive, kbCollectionArchive, kbCollectionMember, kbCollectionSave, kbDocumentOwner,
   kbCharacterCollection, kbFeedUpdate, kbImportReference, kbPreviewFeed, kbRefreshDueOnOpen, kbRefreshNow, kbSaveDocument, kbSaveLink, type FeedPreview,
@@ -718,13 +719,17 @@ function ItemRow({ projectId, item, source, collections, members, canEdit, imp }
   );
 }
 
-export function KnowledgeBase({ projectId, canEdit, sources, items, collections, members, references, used, characters, selectedCharacter, impressions, aiReady, worldOpen, worldOnly = false }: {
+export function KnowledgeBase({ projectId, canEdit, sources, items, collections, members, references, used, characters, selectedCharacter, impressions, aiReady, worldOpen, worldOnly = false, certain, bubble }: {
   projectId: string; canEdit: boolean; sources: KSource[]; items: KItem[]; collections: KCollection[]; members: KMember[];
   references: { id: string; title: string | null; source_url: string | null; source_domain: string | null }[]; used: Record<string, number>;
   characters: KCharacter[]; selectedCharacter: string | null;
   impressions: Impression[]; aiReady: boolean; worldOpen: boolean;
   /** Only the World knowledge base (shown on the World & Time desk); same data, same controls. */
   worldOnly?: boolean;
+  /** Selected character: what they know for certain (their character page), server-rendered. */
+  certain?: ReactNode;
+  /** Selected character: their daily coverage (bubble), server-rendered. */
+  bubble?: ReactNode;
 }) {
   const router = useRouter();
   const [active, setActive] = useState<string | null>(null);
@@ -749,7 +754,14 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
   const inWorld = (worldOpen || worldOnly) && !!world;
   const char = inWorld ? null : characters.find((c) => c.id === selectedCharacter) ?? null;
   const own = char ? collections.find((c) => c.character_id === char.id) ?? null : null;
-  const charCols = useMemo(() => (inWorld && world ? [world.id] : char ? [...new Set([...char.links.map((l) => l.collection_id), ...(own ? [own.id] : [])])] : null), [char, own, inWorld, world]);
+  // A character's fixed knowledge: their own and connected collections. The World is shown
+  // in its own section below, so it isn't repeated here.
+  const charCols = useMemo(() => (inWorld && world ? [world.id] : char ? [...new Set([...char.links.map((l) => l.collection_id), ...(own ? [own.id] : [])])].filter((id) => id !== world?.id) : null), [char, own, inWorld, world]);
+  const worldForChar = useMemo(() => (char && world
+    ? items.filter((i) => byId.has(i.source_id) && collectionsOf(i, members).includes(world.id))
+        .sort((a, b) => String(b.published_at ?? b.retrieved_at).localeCompare(String(a.published_at ?? a.retrieved_at))).slice(0, 15)
+    : []), [char, world, items, members, byId]);
+  const worldLinked = !!(char && world && char.links.some((l) => l.collection_id === world.id));
   const imp: ImpCtx | null = inWorld ? { characters, impressions, only: null, aiReady } : char ? { characters, impressions, only: char.id, aiReady } : null;
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -774,13 +786,14 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
       {inWorld && world && <WorldPanel projectId={projectId} canEdit={canEdit} characters={characters} world={world} sources={sources} counts={itemCounts} />}
       {inWorld && world && <WorldStories projectId={projectId} canEdit={canEdit} items={items.filter((i) => collectionsOf(i, members).includes(world.id))} byId={byId} imp={imp} />}
       {char && <CharacterPanel projectId={projectId} canEdit={canEdit} character={char} collections={collections} counts={counts} />}
+      {char && certain}
       {canEdit && <AddResearch key={inWorld ? "world" : own?.id ?? "all"} projectId={projectId} collections={collections} references={references} preset={preset}
         share={inWorld && world ? { collection: world, sources: sources.filter((x) => !x.disconnected_at && !x.watch_query && !members.some((m) => m.collection_id === world.id && m.source_id === x.id)) } : undefined} />}
       {!char && !inWorld && (canEdit || collections.length > 0) && <Collections projectId={projectId} collections={collections} counts={counts} used={used} active={active} onActive={setActive} />}
       {!char && !inWorld && <Feeds projectId={projectId} feeds={sources.filter((s) => s.kind === "feed" && !s.watch_query)} collections={collections} members={members} itemCounts={itemCounts} />}
       {!inWorld && <section className="panel flex flex-col gap-3 p-4" aria-labelledby="lib-h">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="lib-h" className="display text-lg">{inWorld ? "In the World" : char ? `What ${char.name} can draw on` : `Library ${active ? `· ${collections.find((c) => c.id === active)?.name}` : ""}`}</h2>
+          <h2 id="lib-h" className="display text-lg">{inWorld ? "In the World" : char ? `Fixed knowledge: research ${char.name} can draw on` : `Library ${active ? `· ${collections.find((c) => c.id === active)?.name}` : ""}`}</h2>
           <div className="flex flex-wrap gap-2">
             <input className="field min-h-9 w-56 text-sm" placeholder="Search your research" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search" />
             <select className="field min-h-9 w-auto text-sm" value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Kind">
@@ -796,6 +809,23 @@ export function KnowledgeBase({ projectId, canEdit, sources, items, collections,
         ) : <p className="text-sm text-muted">{inWorld ? "Nothing in the World yet. Follow something above, add research by hand, or bring in research from your Knowledge Base." : char ? `Nothing for ${char.name} yet. Add research above, or connect a collection on the Connections desk.` : items.length ? "Nothing matches." : "Nothing here yet. Add a note, a link, a document or an updating source."}</p>}
         {items.length > 200 && shown.length === 200 && <p className="text-xs text-muted">Showing the first 200. Search or pick a collection to narrow it down.</p>}
       </section>}
+      {char && world && (
+        <section className="panel flex flex-col gap-3 p-4" aria-labelledby="char-world-h">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="char-world-h" className="display text-lg">World knowledge: the world {char.name} lives in</h2>
+            <Link href="?world=1" scroll={false} className="text-xs text-accent">Open the World →</Link>
+          </div>
+          <p className="text-xs text-muted">
+            {worldLinked ? `The latest from the World everyone lives in. ${char.name} is connected to it, so they can draw on it.` : `The latest from the World everyone lives in. ${char.name} isn't connected to it right now, so they won't draw on it; connect it on the Connections desk.`}
+          </p>
+          {worldForChar.length ? (
+            <ul className="flex flex-col divide-y divide-line">
+              {worldForChar.map((i) => <ItemRow key={i.id} projectId={projectId} item={i} source={byId.get(i.source_id)!} collections={collections} members={members} canEdit={canEdit} imp={imp} />)}
+            </ul>
+          ) : <p className="text-sm text-muted">Nothing in the World yet.</p>}
+        </section>
+      )}
+      {char && bubble}
     </div>
   );
 }
