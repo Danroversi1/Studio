@@ -106,6 +106,6 @@ test("rules as bullet points: one rule per bullet, read as written", async () =>
   const { parseBullets } = await import("../../lib/sim/rules");
   assert.deepEqual(parseBullets("- Gets anxious when AI labs hide results\n\n• Calms down around Marie\n3. hates being lied to\n*  \n"),
     ["Gets anxious when AI labs hide results", "Calms down around Marie", "hates being lied to"]);
-  assert.equal(parseBullets(Array.from({ length: 30 }, (_, i) => `- rule ${i}`).join("\n")).length, 20);
+  assert.equal(parseBullets(Array.from({ length: 60 }, (_, i) => `- rule ${i}`).join("\n")).length, 60, "no limit on how many");
   assert.equal(ruleSentence({ family: "character", when_text: "hates being lied to", stress: 0, happiness: 0, tend_text: null, relief_text: null }, "Johnny"), "Hates being lied to.");
 });

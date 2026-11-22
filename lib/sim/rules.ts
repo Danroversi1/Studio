@@ -227,7 +227,7 @@ export function checkRun(raw: RawEvent[], ctx: CheckContext, remaining: number):
   return out;
 }
 
-/** Bullet points → one rule each (blank lines and bullet marks dropped; at most 20, 300 chars). */
+/** Bullet points → one rule each (blank lines and bullet marks dropped; up to 300 characters a bullet; no limit on how many). */
 export function parseBullets(text: string): string[] {
-  return text.split(/\r?\n/).map((l) => l.replace(/^\s*(?:[-*•–·]|\d+[.)])\s*/, "").trim()).filter((l) => l.length >= 2).map((l) => l.slice(0, 300)).slice(0, 20);
+  return text.split(/\r?\n/).map((l) => l.replace(/^\s*(?:[-*•–·]|\d+[.)])\s*/, "").trim()).filter((l) => l.length >= 2).map((l) => l.slice(0, 300));
 }

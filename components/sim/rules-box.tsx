@@ -31,7 +31,7 @@ export function RulesBox({ projectId, characterId = null, name, initial, canEdit
               setMsg(r.ok ? { kind: "ok", text: r.note } : { kind: "error", text: r.error });
               if (r.ok) router.refresh();
             })}>{pending ? "Saving…" : "Save rules"}</button>
-          <span className="text-[11px] text-muted">Up to 20 bullets.</span>
+          <span className="text-[11px] text-muted">One rule per line, as many as you like.</span>
         </div>
       )}
       {msg && <p role={msg.kind === "error" ? "alert" : "status"} className={`text-xs ${msg.kind === "error" ? "text-danger" : "text-muted"}`}>{msg.text}</p>}

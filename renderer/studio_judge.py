@@ -51,7 +51,7 @@ def validate_job(job: Any) -> dict[str, Any]:
     items = [i for i in job.get("items") or [] if isinstance(i, dict) and isinstance(i.get("key"), str) and isinstance(i.get("title"), str)]
     if not rules or not items:
         raise JudgeError("The job has no rules or no coverage to judge.")
-    return {"id": job["id"], "character": str(job.get("character") or "the character")[:80], "rules": rules[:20], "items": items[:15],
+    return {"id": job["id"], "character": str(job.get("character") or "the character")[:80], "rules": rules, "items": items[:15],
             "instructions": str(job.get("instructions") or "")[:4000]}
 
 
