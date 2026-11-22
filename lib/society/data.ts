@@ -7,11 +7,23 @@ import { SOURCES, type Region, type SourceId, type Theme } from "./sources";
 export interface SocietyReport { id: string; url: string; title: string; publisher: string; region: string; themes: Theme[]; published_at: string | null }
 export interface SocietySource { id: SourceId; label: string; page: string; last_attempt_at: string | null; last_success_at: string | null; last_error: string | null; latest_period: string | null; stale: boolean }
 
+/** All readings since a date. The API returns at most 1,000 rows per request, so page through. */
+async function allPoints(sb: SupabaseClient, since: string): Promise<{ data: { series: string; period: string; value: number }[] }> {
+  const out: { series: string; period: string; value: number }[] = [];
+  for (let from = 0; from < 20_000; from += 1000) {
+    const { data, error } = await sb.from("society_points").select("series, period, value").gte("period", since).order("series").order("period").range(from, from + 999);
+    if (error || !data?.length) break;
+    out.push(...(data as { series: string; period: string; value: number }[]));
+    if (data.length < 1000) break;
+  }
+  return { data: out };
+}
+
 export async function getSociety(sb: SupabaseClient, projectId: string): Promise<{ regions: Region[]; moods: ThemeMood[]; reports: SocietyReport[]; sources: SocietySource[] }> {
   const since = new Date(Date.now() - 125 * 31 * 86400_000).toISOString().slice(0, 10);
   const [{ data: set }, { data: pts }, { data: reps }, { data: srcs }] = await Promise.all([
     sb.from("bubble_settings").select("society_regions").eq("project_id", projectId).maybeSingle(),
-    sb.from("society_points").select("series, period, value").gte("period", since).order("period").limit(5000),
+    allPoints(sb, since),
     sb.from("society_reports").select("id, url, title, publisher, region, themes, published_at").order("published_at", { ascending: false, nullsFirst: false }).limit(40),
     sb.from("society_sources").select("id, label, last_attempt_at, last_success_at, last_error, latest_period"),
   ]);
