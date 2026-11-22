@@ -218,8 +218,11 @@ export function classifyReport(rawTitle: string, fallbackPublisher?: string): { 
   if (!p || title.length < 12) return null;
   const themes = THEMES.filter((t) => THEME_WORDS[t].test(title));
   if (!themes.length) return null;
-  let region = p.region;
-  if (region === "World") region = /\b(europe\w*|EU|euro ?zone|germany|france|italy|spain|britain|UK)\b/i.test(title) ? "EU" : /\b(americans?|U\.?S\.?|united states)\b/i.test(title) ? "US" : "World";
+  // Region from the headline first (the UK isn't in the EU; G7 / global polls are world-wide).
+  const eu = /\b(europe\w*|EU|euro ?zone|euro area|germany|german\w*|france|french|italy|italian\w*|spain|spanish|netherlands|dutch|poland|polish|ireland|irish)\b/i.test(title);
+  const us = /\b(americans?|united states|US)\b|\bU\.S\./i.test(title.replace(/\bus\b/g, ""));
+  const world = /\b(G7|G20|global\w*|world\w*|countries|nations|britain|british|UK|canad\w*|india\w*|japan\w*|china|chinese)\b/i.test(title);
+  const region: Region | "World" = eu && !us ? "EU" : us && !eu ? "US" : world || eu || us ? "World" : p.region;
   return { title: title.slice(0, 500), publisher: p.label, region, themes };
 }
 
@@ -229,6 +232,6 @@ const q = (s: string, gl: "US" | "GB") => `${NEWS}?${new URLSearchParams({ q: `$
 export const REPORT_FEEDS: string[] = [
   q("(site:news.gallup.com OR site:apnorc.org OR site:today.yougov.com OR site:ipsos.com) (jobs OR employment OR layoffs OR inflation OR prices)", "US"),
   q("(site:news.gallup.com OR site:apnorc.org OR site:today.yougov.com OR site:ipsos.com) (affordability OR \"cost of living\" OR wellbeing OR \"well-being\" OR happiness)", "US"),
+  q("site:pewresearch.org (jobs OR inflation OR prices OR \"cost of living\" OR affordability OR wellbeing OR happiness OR economy)", "US"),
   q("(Eurobarometer OR Eurofound OR site:ipsos.com OR site:yougov.co.uk) (inflation OR \"cost of living\" OR jobs OR wellbeing OR affordability)", "GB"),
-  "https://www.pewresearch.org/feed/",
 ];

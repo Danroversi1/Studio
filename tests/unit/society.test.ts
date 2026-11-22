@@ -69,5 +69,8 @@ test("poll reports: only listed pollsters, only on a theme; region from the head
   assert.equal(classifyReport("Views of U.S. Crime Remain Most Positive in 25 Years - Gallup News"), null, "not on a theme");
   assert.equal(classifyReport("Inflation is soaring, says my blog - Random Blog"), null, "not a pollster");
   assert.equal(classifyReport("Europeans worry about the cost of living - Ipsos")?.region, "EU");
+  assert.equal(classifyReport("Inflation concern rises as the biggest issue facing Britain - Ipsos")?.region, "World", "the UK isn't in the EU");
+  assert.equal(classifyReport("G7 Economic Optimism Plunges to Great Recession Levels - Gallup News")?.region, "World");
+  assert.equal(classifyReport("Americans want next Congress to focus on the cost of living - Ipsos")?.region, "US");
   assert.deepEqual(classifyReport("In the U.S. and around the world, inflation is high", "Pew Research Center")?.themes, ["prices"]);
 });

@@ -71,7 +71,7 @@ export async function refreshSociety(): Promise<SocietyRefresh> {
     try {
       const r = await get(url, { accept: "application/rss+xml, application/xml;q=0.9, */*;q=0.5" });
       const feed = parseFeed(r.body, { maxItems: 60, maxContent: 200 });
-      const pew = url.includes("pewresearch.org");
+      const pew = url.startsWith("https://www.pewresearch.org/");
       const rows = (feed?.items ?? []).flatMap((it) => {
         const c = classifyReport(it.title, pew ? "Pew Research Center" : undefined);
         return c && it.url ? [{ url: it.url, title: c.title, publisher: c.publisher, region: c.region, themes: c.themes, published_at: it.published_at, fetched_at: now }] : [];
