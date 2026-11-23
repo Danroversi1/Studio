@@ -56,3 +56,15 @@ test("mixed SVG embeds only image data URIs, with masks", () => {
   assert.ok(!bad.svg.includes("javascript"), "anything but an image data URI is refused");
   assert.equal(bad.leftOut.length, 1);
 });
+
+test("a picture to draw from is never part of the finished frame", () => {
+  const c = cleanComposition({ ...emptyComposition(), layers: [
+    { id: "g", type: "image", name: "Slide 12", assetId: "a1", guide: true, x: 800, y: 450, w: 1600, h: 900, rot: 0 },
+    { id: "v", type: "vector", name: "Lines", traceId: "t1", x: 800, y: 450, w: 1600, h: 900, rot: 0 },
+  ] });
+  assert.equal(c.layers[0].guide, true, "kept when saved");
+  const { svg, leftOut } = buildSvg(c, "mixed", new Map([["a1", "data:image/png;base64,iVBORw0KGgo="]]));
+  assert.ok(!svg.includes("<image"), "not embedded even in mixed media");
+  assert.deepEqual(leftOut, [], "and not reported as missing: it simply isn't part of the frame");
+  assert.match(svg, /M0 0L10 10/);
+});

@@ -34,6 +34,9 @@ export interface Layer {
   // text
   text?: string; fontSize?: number; color?: string; box?: boolean; align?: "left" | "center" | "right";
   masks?: Mask[];
+  /** A picture to draw from: shown (faded) on the canvas while she works, never part of the
+   *  finished frame (thumbnails, PNG, SVG, PDF). */
+  guide?: boolean;
   // drawing ("annotation" = arrows/notes lane; otherwise her drawing)
   strokes?: Stroke[];
   role?: "annotation";
@@ -137,6 +140,7 @@ export function cleanComposition(x: unknown, fallbackAspect = 16 / 9): Compositi
       out.libraryId = str(L.libraryId, 40); out.assetId = str(L.assetId, 40);
       const c = (L.crop && typeof L.crop === "object" ? L.crop : null) as Record<string, unknown> | null;
       if (c) out.crop = { l: num(c.l, 0, 0, 0.95), t: num(c.t, 0, 0, 0.95), r: num(c.r, 0, 0, 0.95), b: num(c.b, 0, 0, 0.95) };
+      if (L.guide) out.guide = true;
       const ms = cleanMasks(L.masks);
       if (ms.length) out.masks = ms;
     }

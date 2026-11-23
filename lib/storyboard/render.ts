@@ -188,7 +188,7 @@ export function rasterLayers(layers: Layer[], images: Map<string, ImageState>, m
 
 /** Render a composition to a canvas of the given pixel width (height follows the aspect). */
 export function renderComposition(canvas: HTMLCanvasElement, c: Composition, images: Map<string, ImageState>, widthPx: number,
-  opts: { look?: boolean; preview?: boolean; captureWidthMm?: number; skipIds?: string[] } = {}): RenderResult {
+  opts: { look?: boolean; preview?: boolean; captureWidthMm?: number; skipIds?: string[]; guides?: boolean } = {}): RenderResult {
   const res: RenderResult = { missing: [], tainted: false };
   const W = Math.max(1, Math.round(widthPx)), H = Math.max(1, Math.round(widthPx / c.aspect));
   if (canvas.width !== W) canvas.width = W;
@@ -199,7 +199,7 @@ export function renderComposition(canvas: HTMLCanvasElement, c: Composition, ima
   const unit = W / FRAME_W;
   const m = framingMatrix(c);
   ctx.setTransform(unit * m.s, 0, 0, unit * m.s, unit * m.tx, unit * m.ty);
-  for (const l of c.layers) if (!l.hidden && !opts.skipIds?.includes(l.id)) drawLayer(ctx, l, images, res, unit * m.s, opts.preview ?? false);
+  for (const l of c.layers) if (!l.hidden && (opts.guides || !l.guide) && !opts.skipIds?.includes(l.id)) drawLayer(ctx, l, images, res, unit * m.s, opts.preview ?? false);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   if (opts.look !== false && !isNeutral(c.look)) {
     try {
@@ -213,7 +213,7 @@ export function renderComposition(canvas: HTMLCanvasElement, c: Composition, ima
 
 /** Export one frame as PNG; explains exactly which images block it instead of failing silently. */
 export async function exportPng(c: Composition, widthPx: number, captureWidthMm?: number): Promise<{ blob?: Blob; problems: string[] }> {
-  const ids = [...new Set(c.layers.filter((l) => !l.hidden && l.assetId).map((l) => l.assetId!))];
+  const ids = [...new Set(c.layers.filter((l) => !l.hidden && !l.guide && l.assetId).map((l) => l.assetId!))];
   const images = await loadAll(ids);
   const canvas = document.createElement("canvas");
   const res = renderComposition(canvas, c, images, widthPx, { captureWidthMm });

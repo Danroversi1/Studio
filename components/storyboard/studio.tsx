@@ -71,6 +71,8 @@ export function StoryboardStudio(props: {
   const [preview, setPreview] = useState<{ result: TraceResult; settings: TraceSettings } | null>(null);
   const [before, setBefore] = useState(false);
   const [fade, setFade] = useState(false);
+  const [finished, setFinished] = useState(false);
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [refBusy, setRefBusy] = useState<string | null>(null);
   const [drawOpen, setDrawOpen] = useState(false);
   const [drawAs, setDrawAs] = useState<"outline" | "ink" | "three_tone">("outline");
@@ -215,6 +217,15 @@ export function StoryboardStudio(props: {
     setFrames((fs) => [...fs.map((x) => (x.id === f.id ? { ...x, position: pos } : x))].sort((a, b) => a.position - b.position));
     await run(moveFrame({ shotId: f.id, position: pos }));
   }
+  async function deleteShot(f: FrameRow) {
+    setConfirmDel(null);
+    const i = frames.indexOf(f);
+    const r = await run(removeFrame({ shotId: f.id }), `Shot ${i + 1} deleted.`);
+    if (r) {
+      setFrames((fs) => fs.filter((x) => x.id !== f.id));
+      if (selId === f.id) setSelId(frames[i + 1]?.id ?? frames[i - 1]?.id ?? null);
+    }
+  }
   async function saveNow() {
     if (!frame) return;
     await flush(frame.id);
@@ -271,6 +282,7 @@ export function StoryboardStudio(props: {
   const replacingId = selLayers.length === 1 && selLayers[0].type === "vector" ? selLayers[0].id : null;
   const display = useCallback((c: Composition): Composition => {
     let layers = c.layers;
+    if (finished) return { ...c, layers: layers.filter((l) => !l.guide) };
     if (before) layers = layers.filter((l) => l.type !== "vector");
     if (fade && !before) layers = layers.map((l) => (l.type === "image" ? { ...l, opacity: (l.opacity ?? 1) * 0.3 } : l));
     if (preview && previewId && !before) {
@@ -280,7 +292,7 @@ export function StoryboardStudio(props: {
       layers = [...layers.filter((l) => l.id !== replacingId).map((l) => (l.type === "image" ? { ...l, opacity: Math.min(l.opacity ?? 1, 0.35) } : l)), pv];
     }
     return layers === c.layers ? c : { ...c, layers };
-  }, [before, fade, preview, previewId, replacingId]);
+  }, [before, fade, finished, preview, previewId, replacingId]);
 
   function addText(caption: boolean) {
     edit((c) => {
@@ -313,12 +325,20 @@ export function StoryboardStudio(props: {
                 </span>
               </span>
             </button>
-            {canEdit && (
-              <span className="flex justify-between px-1">
+            {canEdit && (confirmDel === f.id ? (
+              <span className="flex items-center justify-between gap-1 px-1 text-[11px]" role="group" aria-label={`Delete shot ${i + 1}?`}>
+                <span>Delete?</span>
+                <button type="button" className="font-semibold text-danger hover:underline" onClick={() => void deleteShot(f)}>Yes</button>
+                <button type="button" className="text-muted hover:text-text" onClick={() => setConfirmDel(null)}>No</button>
+              </span>
+            ) : (
+              <span className="flex items-center justify-between px-1">
                 <button type="button" className="text-xs text-muted hover:text-text disabled:opacity-30" onClick={() => moveF(f, -1)} disabled={i === 0} aria-label={`Move shot ${i + 1} earlier`}>←</button>
+                <button type="button" className="text-xs text-muted hover:text-danger disabled:opacity-30" onClick={() => setConfirmDel(f.id)} disabled={f.locked}
+                  aria-label={`Delete shot ${i + 1}`} title={f.locked ? "Unlock this shot to delete it" : "Delete this shot"}>🗑</button>
                 <button type="button" className="text-xs text-muted hover:text-text disabled:opacity-30" onClick={() => moveF(f, 1)} disabled={i === frames.length - 1} aria-label={`Move shot ${i + 1} later`}>→</button>
               </span>
-            )}
+            ))}
           </li>
         ))}
       </ol>
@@ -478,6 +498,7 @@ export function StoryboardStudio(props: {
                 <button type="button" className="btn min-h-9 px-2.5 text-xs" onClick={undo} disabled={!editable || !history.canUndo} aria-label="Undo (Ctrl+Z)">↶ Undo</button>
                 <button type="button" className="btn min-h-9 px-2.5 text-xs" onClick={redo} disabled={!editable || !history.canRedo} aria-label="Redo (Ctrl+Shift+Z)">↷ Redo</button>
                 <span className="mx-1 h-6 border-l border-line" />
+                <button type="button" aria-pressed={finished} className={`btn min-h-9 px-2.5 text-xs ${finished ? "btn-primary" : ""}`} onClick={() => setFinished((v) => !v)} title="See the frame as it will be in the storyboard and exports (without the pictures you draw from)">Finished frame</button>
                 <button type="button" aria-pressed={before} className={`btn min-h-9 px-2.5 text-xs ${before ? "btn-primary" : ""}`} onClick={() => setBefore((v) => !v)} title="Show the references without the traced lines">Before</button>
                 <button type="button" aria-pressed={fade} className={`btn min-h-9 px-2.5 text-xs ${fade ? "btn-primary" : ""}`} onClick={() => setFade((v) => !v)} title="Fade the reference pictures (view only)">Fade refs</button>
                 <select className="field w-auto py-1 text-xs" value={comp.grid} onChange={(e) => edit((c) => ({ ...c, grid: e.target.value as Composition["grid"] }))} aria-label="Composition grid" disabled={!editable}>
@@ -588,7 +609,7 @@ export function StoryboardStudio(props: {
     const b = r.box;
     const lines: Layer = { id: newId(), type: "vector", name: `${{ outline: "Outline", ink: "Ink", three_tone: "Three-tone" }[settings.treatment]}: ${name}`.slice(0, 80),
       traceId: saved.id, treatment: settings.treatment, sourceIds: [ref.id], x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2, w: b.x1 - b.x0, h: b.y1 - b.y0, rot: 0 };
-    const refLocked = { ...ref, locked: true };
+    const refLocked = { ...ref, locked: true, guide: true };
 
     if (useCurrent) {
       edit((c) => ({ ...c, bg: filmVersion ? filmT.bg : c.bg, layers: [...c.layers, refLocked, lines] }));
@@ -603,7 +624,7 @@ export function StoryboardStudio(props: {
       refresh();
     }
     setFade(true); setTool("select"); setTab("treatment");
-    setMsg({ kind: "notice", text: `Drew ${useCurrent ? "this shot" : "a new shot"} from “${name}”: ${r.paths.length.toLocaleString()} editable paths. The picture is underneath (faded and locked). Refine with the Pen, Paths or Lasso, or select the lines and adjust them in Treatment.` });
+    setMsg({ kind: "notice", text: `Drew ${useCurrent ? "this shot" : "a new shot"} from “${name}”: ${r.paths.length.toLocaleString()} editable paths. The picture is underneath only to draw from: it isn't part of the finished frame. Refine with the Pen, Paths or Lasso; press Finished frame to see the board as it will export.` });
   }
 
   /** Keep traces: save each one's paths (with its settings and the references it came from),
@@ -636,14 +657,14 @@ export function StoryboardStudio(props: {
           const layers = [...r.comp.layers], added = layers.pop()!;
           const top = Math.max(...k.sources.map((l) => layers.findIndex((x) => x.id === l.id)));
           layers.splice(top + 1, 0, added); // just above the highest of its references
-          next = { ...r.comp, layers };
+          next = update({ ...r.comp, layers }, k.sources.map((l) => l.id), () => ({ guide: true }));
           newIds.push(r.id);
         }
       }
       return next;
     });
     setLayerSel(newIds); setPathSel([]); setFade(true);
-    setMsg({ kind: "notice", text: replace ? "Re-traced. Only that layer changed; Undo brings the old lines back." : `Kept ${saved.length === 1 ? "the trace" : `${saved.length} traces`} as editable lines. References are faded so you can see them (Fade refs switches it).` });
+    setMsg({ kind: "notice", text: replace ? "Re-traced. Only that layer changed; Undo brings the old lines back." : `Kept ${saved.length === 1 ? "the trace" : `${saved.length} traces`} as editable lines. The pictures they came from stay underneath to draw from, but aren't part of the finished frame (switch that per picture in Layers).` });
   }
 
   async function saveFilm(t: FilmTreatment): Promise<boolean> {

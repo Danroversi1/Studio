@@ -315,7 +315,7 @@ export function LayersPanel({ comp, selected, editable, library, onSelect, edit,
             <button type="button" className="min-w-0 flex-1 truncate text-left" onClick={(e) => onSelect(e.shiftKey ? [...selected, l.id] : [l.id])} aria-pressed={selected.includes(l.id)}
               title={LANES.find((x) => x.id === laneOf(l))?.label}>
               <span className="text-muted">{l.type === "text" ? "T" : l.type === "shape" ? "◆" : LANES.find((x) => x.id === laneOf(l))?.icon}</span> {l.name}
-              {l.masks?.length ? <span className="text-muted"> · cut out</span> : null}{l.group ? <span className="text-muted"> · grouped</span> : null}
+              {l.guide ? <span className="text-muted"> · to draw from</span> : null}{l.masks?.length ? <span className="text-muted"> · cut out</span> : null}{l.group ? <span className="text-muted"> · grouped</span> : null}
             </button>
             <button type="button" className="px-1" disabled={!editable} onClick={() => edit((c) => update(c, [l.id], () => ({ hidden: !l.hidden || undefined })))} aria-label={l.hidden ? `Show ${l.name}` : `Hide ${l.name}`}>{l.hidden ? "◌" : "◉"}</button>
             <button type="button" className="px-1" disabled={!editable} onClick={() => edit((c) => update(c, [l.id], () => ({ locked: !l.locked || undefined })))} aria-label={l.locked ? `Unlock ${l.name}` : `Lock ${l.name}`}>{l.locked ? "🔒" : "🔓"}</button>
@@ -381,6 +381,8 @@ export function LayersPanel({ comp, selected, editable, library, onSelect, edit,
           )}
           {one.type === "image" && (
             <div className="flex flex-col gap-1 text-xs">
+              <label className="flex items-start gap-1"><input type="checkbox" className="mt-0.5" checked={!!one.guide} onChange={(e) => set({ guide: e.target.checked || undefined })} />
+                <span>Only to draw from (shown faded here, not part of the finished frame or exports)</span></label>
               <p className="label">Cutouts</p>
               <p className="text-muted">{one.masks?.length ? `${one.masks.length} drawn ${one.masks.length === 1 ? "cutout" : "cutouts"}. ` : ""}Use the Lasso to draw around what to keep, or switch it to Cut away. You draw the edge; nothing is detected automatically. The original picture is never changed.</p>
               {!!one.masks?.length && (

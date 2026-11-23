@@ -104,7 +104,7 @@ function layerSvg(l: Layer, mode: "vector" | "mixed", images: Map<string, string
 /** Build an SVG of one frame. images: assetId → data:image/png|jpeg;base64 (mixed mode only). */
 export function buildSvg(c: Composition, mode: "vector" | "mixed", images: Map<string, string> = new Map()): SvgResult {
   const H = frameH(c), m = framingMatrix(c), leftOut: string[] = [];
-  const layers = c.layers.filter((l) => !l.hidden).map((l, i) => layerSvg(l, mode, images, leftOut, `L${i}`)).join("");
+  const layers = c.layers.filter((l) => !l.hidden && !l.guide).map((l, i) => layerSvg(l, mode, images, leftOut, `L${i}`)).join("");
   const svg = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${FRAME_W} ${n(H)}" width="${FRAME_W}" height="${n(H)}">` +
     `<clipPath id="frame"><rect width="${FRAME_W}" height="${n(H)}"/></clipPath>` +
     `<rect width="${FRAME_W}" height="${n(H)}" fill="${col(c.bg, "#ffffff")}"/>` +

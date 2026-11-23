@@ -101,10 +101,12 @@ export function ComposeCanvas({ comp, images, selected, tool, pen, showLook, edi
     const c = pic.current;
     if (!c) return;
     const px = Math.min(2400, Math.round(width * (window.devicePixelRatio || 1)));
-    const shown = display ? display(comp) : comp;
-    renderComposition(c, shown, images, px, { look: false, preview: true, captureWidthMm });
+    const base = display ? display(comp) : comp;
+    // Pictures to draw from show faded; they aren't part of the finished frame.
+    const shown = base.layers.some((l) => l.guide) ? { ...base, layers: base.layers.map((l) => (l.guide ? { ...l, opacity: Math.min(l.opacity ?? 1, 0.35) } : l)) } : base;
+    renderComposition(c, shown, images, px, { look: false, preview: true, captureWidthMm, guides: true });
     if (!showLook || dragging) return;
-    const t = setTimeout(() => renderComposition(c, shown, images, px, { look: true, preview: true, captureWidthMm }), 120);
+    const t = setTimeout(() => renderComposition(c, shown, images, px, { look: true, preview: true, captureWidthMm, guides: true }), 120);
     return () => clearTimeout(t);
   }, [comp, images, width, showLook, dragging, captureWidthMm, display]);
 

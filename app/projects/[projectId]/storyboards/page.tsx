@@ -7,6 +7,7 @@ import { IconFrames } from "@/components/icons";
 import { CardThumb } from "@/components/storyboard/card-thumb";
 import { ASPECTS } from "@/lib/storyboard/camera";
 import { cleanComposition } from "@/lib/storyboard/compose";
+import { loadTraces } from "@/lib/storyboard/traces-data";
 import { createStoryboard } from "../storyboard-actions";
 import { getProjectShell, getScreenplay } from "@/lib/data";
 import { scriptScenes } from "@/lib/storyboard/review";
@@ -32,6 +33,8 @@ export default async function StoryboardsPage({ params, searchParams }: {
     : { data: [] as { sequence_id: string; position: number; content: unknown; composition: unknown; state: string }[] };
   const { data: lib } = await sb.from("storyboard_library").select("id, asset_id").eq("project_id", projectId);
   const libAsset = new Map((lib ?? []).map((i) => [i.id, i.asset_id as string | null]));
+  const firsts = ids.map((id) => (shots ?? []).find((x) => x.sequence_id === id)).filter(Boolean).map((x) => cleanComposition(x!.composition));
+  const traces = await loadTraces(sb, firsts);
   const body = String((sp as { versions?: { content: { body?: string } }[] } | null)?.versions?.[0]?.content?.body ?? "");
   const scenes = scriptScenes(body);
   const canEdit = !!shell.caps.can_edit;
@@ -119,7 +122,7 @@ export default async function StoryboardsPage({ params, searchParams }: {
                 <li key={s.id}>
                   <Link href={`/projects/${projectId}/storyboards/${s.id}`} className="panel flex h-full flex-col hover:border-text">
                     <div className="aspect-video w-full overflow-hidden bg-line/40">
-                      {thumb ? <CardThumb comp={thumb} /> : <div className="flex size-full items-center justify-center text-muted"><IconFrames className="size-8" /></div>}
+                      {thumb ? <CardThumb comp={thumb} traces={traces} /> : <div className="flex size-full items-center justify-center text-muted"><IconFrames className="size-8" /></div>}
                     </div>
                     <div className="flex flex-col gap-1 p-3">
                       <p className="font-semibold">{s.title}</p>
